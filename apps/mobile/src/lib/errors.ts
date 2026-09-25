@@ -15,9 +15,12 @@ export function mapSupabaseError(error: { code?: string; message?: string } | nu
 }
 
 const AUTH_MESSAGES: Record<string, string> = {
-  invalid_credentials: 'Incorrect email or password.',
-  user_already_exists: 'An account with that email already exists — try signing in instead.',
-  weak_password: 'Password needs to be at least 6 characters.',
+  // GoTrue reuses this one code for a wrong code, an expired code, and an already-used code —
+  // don't try to distinguish them, one message covers all three (Supabase docs; unverified
+  // against a live SMTP relay from here — see docs/DECISIONS.md).
+  otp_expired: "That code's wrong or expired — request a new one.",
+  over_email_send_rate_limit: 'Too many codes sent — wait a bit and try again.',
+  over_request_rate_limit: 'Too many attempts — wait a moment and try again.',
 };
 
 /** GoTrue (Supabase Auth) errors carry their own human-readable message — the RPC error map doesn't apply here. */

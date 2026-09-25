@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,8 +10,15 @@ import { useTheme } from '@/hooks/use-theme';
 import { mapAuthError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 
-export default function SignIn() {
+/**
+ * Fallback door, not the front door. Patient sign-in is email OTP (see `(auth)/index.tsx`) —
+ * this password path exists only because OTP delivery couldn't be verified end-to-end against
+ * a live SMTP relay as of this build (see docs/DECISIONS.md). Remove once OTP is confirmed
+ * working end to end and this route is no longer needed as a safety net.
+ */
+export default function PasswordFallback() {
   const theme = useTheme();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -30,9 +37,9 @@ export default function SignIn() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="displayMd">Welcome back</ThemedText>
+        <ThemedText type="headingLg">Password sign-in (fallback)</ThemedText>
         <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
-          Sign in to take a token or check your queue position.
+          Only works for accounts that already have a password set.
         </ThemedText>
 
         <TextInput
@@ -75,11 +82,11 @@ export default function SignIn() {
           )}
         </Pressable>
 
-        <Link href="/(auth)/sign-up" style={styles.link}>
+        <Pressable onPress={() => router.replace('/(auth)')} style={styles.link}>
           <ThemedText type="bodySm" themeColor="primary">
-            New here? Create an account
+            Back to email code sign-in
           </ThemedText>
-        </Link>
+        </Pressable>
       </SafeAreaView>
     </ThemedView>
   );
