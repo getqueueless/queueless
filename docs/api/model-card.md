@@ -108,7 +108,54 @@ sizes, so the threshold did not need retuning.
 - Cold-start for a brand-new service/hour combination is handled by the fallback above, not
   by the model extrapolating.
 
-## Retrain plan (once real data exists)
+## Real-data retrain — `POST /admin/retrain` (admin only)
+
+The retrain path below this bullet is **built**, not just planned — the "Retrain plan" section
+that followed it was written before this endpoint existed; kept below as the record of what it
+was building toward.
+
+- **Trigger.** Admin-role JWT, rate-limited to 1 request per 10 minutes per client. Runs as a
+  background task; the server returns `202 {"status": "started"}` immediately, and the outcome
+  (new `version`, `trained_on: "real"`) becomes observable via `GET /admin/model` once it lands.
+- **Data.** `SELECT service_id, created_at, called_at, number, counter_id FROM tokens WHERE
+  called_at IS NOT NULL` — a token carries a real wait time the moment it's been called,
+  regardless of what happened after (`called`/`serving`/`done`/`no_show` all qualify; `waiting`/
+  `skipped`/`cancelled` never got called and carry no signal).
+- **Threshold.** Refuses with `{"status": "insufficient_real_data", "rows_found": N,
+  "rows_required": 500}` below 500 qualifying rows — small enough to be reachable early, large
+  enough to be more than noise across 4 services. Below the threshold, nothing is touched: the
+  currently-loaded model keeps serving.
+- **Feature derivation, and the two real limits in it, stated honestly:**
+  - `queue_len_ahead = number - 1`. `number` is strictly sequential per `(service_id,
+    service_day)` — a real, if imperfect, stand-in (ignores priority-lane reordering).
+  - `counters_open`: nothing queueless_api can read carries a historical open-counters value at
+    all — no grant on `counters`, and `board_services` has no such column either. Proxy used:
+    distinct non-null `counter_id` actually seen for that service on that calendar day (from
+    `tokens`, already granted), floored at 1. `ponytail:` this undercounts a counter that opened
+    but served nobody that day, and can't see a counter added after the fact for past rows —
+    upgrade path is replaying `counters_audit` (`supabase/migrations/0025`) for a real per-row
+    historical value, if that ceiling ever matters more than the cost of building it.
+- **Idempotent, replica-safe.** `pg_try_advisory_xact_lock` (transaction-scoped, auto-releases on
+  commit/rollback or a mid-retrain crash) — a second concurrent call while one is running gets
+  `{"status": "already_running"}`, not a duplicate or corrupted retrain.
+- **Atomic swap.** New model + `model_meta.json` are written to a temp path, then `os.replace()`'d
+  onto the live path (atomic on POSIX same-filesystem renames) — a concurrent `/predict` request
+  can never observe a half-written file.
+- **Version tracking.** `model_meta.json` gained `"version"` (bumped on every successful train,
+  synthetic or real) and `"trained_on"` (`"synthetic"` or `"real"`) so `GET /admin/model` and this
+  card can both say, honestly, what's currently loaded and where it came from.
+- **Audit trail is best-effort.** Writes one `audit_log` row per successful retrain — but
+  `queueless_api` has no `INSERT` grant on `audit_log` as of `supabase/migrations/0018`, so that
+  insert is wrapped, logs a loud warning on `InsufficientPrivilegeError`, and does **not** fail
+  the retrain itself (the model swap is the feature; the audit row is a nice-to-have blocked on a
+  grant this service can't add itself — see `docs/api/threat-model.md`'s residual risk section).
+- **A discovered NaN bug, fixed at the root.** A service with zero rows in a given split (a real
+  scenario for a service with little history yet) produced `NaN` in the per-service breakdown
+  dicts — not valid JSON, and exactly what broke the `audit_log` insert above while this was being
+  tested. Fixed in `scripts/train_core.py` (the shared core both this endpoint and
+  `scripts/train.py` call) to report `None` instead — the honest value for "no data yet."
+
+## Retrain plan (superseded by the section above — kept for the record)
 
 1. Once N weeks of live token completions exist per service (a token going from `waiting` to
    `done`/`no_show` carries the real wait time), replace `scripts/generate_training_data.py`
