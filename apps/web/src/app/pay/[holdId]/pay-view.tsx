@@ -272,12 +272,14 @@ export function PayView({
 
   async function handleCancelBooking() {
     setCancelBusy(true)
-    const { error: rpcError } =
-      hold.kind === "token"
-        ? await supabase.rpc("cancel_token", { p_token: holdId })
-        : await supabase.rpc("cancel_appointment", { p_appointment: holdId })
+    setError(null)
+    const { error: rpcError } = await supabase.rpc("cancel_hold", { p_id: holdId })
     setCancelBusy(false)
-    if (!rpcError) setPhase("cancelled")
+    if (rpcError) {
+      setError("Could not cancel. Please try again.")
+      return
+    }
+    setPhase("cancelled")
   }
 
   const feeInr = hold.fee_inr ?? 0

@@ -1,5 +1,5 @@
 begin;
-select plan(47);
+select plan(52);
 
 insert into public.organizations (id, slug, name, timezone) values
   ('a0000000-0000-0000-0000-000000000180', 't-180-a', 'Payments Org A', 'Asia/Kolkata'),
@@ -20,7 +20,8 @@ select 'f0000000-0000-0000-0000-000000000182', private.service_day('a0000000-000
 insert into auth.users (id, email) values
   ('11100000-0000-0000-0000-000000000180', 'p180@queueless.test'),
   ('11100000-0000-0000-0000-000000000181', 'admin180@queueless.test'),
-  ('11100000-0000-0000-0000-000000000182', 'adminB180@queueless.test');
+  ('11100000-0000-0000-0000-000000000182', 'adminB180@queueless.test'),
+  ('11100000-0000-0000-0000-000000000183', 'p183@queueless.test');
 update public.profiles set role = 'admin', org_id = 'a0000000-0000-0000-0000-000000000180' where id = '11100000-0000-0000-0000-000000000181';
 update public.profiles set role = 'admin', org_id = 'b0000000-0000-0000-0000-000000000180' where id = '11100000-0000-0000-0000-000000000182';
 
@@ -315,6 +316,77 @@ select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-
 select is(
   (select count(*)::int from public.my_payment_status((select token_id from cap180), null)),
   0, 'a different patient (even an org admin) gets no rows from my_payment_status for someone else''s token'
+);
+reset role;
+
+-- 0059: patient-cancelling a PAID (booked, captured) appointment auto-refunds only when the
+-- slot is still 2+ hours away; a later cancellation is flagged but nothing else touches it (an
+-- admin can still refund manually, same as any other admin-approved case).
+insert into public.doctors (id, org_id, service_id, name, specialty, fee_inr, active) values
+  ('f0000000-0000-0000-0000-000000000184', 'a0000000-0000-0000-0000-000000000180', 'c0000000-0000-0000-0000-000000000180', 'Dr. Cancel', 'Gen', 500, true);
+insert into public.appointment_slots (id, service_id, doctor_id, starts_at, capacity, booked) values
+  ('d0000000-0000-0000-0000-000000000184', 'c0000000-0000-0000-0000-000000000180', 'f0000000-0000-0000-0000-000000000184', now() + interval '3 hours', 1, 0),
+  ('d0000000-0000-0000-0000-000000000185', 'c0000000-0000-0000-0000-000000000180', 'f0000000-0000-0000-0000-000000000184', now() + interval '1 hour', 1, 0);
+
+-- A fresh patient (183) for this block -- 180 already has 3 appointments today (its own daily
+-- create-limit), so a 4th start_paid_appointment for 180 would hit queue_full unrelated to what
+-- this section is actually testing.
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000183', 'role', 'authenticated')::text, true);
+select public.complete_my_profile('Cancel Tester', '+919876501830', '1992-02-02', 'other', 'Amritsar');
+create temp table apptFarHold as select * from public.start_paid_appointment('d0000000-0000-0000-0000-000000000184');
+grant select on apptFarHold to public;
+reset role;
+grant queueless_api to postgres with set true;
+set local role queueless_api;
+create temp table apptFarOrd as select * from public.record_order(null, (select id from apptFarHold), 'order_farcancel', 500);
+create temp table apptFarCap as select * from public.confirm_payment('order_farcancel', 'pay_farcancel', 500);
+grant select on apptFarCap to public;
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000183', 'role', 'authenticated')::text, true);
+select public.cancel_appointment((select id from apptFarHold));
+reset role;
+select is(
+  (select cancel_refund_eligible from public.payments where razorpay_order_id = 'order_farcancel'),
+  true, 'cancelling a paid appointment 2+ hours before the slot flags the payment auto-refund eligible'
+);
+grant queueless_api to postgres with set true;
+set local role queueless_api;
+select is(
+  (select count(*)::int from private.doctor_leave_refund_candidates() where payment_id = (select id from apptFarCap)),
+  1, 'that flagged payment is picked up as a refund candidate'
+);
+select is(
+  (select reason from private.doctor_leave_refund_candidates() where payment_id = (select id from apptFarCap)),
+  'cancelled 2+ hours before the appointment', 'the candidate carries the right reason, not the doctor-leave one'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000183', 'role', 'authenticated')::text, true);
+create temp table apptSoonHold as select * from public.start_paid_appointment('d0000000-0000-0000-0000-000000000185');
+grant select on apptSoonHold to public;
+reset role;
+grant queueless_api to postgres with set true;
+set local role queueless_api;
+create temp table apptSoonOrd as select * from public.record_order(null, (select id from apptSoonHold), 'order_sooncancel', 500);
+create temp table apptSoonCap as select * from public.confirm_payment('order_sooncancel', 'pay_sooncancel', 500);
+grant select on apptSoonCap to public;
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000183', 'role', 'authenticated')::text, true);
+select public.cancel_appointment((select id from apptSoonHold));
+reset role;
+select is(
+  (select cancel_refund_eligible from public.payments where razorpay_order_id = 'order_sooncancel'),
+  false, 'cancelling a paid appointment less than 2 hours before the slot does NOT flag an auto-refund'
+);
+grant queueless_api to postgres with set true;
+set local role queueless_api;
+select is(
+  (select count(*)::int from private.doctor_leave_refund_candidates() where payment_id = (select id from apptSoonCap)),
+  0, 'that unflagged payment is not a refund candidate'
 );
 reset role;
 

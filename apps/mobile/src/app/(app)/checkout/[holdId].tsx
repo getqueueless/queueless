@@ -134,12 +134,14 @@ export default function CheckoutScreen() {
   async function handleCancel() {
     if (!hold) return;
     setCancelBusy(true);
-    const { error } =
-      hold.kind === 'token'
-        ? await supabase.rpc('cancel_token', { p_token: hold.id })
-        : await supabase.rpc('cancel_appointment', { p_appointment: hold.id });
+    setNotice(null);
+    const { error } = await supabase.rpc('cancel_hold', { p_id: hold.id });
     setCancelBusy(false);
-    if (!error) setPhase('cancelled');
+    if (error) {
+      setNotice('Could not cancel. Please try again.');
+      return;
+    }
+    setPhase('cancelled');
   }
 
   if (phase === 'loading') {

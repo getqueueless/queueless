@@ -1,6 +1,7 @@
-"""Auto-refund job: periodically finds captured payments whose doctor has
-gone on leave today (private.doctor_leave_refund_candidates, 0052) and
-refunds each one through Razorpay + record_refund. Same
+"""Auto-refund job: periodically finds captured payments eligible for an automatic refund
+(private.doctor_leave_refund_candidates, 0052/0059 -- the doctor went on leave, or the patient
+cancelled a paid appointment 2+ hours before the slot) and refunds each one through Razorpay +
+record_refund, using the candidate's own `reason` rather than a hardcoded one. Same
 pg_try_advisory_xact_lock pattern app/routes/admin.py's retrain_once uses --
 transaction-scoped, auto-releases on commit/rollback, safe across N
 replicas with no manual unlock path."""
@@ -42,7 +43,7 @@ async def refund_doctor_leave_candidates_once(pool: asyncpg.Pool, client: Razorp
 
                 updated = await conn.fetchrow(
                     "SELECT * FROM record_refund($1, $2, $3, $4)",
-                    row["payment_id"], refund["id"], "doctor on leave", None,
+                    row["payment_id"], refund["id"], row["reason"], None,
                 )
                 # record_refund returns the SQL NULL payments composite on
                 # rejection -- `SELECT * FROM fn()` unpacks that into one row

@@ -265,7 +265,8 @@ CREATE TABLE IF NOT EXISTS payments (
     refund_reason text,
     captured_at timestamptz,
     refunded_at timestamptz,
-    created_at timestamptz NOT NULL DEFAULT now()
+    created_at timestamptz NOT NULL DEFAULT now(),
+    cancel_refund_eligible boolean NOT NULL DEFAULT false
 );
 
 CREATE SCHEMA IF NOT EXISTS private;
@@ -367,9 +368,9 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION doctor_leave_refund_candidates()
-RETURNS TABLE(payment_id uuid, token_id uuid, doctor_id uuid, org_id uuid, razorpay_payment_id text, amount_inr int)
+RETURNS TABLE(payment_id uuid, token_id uuid, doctor_id uuid, org_id uuid, razorpay_payment_id text, amount_inr int, reason text)
 LANGUAGE sql STABLE AS $$
-  SELECT p.id, p.token_id, t.doctor_id, p.org_id, p.razorpay_payment_id, p.amount_inr
+  SELECT p.id, p.token_id, t.doctor_id, p.org_id, p.razorpay_payment_id, p.amount_inr, 'doctor on leave'
   FROM payments p
   JOIN tokens t ON t.id = p.token_id
   WHERE p.status = 'captured'
@@ -378,14 +379,19 @@ LANGUAGE sql STABLE AS $$
       WHERE dl.doctor_id = t.doctor_id AND current_date BETWEEN dl.from_date AND dl.to_date
     )
   UNION ALL
-  SELECT p.id, NULL::uuid, a.doctor_id, p.org_id, p.razorpay_payment_id, p.amount_inr
+  SELECT p.id, NULL::uuid, a.doctor_id, p.org_id, p.razorpay_payment_id, p.amount_inr, 'doctor on leave'
   FROM payments p
   JOIN appointments a ON a.id = p.appointment_id
   WHERE p.status = 'captured'
     AND EXISTS (
       SELECT 1 FROM doctor_leaves dl
       WHERE dl.doctor_id = a.doctor_id AND current_date BETWEEN dl.from_date AND dl.to_date
-    );
+    )
+  UNION ALL
+  SELECT p.id, NULL::uuid, a.doctor_id, p.org_id, p.razorpay_payment_id, p.amount_inr, 'cancelled 2+ hours before the appointment'
+  FROM payments p
+  JOIN appointments a ON a.id = p.appointment_id
+  WHERE p.status = 'captured' AND p.cancel_refund_eligible;
 $$;
 """
 
