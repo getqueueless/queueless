@@ -9,6 +9,12 @@ import { useTheme } from '@/hooks/use-theme';
 import { mapAuthError } from '@/lib/errors';
 import { unregisterPushTokenAsync } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
+import {
+  getLanguagePreference,
+  LANGUAGE_LABELS,
+  setLanguagePreference,
+  type LanguagePreference,
+} from '@/lib/language-preference';
 import { getThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme-preference';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
@@ -17,11 +23,14 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'dark', label: 'Dark' },
 ];
 
+const LANGUAGE_OPTIONS: LanguagePreference[] = ['en', 'hi', 'pa'];
+
 export default function Settings() {
   const theme = useTheme();
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [themePref, setThemePref] = useState(getThemePreference);
+  const [languagePref, setLanguagePref] = useState(getLanguagePreference);
 
   async function handleSignOut() {
     setError(null);
@@ -44,6 +53,11 @@ export default function Settings() {
     setThemePref(pref);
   }
 
+  function handleLanguagePress(pref: LanguagePreference) {
+    setLanguagePreference(pref);
+    setLanguagePref(pref);
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -54,22 +68,32 @@ export default function Settings() {
         <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
           Language
         </ThemedText>
-        <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
-          <View style={[styles.languageRow, { borderColor: theme.hairline }]}>
-            <ThemedText type="bodyLg">English</ThemedText>
-            <ThemedView type="primary" style={styles.activePill}>
-              <ThemedText type="caption" themeColor="onPrimary">
-                Active
-              </ThemedText>
-            </ThemedView>
-          </View>
-          <View style={[styles.languageRow, styles.languageRowLast]}>
-            <ThemedText type="bodyLg" themeColor="inkMuted">
-              हिन्दी (Hindi)
-            </ThemedText>
-            <ThemedText type="caption" themeColor="inkMuted">
-              Coming soon
-            </ThemedText>
+        <ThemedText type="bodySm" themeColor="inkMuted" style={styles.languageNote}>
+          Saved on this device. The rest of the app is English-only for now.
+        </ThemedText>
+        <ThemedView
+          type="surface"
+          style={[styles.card, styles.appearanceCard, CardShadow, { borderColor: theme.hairline }]}>
+          <View style={styles.segmentedRow}>
+            {LANGUAGE_OPTIONS.map((option) => {
+              const selected = languagePref === option;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => handleLanguagePress(option)}
+                  style={[
+                    styles.segment,
+                    {
+                      backgroundColor: selected ? theme.primary : 'transparent',
+                      borderColor: selected ? theme.primary : theme.hairline,
+                    },
+                  ]}>
+                  <ThemedText type="button" themeColor={selected ? 'onPrimary' : 'inkSecondary'}>
+                    {LANGUAGE_LABELS[option]}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
           </View>
         </ThemedView>
 
@@ -137,24 +161,10 @@ const styles = StyleSheet.create({
   title: { marginTop: Spacing.sm, marginBottom: Spacing.lg },
   sectionLabel: { marginBottom: Spacing.xs },
   sectionSpacer: { marginTop: Spacing.lg },
+  languageNote: { marginBottom: Spacing.sm },
   card: {
     borderWidth: 1,
     borderRadius: Rounded.lg,
-  },
-  languageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 44,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-  },
-  languageRowLast: { borderBottomWidth: 0 },
-  activePill: {
-    borderRadius: Rounded.pill,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
   },
   appearanceCard: {
     padding: Spacing.sm,
