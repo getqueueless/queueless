@@ -292,8 +292,8 @@ export function PayView({
 
       <div className={styles.card}>
         <p className={styles.testBanner} role="note">
-          Test payments. No real money moves. Use UPI ID <code>success@razorpay</code> to
-          simulate a successful payment.
+          Test payments. No real money moves. Use card <code>4111 1111 1111 1111</code>, any
+          future expiry, any CVV. (UPI isn&rsquo;t enabled on this account yet.)
         </p>
 
         {error && <p className={styles.error}>{error}</p>}
