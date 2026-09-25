@@ -115,8 +115,11 @@
 }
 
 .langButton {
-  min-width: 2.75em;
-  min-height: 2.75em;
+  /* max() keeps the WCAG 48px tap-target floor on a phone (where .page's
+     clamp() font-size bottoms out at 16px) while still scaling up with the
+     em on a big TV panel. */
+  min-width: max(48px, 2.75em);
+  min-height: max(48px, 2.75em);
   padding: 0.4em 0.9em;
   border: none;
   border-radius: var(--radius-pill);
@@ -307,6 +310,10 @@
   justify-content: center;
   gap: 0.5em;
   padding: 1.2em 1.4em;
+  /* Grid items default to a content-based automatic minimum width, so a
+     nowrap .tokenNumber could otherwise force this tile (and the grid track
+     with it) wider than the viewport. */
+  min-width: 0;
   border: var(--b-border) solid var(--b-line);
   border-radius: 0.75em;
   background: var(--b-tile);
@@ -323,6 +330,11 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  /* An unusually long token code truncates instead of blowing out the tile
+     (paired with .counterTile's min-width: 0). */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Where to go. Sentence-case Poppins at ~40% of the token, so it can't be
