@@ -96,6 +96,32 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   // unscoped list rather than going blank.
   const counterIdsRef = useRef<string[] | null>(null)
 
+  // Translate (if a non-English language is selected) then speak, in that order --
+  // moved above loadCounters (which now calls this directly, see its own comment) so
+  // it's declared before its first use. Any failure -- no API base configured, the
+  // request errors/times out, or the target language has no matching browser voice --
+  // falls back to the plain English line rather than saying nothing.
+  async function resolveAnnouncement(englishText: string, lang: Language): Promise<{ text: string; tag: string }> {
+    if (lang === "en") return { text: englishText, tag: VOICE_TAG.en }
+    const translated = await fetchTranslation(englishText, lang)
+    if (translated && hasVoiceFor(VOICE_TAG[lang])) return { text: translated, tag: VOICE_TAG[lang] }
+    return { text: englishText, tag: VOICE_TAG.en }
+  }
+
+  function playThenAnnounce(englishText: string, lang: Language) {
+    const speak = () => {
+      resolveAnnouncement(englishText, lang).then(({ text, tag }) => announce(text, tag))
+    }
+    const audio = chimeRef.current
+    if (!audio) {
+      speak()
+      return
+    }
+    audio.currentTime = 0
+    audio.onended = speak
+    audio.play().catch(speak)
+  }
+
   const loadBoardService = useCallback(async () => {
     const { data } = await supabase
       .from("board_services")
@@ -107,6 +133,13 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     setBoard((data as BoardService | null) ?? null)
   }, [serviceId])
 
+  // Also owns the "newly called, not yet announced" check (moved in from the old
+  // postgres_changes handler): the token:<id>/service:<id> broadcast (migration 0044,
+  // docs/API_CONTRACT.md) only signals "something changed for this service", not which
+  // counter or what changed, so every consumer of a change (broadcast, the 10s poll)
+  // has to re-fetch and diff against announcedRef itself rather than reading it off an
+  // event payload. The init effect below fetches board_counters directly (not through
+  // here) so its first-paint seed of announcedRef stays silent, as before.
   const loadCounters = useCallback(async () => {
     let query = supabase
       .from("board_counters")
@@ -118,8 +151,15 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     const { data } = await query
     const rows = (data as BoardCounter[] | null) ?? []
     setCounters(rows)
+    for (const row of rows) {
+      if (!row.token_code || row.token_status !== "called") continue
+      if (announcedRef.current.get(row.counter_id) === row.token_code) continue
+      announcedRef.current.set(row.counter_id, row.token_code)
+      if (!soundEnabled || !serviceCode || !row.token_code.startsWith(`${serviceCode}-`)) continue
+      playThenAnnounce(announcementText(row.token_code, row.counter_name), language)
+    }
     return rows
-  }, [])
+  }, [soundEnabled, serviceCode, language])
 
   // Best-effort label + code for voice scoping. `services` is documented as signed-in-only
   // (supabase/README.md), so anon access here is expected to eventually fail once RLS
@@ -216,62 +256,22 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     }
   }, [serviceId])
 
-  // Translate (if a non-English language is selected) then speak, in that
-  // order -- but this only ever runs after the board's own visual state is
-  // already updated (onCounterEvent calls loadCounters() first, synchronously,
-  // regardless of how this resolves). Any failure -- no API base configured,
-  // the request errors/times out, or the target language has no matching
-  // browser voice -- falls back to the plain English line rather than saying
-  // nothing.
-  async function resolveAnnouncement(englishText: string, lang: Language): Promise<{ text: string; tag: string }> {
-    if (lang === "en") return { text: englishText, tag: VOICE_TAG.en }
-    const translated = await fetchTranslation(englishText, lang)
-    if (translated && hasVoiceFor(VOICE_TAG[lang])) return { text: translated, tag: VOICE_TAG[lang] }
-    return { text: englishText, tag: VOICE_TAG.en }
-  }
-
-  function playThenAnnounce(englishText: string, lang: Language) {
-    const speak = () => {
-      resolveAnnouncement(englishText, lang).then(({ text, tag }) => announce(text, tag))
-    }
-    const audio = chimeRef.current
-    if (!audio) {
-      speak()
-      return
-    }
-    audio.currentTime = 0
-    audio.onended = speak
-    audio.play().catch(speak)
-  }
-
-  const onCounterEvent = useCallback(
-    (payload: { new?: BoardCounter }) => {
-      loadCounters()
-      const row = payload.new
-      if (!row?.token_code || row.token_status !== "called") return
-      if (announcedRef.current.get(row.counter_id) === row.token_code) return
-      announcedRef.current.set(row.counter_id, row.token_code)
-      if (!soundEnabled || !serviceCode || !row.token_code.startsWith(`${serviceCode}-`)) return
-      playThenAnnounce(announcementText(row.token_code, row.counter_name), language)
-    },
-    [loadCounters, soundEnabled, serviceCode, language],
-  )
-
-  const onServiceEvent = useCallback(() => {
+  // docs/API_CONTRACT.md "Realtime topics" (migration 0044): the DB only broadcasts a
+  // token:<id> topic (per-patient) and a service:<id> topic (per-service) -- there is no
+  // separate board_counters broadcast, and the payload deliberately carries none of
+  // counter_name/token_code/token_status. So this is a pure "something changed for this
+  // service, go re-fetch" signal: any token_update on service:<serviceId> re-runs both
+  // loadBoardService and loadCounters (which now also owns the announce-on-newly-called
+  // check, since there's no per-counter payload to read that off of any more).
+  const onServiceUpdate = useCallback(() => {
     loadBoardService()
-  }, [loadBoardService])
+    loadCounters()
+  }, [loadBoardService, loadCounters])
 
   useResilientChannel({
-    channelName: `display-board-services-${serviceId}`,
-    table: "board_services",
-    filter: `service_id=eq.${serviceId}`,
-    onEvent: onServiceEvent,
-  })
-
-  useResilientChannel({
-    channelName: "display-board-counters",
-    table: "board_counters",
-    onEvent: onCounterEvent,
+    channelName: `service:${serviceId}`,
+    broadcastEvent: "token_update",
+    onEvent: onServiceUpdate,
   })
 
   // Fallback for QA #1 -- same reasoning as t/[id]/status-view.tsx: a 10s poll plus a
