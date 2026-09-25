@@ -34,8 +34,9 @@ async function fetchOrgMembers(orgId: string) {
     .order('full_name', { ascending: true, nullsFirst: false });
 }
 
-function memberLabel(p: Pick<ProfileRow, 'full_name' | 'phone'>): string {
-  return p.full_name?.trim() || p.phone || 'Unnamed profile';
+// Prod staff accounts are seeded with no name or phone; the id prefix keeps them apart.
+function memberLabel(p: Pick<ProfileRow, 'id' | 'full_name' | 'phone'>): string {
+  return p.full_name?.trim() || p.phone || `Unnamed (${p.id.slice(0, 8)})`;
 }
 
 export default function AdminStaff() {
