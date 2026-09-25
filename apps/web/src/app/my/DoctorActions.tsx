@@ -14,6 +14,11 @@ import ui from "./_components/ui.module.css"
 
 const FIRST_SLOTS = 6
 
+// start_paid_appointment's own codes (0057/0068) that errorInfo does not map.
+const HOLD_ERRORS: Record<string, string> = {
+  too_many_holds: "You already have 2 unpaid bookings. Pay or cancel one first.",
+}
+
 // "Today, 5:00 PM" -> ["Today", "5:00 PM"]; slots arrive soonest first, so
 // consecutive runs share a day.
 function byDay(slots: Slot[]): { day: string; slots: (Slot & { time: string })[] }[] {
@@ -33,25 +38,25 @@ function DoctorCard({ doctor: d }: { doctor: DashboardDoctor }) {
   const [open, setOpen] = useState(false)
   const [more, setMore] = useState(false)
   const [pending, setPending] = useState<string | null>(null)
-  const [booked, setBooked] = useState<Slot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const panelId = useId()
   const a = d.availability
   const off = !a.bookable
   const next = d.slots[0]
 
+  // Booking is paid (0068): hold the slot for 10 minutes, then pay on /pay/<id>.
   async function book(slot: Slot) {
     setError(null)
     setPending(slot.id)
-    const { error: rpcError } = await supabase.rpc("book_appointment", { p_slot: slot.id })
-    setPending(null)
-    if (rpcError) {
-      setError(errorInfo(rpcError.code || rpcError.message).message)
+    const { data, error: rpcError } = await supabase.rpc("start_paid_appointment", { p_slot: slot.id })
+    if (rpcError || !data?.id) {
+      const code = rpcError?.code ?? ""
+      const known = errorInfo(code)
+      setError(HOLD_ERRORS[code] ?? (known.http !== 500 ? known.message : rpcError?.message || known.message))
+      setPending(null)
       return
     }
-    setBooked(slot)
-    setOpen(false)
-    router.refresh()
+    router.push(`/pay/${data.id}`)
   }
 
   return (
@@ -99,11 +104,6 @@ function DoctorCard({ doctor: d }: { doctor: DashboardDoctor }) {
       </dl>
 
       {off && <p className={styles.reason}>{a.kind === "leave" ? `Reason: ${a.reason}` : a.reason}</p>}
-      {booked && (
-        <p className={styles.booked} role="status">
-          Booked for {booked.label}. It is in your appointments below.
-        </p>
-      )}
 
       <div className={styles.actions}>
         {off ? (
@@ -123,7 +123,7 @@ function DoctorCard({ doctor: d }: { doctor: DashboardDoctor }) {
           disabled={off || d.slots.length === 0}
           onClick={() => setOpen((v) => !v)}
         >
-          {open ? "Hide times" : "Book slot"}
+          {open ? "Hide times" : `Book · ₹${d.feeInr}`}
         </button>
       </div>
 
@@ -138,10 +138,10 @@ function DoctorCard({ doctor: d }: { doctor: DashboardDoctor }) {
                     type="button"
                     className={styles.pill}
                     disabled={pending !== null}
-                    aria-label={`Book ${s.label}`}
+                    aria-label={`Book ${s.label}, pay ₹${d.feeInr}`}
                     onClick={() => book(s)}
                   >
-                    {pending === s.id ? "Booking…" : s.time}
+                    {pending === s.id ? "Holding…" : s.time}
                   </button>
                 </li>
               ))}

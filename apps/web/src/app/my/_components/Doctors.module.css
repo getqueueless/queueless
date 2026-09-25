@@ -255,15 +255,6 @@
   font-size: 14px;
 }
 
-.booked {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-md);
-  background: var(--color-success-soft);
-  color: var(--color-success);
-  font-size: 14px;
-  font-weight: 700;
-}
-
 /* ---------- actions ---------- */
 
 .actions {
