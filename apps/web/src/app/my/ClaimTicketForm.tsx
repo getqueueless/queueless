@@ -20,7 +20,9 @@ export function ClaimTicketForm() {
     setPending(true)
     setError(null)
 
-    const result = await claimOfflineToken(supabase, { tokenCode: code.trim() })
+    // Codes are stored upper-case; "opd-014 " would fail and burn one of the
+    // 5-an-hour attempts, so normalise before it ever reaches the server.
+    const result = await claimOfflineToken(supabase, { tokenCode: code.trim().toUpperCase() })
 
     if (!result.ok) {
       setError("available" in result ? "Server updating, retry shortly" : errorInfo(result.error).message)
@@ -43,18 +45,22 @@ export function ClaimTicketForm() {
           id="claim-code"
           name="code"
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="e.g. OPD-014"
           autoComplete="off"
           autoCapitalize="characters"
           spellCheck={false}
           required
+          aria-describedby="claim-hint"
           className={styles.claimInput}
         />
         <button type="submit" disabled={pending || !code.trim()} className={styles.claimSubmit}>
           {pending ? "Checking…" : "Claim"}
         </button>
       </div>
+      <p id="claim-hint" className={styles.claimHint}>
+        The phone number on the slip must match the phone number in your profile.
+      </p>
       {error && <p role="alert" className={styles.claimError}>{error}</p>}
     </form>
   )

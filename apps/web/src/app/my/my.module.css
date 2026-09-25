@@ -296,6 +296,12 @@
   cursor: not-allowed;
 }
 
+.claimHint {
+  color: var(--color-ink-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .claimError {
   color: var(--color-danger);
   font-size: 13px;
