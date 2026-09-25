@@ -24,7 +24,12 @@ export function LoginForm({ next }: { next: string }) {
 
       {state.error && (
         <div ref={errorRef} role="alert" tabIndex={-1} className={styles.errorSummary}>
-          {state.error}
+          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" className={styles.errorIcon}>
+            <circle cx="10" cy="10" r="8.25" />
+            <path d="M10 5.75v5" />
+            <circle cx="10" cy="14" r="0.6" />
+          </svg>
+          <span>{state.error}</span>
         </div>
       )}
 
@@ -37,6 +42,7 @@ export function LoginForm({ next }: { next: string }) {
           name="email"
           type="email"
           autoComplete="username"
+          spellCheck={false}
           required
           aria-invalid={state.fieldErrors.email ? "true" : undefined}
           aria-describedby={state.fieldErrors.email ? "email-error" : undefined}
