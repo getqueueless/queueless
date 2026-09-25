@@ -1,5 +1,5 @@
 begin;
-select plan(31);
+select plan(44);
 
 insert into public.organizations (id, slug, name, timezone) values
   ('a0000000-0000-0000-0000-000000000180', 't-180-a', 'Payments Org A', 'Asia/Kolkata'),
@@ -89,10 +89,10 @@ grant usage on schema extensions to queueless_api;
 set local role queueless_api;
 
 select ok(
-  (select public.record_order((select id from hold180), 'order_bad', 499)) is null,
+  (select public.record_order((select id from hold180), null, 'order_bad', 499)) is null,
   'record_order rejects an amount that does not match the token''s fee'
 );
-create temp table ord180 as select * from public.record_order((select id from hold180), 'order_180', 500);
+create temp table ord180 as select * from public.record_order((select id from hold180), null, 'order_180', 500);
 grant select on ord180 to public;
 select is((select status from ord180), 'created'::public.payment_status, 'record_order creates a payments row in created status');
 
@@ -146,12 +146,11 @@ select ok(
 reset role;
 
 -- housekeeping releases an unpaid hold once it expires, never one still inside its window.
--- A fresh doctor (f183, never touched above) -- f180 is on leave from the block just above, and
--- hold180 is still a live 'waiting' ticket on the SAME service (tokens_one_active is keyed by
--- service, not doctor), so it has to be cleared first or the new hold is blocked as already_active.
+-- A fresh doctor (f183, never touched above) -- the doctor-leave refund above already cancelled
+-- hold180's token (record_refund releases token->cancelled), freeing the service slot, so no
+-- explicit cancel_token is needed here.
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000180', 'role', 'authenticated')::text, true);
-select public.cancel_token((select id from hold180));
 create temp table hold180b as select * from public.start_paid_booking('f0000000-0000-0000-0000-000000000183');
 grant select on hold180b to public;
 reset role;
@@ -199,6 +198,104 @@ select is(
   0, 'the patient who paid cannot read the payments row directly -- admin-only, not owner-read'
 );
 reset role;
+
+-- ---- paid appointments (0055-0057) -----------------------------------
+
+insert into public.appointment_slots (id, service_id, doctor_id, starts_at, capacity, booked) values
+  ('d0000000-0000-0000-0000-000000000180', 'c0000000-0000-0000-0000-000000000180', 'f0000000-0000-0000-0000-000000000182', now() + interval '2 hours', 1, 0),
+  ('d0000000-0000-0000-0000-000000000181', 'c0000000-0000-0000-0000-000000000180', 'f0000000-0000-0000-0000-000000000183', now() + interval '3 hours', 1, 0),
+  ('d0000000-0000-0000-0000-000000000182', 'c0000000-0000-0000-0000-000000000180', 'f0000000-0000-0000-0000-000000000183', now() + interval '4 hours', 1, 0),
+  ('d0000000-0000-0000-0000-000000000183', 'c0000000-0000-0000-0000-000000000180', 'f0000000-0000-0000-0000-000000000183', now() + interval '5 days', 1, 0);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000180', 'role', 'authenticated')::text, true);
+
+select throws_ok(
+  $$ select public.start_paid_appointment('d0000000-0000-0000-0000-000000000180') $$,
+  'PGRST', null, 'a slot for a doctor on leave today cannot be booked-and-paid'
+);
+
+create temp table apptHold180 as select * from public.start_paid_appointment('d0000000-0000-0000-0000-000000000181');
+grant select on apptHold180 to public;
+select is((select status from apptHold180), 'pending_payment'::public.appointment_status, 'start_paid_appointment holds the appointment as pending_payment');
+select is((select fee_inr from apptHold180), 500, 'the appointment fee is copied from the slot''s doctor');
+select is((select booked from public.appointment_slots where id = 'd0000000-0000-0000-0000-000000000181'), 1, 'the slot''s capacity is claimed immediately, before payment');
+reset role;
+
+grant queueless_api to postgres with set true;
+set local role queueless_api;
+create temp table apptOrd180 as select * from public.record_order(null, (select id from apptHold180), 'order_appt180', 500);
+grant select on apptOrd180 to public;
+select is((select status from apptOrd180), 'created'::public.payment_status, 'record_order works for an appointment target too');
+
+create temp table apptCap180 as select * from public.confirm_payment('order_appt180', 'pay_appt180', 500);
+grant select on apptCap180 to public;
+select is((select status from apptCap180), 'captured'::public.payment_status, 'confirm_payment captures an appointment-linked order');
+select is(
+  (select status from public.appointments where id = (select id from apptHold180)),
+  'booked'::public.appointment_status, 'the held appointment becomes a real booking once paid'
+);
+
+create temp table apptRefund180 as select * from public.record_refund((select id from apptCap180), 'rfnd_appt180', 'testing appointment refund release', null);
+grant select on apptRefund180 to public;
+select is((select status from apptRefund180), 'refunded'::public.payment_status, 'record_refund refunds an appointment-linked payment');
+select is(
+  (select status from public.appointments where id = (select id from apptHold180)),
+  'cancelled'::public.appointment_status, 'refunding an appointment payment cancels the booking'
+);
+select is(
+  (select booked from public.appointment_slots where id = 'd0000000-0000-0000-0000-000000000181'),
+  0, 'refunding an appointment payment releases the slot''s claimed capacity'
+);
+reset role;
+
+-- doctor-leave candidate list covers appointments too -- the leave range is derived from the
+-- slot's own starts_at::date so this can't drift on a UTC/IST boundary the way private.service_day
+-- vs a bare ::date cast could (same subtlety already hit once for the token-side fixture above).
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000180', 'role', 'authenticated')::text, true);
+create temp table apptHold180b as select * from public.start_paid_appointment('d0000000-0000-0000-0000-000000000182');
+grant select on apptHold180b to public;
+reset role;
+
+grant queueless_api to postgres with set true;
+set local role queueless_api;
+create temp table apptOrd180b as select * from public.record_order(null, (select id from apptHold180b), 'order_appt180b', 500);
+create temp table apptCap180b as select * from public.confirm_payment('order_appt180b', 'pay_appt180b', 500);
+grant select on apptCap180b to public;
+reset role;
+
+insert into public.doctor_leaves (doctor_id, from_date, to_date)
+select 'f0000000-0000-0000-0000-000000000183', starts_at::date, starts_at::date from public.appointment_slots where id = 'd0000000-0000-0000-0000-000000000182';
+
+grant queueless_api to postgres with set true;
+set local role queueless_api;
+select is(
+  (select count(*)::int from private.doctor_leave_refund_candidates() where payment_id = (select id from apptCap180b)),
+  1, 'a captured appointment payment shows up as a doctor-leave refund candidate too'
+);
+reset role;
+
+-- housekeeping releases an unpaid appointment hold past its window, freeing the slot.
+-- Slot 183, not 182 -- 182's own calendar date is now covered by the doctor-leave insert just
+-- above, which would make a second start_paid_appointment on it fail as doctor_on_leave.
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000180', 'role', 'authenticated')::text, true);
+select public.cancel_appointment((select id from apptHold180b)); -- clear the now-'booked' one first (same service, one-active-per-service)
+create temp table apptHoldExpiring as select * from public.start_paid_appointment('d0000000-0000-0000-0000-000000000183');
+grant select on apptHoldExpiring to public;
+reset role;
+
+update public.appointments set hold_expires_at = now() - interval '1 minute' where id = (select id from apptHoldExpiring);
+select private.housekeeping();
+select is(
+  (select status from public.appointments where id = (select id from apptHoldExpiring)),
+  'cancelled'::public.appointment_status, 'an unpaid appointment hold past hold_expires_at is released by housekeeping'
+);
+select is(
+  (select booked from public.appointment_slots where id = 'd0000000-0000-0000-0000-000000000183'),
+  0, 'housekeeping releases the slot''s claimed capacity along with the cancelled hold'
+);
 
 select * from finish(true);
 rollback;
