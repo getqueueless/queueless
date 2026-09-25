@@ -1,6 +1,10 @@
 -- apps/api claims a row by setting pushed_at (update ... where pushed_at is null), then sends the push.
 alter table public.notifications add column pushed_at timestamptz;
 
+-- Rows from before push delivery existed were never pushed and are stale now. Mark them handled in
+-- this same transaction, or apps/api's poller sends the whole backlog within one tick.
+update public.notifications set pushed_at = now();
+
 create index notifications_unpushed_idx on public.notifications (created_at)
   where pushed_at is null;
 
