@@ -123,6 +123,14 @@ status → friendly-message table.
 Filled in as each function ships (Phase 4 of the implementation plan). Row types match
 their table's columns unless noted.
 
+**Phone numbers.** Every RPC that takes `p_phone` (`complete_my_profile`,
+`staff_register_walkin`) runs it through `private.normalize_in_phone` before validating or
+storing: strips spaces/dashes, accepts a bare 10 digits starting 6-9, a `91`-prefixed, or a
+`+91`-prefixed number, and always stores `+91XXXXXXXXXX`. A number that doesn't match any of
+those three shapes normalizes to `null`, which both callers treat as `invalid_phone`.
+`claim_offline_token` never takes a phone parameter — it only reads `profiles.phone`, already
+normalized by whichever of the two RPCs above wrote it.
+
 ### Patient
 
 - `issue_token(p_service uuid) returns tokens` — mint a walk-in ticket for `p_service`.
@@ -151,13 +159,23 @@ their table's columns unless noted.
   `pa`. Errors: `not_signed_in`, `invalid_language`.
 - `complete_my_profile(p_full_name text, p_phone text, p_date_of_birth date, p_gender
   public.gender, p_city text, p_address_line text default null) returns profiles` — stamps
-  `profile_completed_at`. `p_phone` must be `+91` + a 10-digit number starting 6-9
-  (`^\+91[6-9][0-9]{9}$`), and unique among **patient** profiles (one phone can't back
-  several patient accounts). `p_gender` is `'female' | 'male' | 'other' | 'prefer_not'`.
-  Errors: `not_signed_in`, `invalid_phone`, `phone_taken`, `invalid_date_of_birth`.
+  `profile_completed_at`. `p_phone` is run through `private.normalize_in_phone` first (bare
+  10 digits starting 6-9, `91`-prefixed or `+91`-prefixed, spaces/dashes stripped — see
+  **Phone numbers** below), then stored as the canonical `+91XXXXXXXXXX`; unique among
+  **patient** profiles (one phone can't back several patient accounts). `p_gender` is
+  `'female' | 'male' | 'other' | 'prefer_not'`. Errors: `not_signed_in`, `invalid_phone`,
+  `phone_taken`, `invalid_date_of_birth`.
 - `claim_offline_token(p_token_code text) returns claim_result` — see **Offline ticket
   claim** below; this one does **not** follow the raise-on-error convention every other RPC
   in this file uses.
+- `get_token_status(p_id uuid) returns table(id, number, code, lane, lane_rank, priority_at,
+  status, counter_id, service_id, service_day, created_at, called_at, serving_at,
+  finished_at, people_ahead int)` — the **only** table-shaped read granted to `anon`. Backs
+  `/t/[id]` (a slip's QR code) with the same non-PII field set the page already read
+  directly off `tokens`, plus a computed `people_ahead` (same ordering as the old
+  client-side `countTokensAhead`: lane_rank, then priority_at, then number). Never returns
+  `patient_id`, `walk_in_label`, `doctor_id` or anything else identifying. Errors:
+  `not_found`.
 
 Every patient-facing write RPC that touches a real queue slot now also implicitly returns
 `profile_incomplete` (calls `private.require_complete_profile` right after the sign-in
@@ -424,13 +442,16 @@ erroring or accumulating) but no `delete`. Admins read only their own org.
 
 ## Tables the screens read
 
-Direct `select` only, via RLS — see the matrix in `docs/JUDGE_NOTES.md` § Database for the
-full grant table. In short: `organizations`, `services`, `counters`, `board_services`,
-`board_counters` are readable by anyone signed in (and `board_*` by `anon` too, for the TV
-display). `tokens`, `appointments`, `notifications` are scoped to the caller's own rows
-(patients) or their org (staff/admin). `profiles` and `audit_log` are org-scoped for
-staff/admin only. Admin/staff console views: `admin_service_today`, `admin_counter_today`,
-`admin_hourly`, `staff_queue_today`.
+Direct `select` only, via RLS — see the matrix in `docs/JUDGE_NOTES.md` § Database security
+for the full grant table. In short: `organizations`, `services`, `counters`,
+`board_services`, `board_counters` are readable by anyone signed in (and `board_*` by
+`anon` too, for the TV display). `tokens`, `appointments`, `notifications` are scoped to the
+caller's own rows (patients) or their org (staff/admin) — `tokens` also keeps one
+deliberately temporary `anon` policy for `/t/[id]` and `/pay/[tokenId]`'s direct-by-id reads
+(see **Realtime subscriptions** below for `/t/[id]`'s actual replacement). `profiles` is
+either the caller's own row, or any profile in their own org if the caller is staff/admin;
+`audit_log` is staff/admin of the row's own org only. Admin/staff console views:
+`admin_service_today`, `admin_counter_today`, `admin_hourly`, `staff_queue_today`.
 
 `doctors`, `doctor_schedules`, `doctor_breaks`, `doctor_leaves`, `doctor_status_today` and
 `appointment_slots` are public `select` (`anon` + `authenticated`) — same pattern as
@@ -440,22 +461,51 @@ role including `authenticated`, reachable only through the cash-desk RPCs above.
 
 ## Realtime subscriptions
 
-Subscribe to `postgres_changes`, `INSERT`/`UPDATE` only (queue tables are never deleted from
-in normal operation, and deletes skip RLS entirely so don't rely on them).
+**Correction, found while investigating why live pages weren't updating:** everything below
+describing `postgres_changes` was the intended design, but it never actually worked, on any
+table, for anyone — the self-hosted `supabase_realtime` publication had zero member tables
+(nothing ever ran `alter publication supabase_realtime add table ...`), confirmed empirically,
+not by reading this file. The "scaling note" that used to be here, about switching to
+Broadcast once `postgres_changes` got expensive at scale, was moot: there was nothing to
+scale away from. `tokens` is now fixed with Realtime Broadcast-from-Database instead
+(`0044`); `board_services`/`board_counters` (the TV/counter display, `authenticated`-only
+tables that were never reachable by `anon` in the first place for that use) are still on the
+non-functional `postgres_changes` path below and still need this same fix or a switch to the
+`service:<service_id>` broadcast topic below — flagged, not fixed, in this pass.
+
+`private.tokens_after_write` (the trigger that already runs after every `tokens` insert/
+update) calls `realtime.send(payload, 'token_update', topic, false)` — `private = false`, a
+genuinely public broadcast, no RLS or grant needed to receive it — to two topics per write:
+
+- `service:<service_id>` — the whole queue for a service.
+- `token:<token_id>` — one patient's own ticket.
+
+Payload, both topics, event name `token_update`: `token_id`, `number`, `status`,
+`counter_id`, `updated_at` — deliberately never a name, phone, or any identifier. Full
+contract: `docs/API_CONTRACT.md` § Realtime topics.
 
 ```js
-// TV / counter display — board tables, filtered by org, anon key
+// /t/[id] — a patient's own ticket, anon key, no RLS needed
+supabase.channel(`token:${tokenId}`)
+  .on('broadcast', { event: 'token_update' }, ({ payload }) => { /* ... */ })
+  .subscribe()
+```
+
+Initial page load and full-row reads (status, code, timestamps) go through
+`get_token_status(p_id)` (anon-safe RPC, see **RPCs** § Patient above), not a direct
+`tokens` select — the broadcast payload is deliberately too narrow to repaint a whole screen
+from alone.
+
+Still on `postgres_changes` (`INSERT`/`UPDATE` only; queue tables are never deleted from in
+normal operation, and deletes skip RLS entirely so don't rely on them):
+
+```js
+// TV / counter display — board tables, filtered by org, authenticated key
 supabase.channel('boards')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'board_services',
       filter: `org_id=eq.${orgId}` }, handler)
   .on('postgres_changes', { event: '*', schema: 'public', table: 'board_counters',
       filter: `org_id=eq.${orgId}` }, handler)
-  .subscribe()
-
-// Patient app — own ticket + own notifications, authenticated key
-supabase.channel(`token:${tokenId}`)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'tokens',
-      filter: `id=eq.${tokenId}` }, handler)
   .subscribe()
 
 supabase.channel(`notifications:${userId}`)
@@ -466,11 +516,8 @@ supabase.channel(`notifications:${userId}`)
 
 **Realtime never replays missed events.** Every screen must refetch its snapshot on each
 reconnect (`status === 'SUBSCRIBED'`) and on app foreground, not just rely on the socket
-staying open.
-
-Scaling note: `postgres_changes` checks RLS once per subscriber; past a few thousand
-concurrent screens, switch to Realtime Broadcast (`realtime.broadcast_changes` from a
-trigger) — works self-hosted, no infra change, just not needed at hackathon scale.
+staying open — this was already true and stays true regardless of which mechanism delivers
+the change notification.
 
 ## Seeding prod
 

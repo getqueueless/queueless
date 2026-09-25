@@ -17,8 +17,14 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   labeled fallback. The error codes (`otp_expired`, `over_email_send_rate_limit`) were checked
   against the running GoTrue instance, not just its docs.
 - **Home.** Lists open services (`services where is_open = true`) with a live waiting count from
-  `board_services`, kept current over Supabase Realtime (`postgres_changes` on `board_services`,
-  no polling) and refetched on every reconnect since Realtime never replays missed events. Each
+  `board_services`, meant to stay current over Supabase Realtime (`postgres_changes` on
+  `board_services`, no polling) and refetched on every reconnect since Realtime never replays
+  missed events. **Correction, found in the DB-side realtime pass below:** `postgres_changes`
+  never actually delivered anything, on this table or any other — the self-hosted
+  `supabase_realtime` publication had zero member tables, a gap that predates this note. In
+  practice the "reconnect refetch" was doing all the real work, silently. Not fixed for
+  `board_services` in this pass (see "Live queue updates" below for what was fixed and why this
+  one was left for its own follow-up). Each
   card best-effort calls the optional `/predict` API (1.5s timeout) for a smarter wait estimate,
   labeled "predicted"; if that's slow, down, or not built yet, it falls back to a local
   `waiting_count × avg_service_secs ÷ open_counters` estimate, labeled "estimate" — the queue
@@ -161,21 +167,44 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   the server's raw date it returned nothing for a desk that had, in fact, served someone that
   IST day. Every date-taking analytics function is documented with this trap explicitly named in
   `supabase/README.md`, not left for the next person to rediscover the same way.
-- **What this pass found but did not fix, stated plainly rather than left implicit:** row-level
-  security now covers `organizations`, `services`, `counters`, `board_services`,
-  `board_counters`, `push_tokens`, `notifications`, `ops_summaries` and — closed in the doctors
-  pass below, since it turned out to have carried zero RLS/revokes since its very first
-  migration — `appointment_slots`. It is **still off** on `profiles`, `tokens`, `appointments`
-  and `audit_log` — and on those tables, `anon` and `authenticated` currently hold Postgres's
-  original default grant of full `INSERT/SELECT/UPDATE/DELETE/TRUNCATE`, unrevoked. Concretely:
-  today, a raw signed request with nothing more than the public `anon` key can write directly to
-  `profiles` — including setting its own `role` to `admin` — or to `tokens`, bypassing every
-  RPC's numbering, rate limit and state-machine check entirely. The RPCs remain the only path the
-  real apps ever take, and nothing in this pass depends on that hole being open, but it is real,
-  it is live, and it is not hidden from this document. Closing it is a separate,
-  deliberately-scoped migration (it has to be checked against what `apps/web`'s own direct table
-  reads actually need before it can safely restrict them) — flagged as its own piece of work
-  rather than rushed in alongside this one.
+- **The hole named above is closed. What follows is what is true now, not what was found.** The
+  gap this document used to describe here — `profiles`, `tokens`, `appointments` and `audit_log`
+  carrying Postgres's original default grant of full `INSERT/SELECT/UPDATE/DELETE/TRUNCATE` to
+  `anon`/`authenticated`, with RLS off — was live on prod, found by infra, and hand-hotfixed
+  there directly before it could be exploited (revoking the write grants and `anon`'s read
+  access). That hotfix is now also codified as a real migration (`0063`) so a fresh database
+  matches prod exactly, and every one of those tables now has real row-level security, not just
+  narrower grants: a patient sees only their own rows (`tokens`, `appointments`, `notifications`),
+  staff/admin see only their own organization's rows, and `profiles` closes the specific
+  escalation path that made this serious in the first place — before this pass, any signed-in
+  patient could `PATCH` their own `role` column straight to `admin` over PostgREST, no RPC
+  involved (`0045`). `appointments` and `audit_log` have no `org_id` column of their own; their
+  policies resolve it through `services.org_id` and the row's own `org_id` respectively.
+- **One narrow, temporary, and named exception:** `/t/[id]` (opened from a printed slip's QR) and
+  the payments team's `/pay/[tokenId]` both still do a raw, unauthenticated read of a single token
+  by id — that's the whole point of a slip a stranger can scan. `tokens` keeps one `anon` policy
+  (`tokens_read_anon_temporary`, `using (true)`) that is exactly as wide as `anon`'s original
+  default access already was — not a new hole, a fenced-off remainder of the old one. `/t/[id]`'s
+  replacement is already built and live: `get_token_status(p_id)` (`0048`), a `SECURITY DEFINER`
+  RPC that returns only queue-mechanics fields (status, number, code, counter, timestamps, and a
+  computed `people_ahead`) — never a patient's name, phone, or any identifier — callable by `anon`
+  directly. Once the web team points `/t/[id]` at it, that policy can be dropped. `/pay/[tokenId]`
+  hasn't been asked to move yet.
+- **`payments_ledger` had the same shape of bug.** The view (payments' own migration range) was
+  created without `security_invoker`, so it read straight through `payments`' and
+  `cash_receipts`' RLS as the view owner regardless of who was actually asking — any signed-in
+  patient could read every organization's payment and cash-receipt history through it. Fixed
+  (`0062`): `security_invoker = on`, direct access revoked entirely. (An org's own admin reading
+  the raw `payments` table directly is separate, already-shipped work — `0053`,
+  `payments_admin_read` — landed independently while this migration was in progress; not
+  redone here.) `payments_ledger_report`
+  — the one door this was always meant to have — is unaffected, since it's `SECURITY DEFINER` and
+  runs as its own owner either way.
+- **A permanent regression guard, not a one-time fix.** `197_security_guard.test.sql` runs on
+  every `db:test` and asserts three things directly against the schema catalog: every table in
+  `public` has row-level security on, `anon`/`authenticated` hold no `TRUNCATE`/`TRIGGER`/
+  `REFERENCES` grant anywhere in `public`, and every view in `public` is `security_invoker`. The
+  next table or view that lands without this fails the suite, not a future audit.
 
 ## Mandatory patient profile
 
@@ -947,4 +976,37 @@ under "Web app" above.
   never shows one stage on the web and another in the app. No new library was added: the ring is
   built from two rotating half-circles because the app has no SVG library, and the icons come
   from the symbol set the app already ships.
+## Live queue updates, phone numbers, and staff names (2026-09-26)
+
+- **Live queue updates actually reach anonymous viewers now.** `/t/[id]` (a patient's own ticket,
+  opened from a printed slip's QR) and the TV display board are the two places a real stranger —
+  nobody signed in — watches a queue live. They were both built on Supabase's `postgres_changes`,
+  which never delivered anything: the self-hosted `supabase_realtime` publication had zero member
+  tables, confirmed empirically, not by reading docs. Fixing the publication alone still wouldn't
+  have been enough for `/t/[id]` specifically — `postgres_changes` needs a per-row RLS check
+  against the subscriber, and `tokens` carries columns (which patient, which walk-in) that must
+  never reach an anonymous client. Fixed instead with Realtime's Broadcast-from-Database:
+  `tokens`' own after-write trigger now pushes a small, public, named payload (ticket number,
+  status, which counter, nothing about who) to two topics — one per service (for the display
+  board, once it switches over) and one per ticket (for `/t/[id]`). No PII ever touches the wire.
+- **A 10-digit phone number now just works.** `complete_my_profile` (patient signup) and
+  `staff_register_walkin` (the cash desk) both required a phone typed as `+91XXXXXXXXXX` already
+  — a plain 10-digit number, which is what basically everyone actually types, was rejected
+  outright. Both now accept a bare 10 digits, a `91`-prefixed or `+91`-prefixed number, with
+  spaces or dashes anywhere, and always store the one canonical `+91XXXXXXXXXX` form — which is
+  also why `claim_offline_token`'s phone match (it compares a patient's stored number against a
+  walk-in record's) keeps working without needing this logic of its own: it only ever reads what
+  these two functions already normalized.
+- **Staff show their real names now.** Every staff/admin list ("Unnamed staff", "No name set")
+  was reading a genuinely empty `full_name` column — the demo seed data promoted accounts to
+  staff/admin without ever setting one, since the signup trigger that fills it in only reads a
+  name from signup metadata, which the seed's admin-API-created accounts never carry. Fixed at
+  the source: the seed script now sets a real name for each seeded admin/staff account.
+- **Load-test pass.** `EXPLAIN ANALYZE` against ~194,000 synthetic tokens spread across 120 days
+  found the queue's real hot paths — minting a ticket, calling the next one, reading a ticket's
+  status, the display board, a patient's own ticket list — are all already index-backed and stay
+  fast no matter how big the table gets. One real gap: the average-service-time calculation (runs
+  on every completed ticket) scanned a service's *entire history*, not just today's, since it had
+  no supporting index — 17.1ms and growing with a full-table scan, 0.1ms with the new one, a
+  ~150x difference that would only get worse over the queue's lifetime.
 
