@@ -3,9 +3,11 @@
 import { errorInfo } from "@queueless/db"
 import { redirect } from "next/navigation"
 
+import { registerCashWalkIn } from "@/lib/cash"
 import { createClient } from "@/lib/supabase/server"
 
 export type IssueTokenState = { error: string | null }
+export type CashWalkinState = { error: string | null }
 
 // tokens_walk_in_label_len (supabase/migrations/0004_tokens.sql) requires
 // 1..40 chars once trimmed.
@@ -69,6 +71,54 @@ export async function issueToken(
     number: String(token.number),
     code: token.code,
     service_id: serviceId,
+  })
+  redirect(`/kiosk?${params.toString()}`)
+}
+
+// Cash walk-in mode (QA: no web UI called staff_register_walkin -- lib/cash.ts existed,
+// unused). Reuses the same registerCashWalkIn wrapper the admin cash-report screens are
+// built against, cash always received (the button says "Take cash & issue" -- there is no
+// unpaid path in this form), gender left as "prefer_not" since the form collects no gender
+// field, matching what this desk actually asks a walk-in patient for.
+function cleanText(raw: FormDataEntryValue | null, max: number): string | null {
+  if (typeof raw !== "string") return null
+  const trimmed = raw.trim().slice(0, max)
+  return trimmed.length > 0 ? trimmed : null
+}
+
+export async function registerCashWalkin(
+  _prevState: CashWalkinState,
+  formData: FormData,
+): Promise<CashWalkinState> {
+  const fullName = cleanText(formData.get("full_name"), 120)
+  const phone = cleanText(formData.get("phone"), 20)
+  const doctorId = formData.get("doctor_id")
+  const serviceId = formData.get("service_id")
+
+  if (!fullName) return { error: "Enter the patient's name." }
+  if (!phone) return { error: "Enter a 10-digit mobile number." }
+  if (typeof doctorId !== "string" || doctorId.length === 0) return { error: "Pick a doctor first." }
+  if (typeof serviceId !== "string" || serviceId.length === 0) return { error: "Pick a doctor first." }
+
+  const supabase = await createClient()
+  const result = await registerCashWalkIn(supabase, {
+    serviceId,
+    doctorId,
+    patient: { fullName, phone, dateOfBirth: null, gender: "prefer_not", city: null },
+    cashReceived: true,
+  })
+
+  if (!result.ok) {
+    return { error: "available" in result ? "Server updating, retry shortly" : errorInfo(result.error).message }
+  }
+
+  const token = result.data
+  const params = new URLSearchParams({
+    issued: token.id,
+    number: String(token.number),
+    code: token.code,
+    service_id: token.service_id,
+    cash: "1",
   })
   redirect(`/kiosk?${params.toString()}`)
 }

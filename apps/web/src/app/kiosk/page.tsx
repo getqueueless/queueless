@@ -8,6 +8,7 @@ import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { ThemeToggle } from "@/components/theme/ThemeToggle"
 import { createClient } from "@/lib/supabase/server"
 
+import { CashWalkinForm, type DoctorOption } from "./cash-walkin-form"
 import { IssuedTokenView } from "./issued-token-view"
 import { KioskForm, type ServiceOption } from "./kiosk-form"
 import styles from "./kiosk.module.css"
@@ -72,6 +73,8 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
   const issuedNumber = typeof params.number === "string" ? Number(params.number) : null
   const issuedCode = typeof params.code === "string" ? params.code : null
   const issuedServiceId = typeof params.service_id === "string" ? params.service_id : null
+  const issuedByCash = params.cash === "1"
+  const mode = params.mode === "cash" ? "cash" : "token"
 
   const supabase = await createClient()
 
@@ -119,6 +122,19 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
     .eq("is_open", true)
     .order("name")
 
+  // Cash walk-in mode only: doctor picker with fee shown. Not scoped to open
+  // services -- staff_register_walkin itself gates on the doctor's own service
+  // being open (service_closed), same failure path as the token form already
+  // surfaces via errorInfo.
+  const { data: doctors, error: doctorsError } =
+    mode === "cash"
+      ? await supabase
+          .from("doctors")
+          .select("id, name, specialty, service_id, fee_inr")
+          .eq("active", true)
+          .order("name")
+      : { data: null, error: null }
+
   if (issuedId) {
     // Re-read the freshly-minted row instead of trusting the query string
     // as-is: `?issued=/&number=/&code=` came from our own redirect after a
@@ -153,17 +169,63 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
       return (
         <KioskShell lead="Token" accent="issued">
           <IssuedTokenView code={code} serviceName={serviceName}>
-            <TokenSlip statusUrl={statusUrl} serviceName={serviceName} number={number} code={code} />
+            <TokenSlip
+              statusUrl={statusUrl}
+              serviceName={serviceName}
+              number={number}
+              code={code}
+              note={issuedByCash ? "Claim online with this phone number" : undefined}
+            />
           </IssuedTokenView>
         </KioskShell>
       )
     }
   }
 
+  const doctorOptions: DoctorOption[] = (doctors ?? []).map((d) => ({
+    id: d.id,
+    name: d.name,
+    specialty: d.specialty,
+    serviceId: d.service_id,
+    feeInr: d.fee_inr,
+  }))
+
   return (
-    <KioskShell lead="Walk‑in" accent="kiosk" intro="Pick a service to issue a token.">
+    <KioskShell
+      lead="Walk‑in"
+      accent="kiosk"
+      intro={mode === "cash" ? "Take cash and issue a ticket for a doctor's fee." : "Pick a service to issue a token."}
+    >
       <div className={styles.card}>
-        {servicesError || !services || services.length === 0 ? (
+        <div className={styles.modeToggle} role="tablist" aria-label="Walk-in mode">
+          <Link
+            href="/kiosk"
+            role="tab"
+            aria-selected={mode === "token"}
+            className={mode === "token" ? `${styles.modeLink} ${styles.modeLinkActive}` : styles.modeLink}
+          >
+            Kiosk token
+          </Link>
+          <Link
+            href="/kiosk?mode=cash"
+            role="tab"
+            aria-selected={mode === "cash"}
+            className={mode === "cash" ? `${styles.modeLink} ${styles.modeLinkActive}` : styles.modeLink}
+          >
+            Cash walk-in
+          </Link>
+        </div>
+
+        {mode === "cash" ? (
+          doctorsError || doctorOptions.length === 0 ? (
+            <p className={styles.emptyState}>
+              {doctorsError ? "Couldn’t load doctors right now. Ask staff, or " : "No doctors are set up yet. "}
+              <Link href="/kiosk?mode=cash">refresh</Link> to try again.
+            </p>
+          ) : (
+            <CashWalkinForm doctors={doctorOptions} />
+          )
+        ) : servicesError || !services || services.length === 0 ? (
           <p className={styles.emptyState}>
             {servicesError
               ? "Couldn’t load services right now. Ask staff, or "

@@ -11,11 +11,13 @@ export async function TokenSlip({
   serviceName,
   number,
   code,
+  note,
 }: {
   statusUrl: string
   serviceName: string
   number: number
   code: string
+  note?: string
 }) {
   const svg = await tokenQrSvg(statusUrl)
 
@@ -39,6 +41,7 @@ export async function TokenSlip({
       <p className={styles.slipUrl} translate="no">
         {statusUrl}
       </p>
+      {note && <p className={styles.slipHint}>{note}</p>}
     </div>
   )
 }
