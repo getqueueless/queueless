@@ -1,12 +1,21 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Switch, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Card, ChipRow, PrimaryButton } from '@/components/admin/controls';
+import { ChipRow } from '@/components/admin/controls';
 import { LabeledInput } from '@/components/admin/labeled-input';
 import { StateCard } from '@/components/admin/state-card';
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Button, Card, MIN_TAP, Radius, UIText } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { isDate } from '@/lib/admin-doctors';
@@ -24,8 +33,19 @@ import { useSession } from '@/lib/use-session';
 type Gender = 'female' | 'male' | 'other' | 'prefer_not';
 type Lane = 'normal' | 'senior' | 'pregnant' | 'emergency';
 type Service = { id: string; name: string; is_open: boolean };
-type DoctorOption = { id: string; name: string; service_id: string; fee_inr: number };
-type Receipt = { id: string; receipt_no: string; amount_inr: number; created_at: string; refund_of: string | null };
+type DoctorOption = {
+  id: string;
+  name: string;
+  service_id: string;
+  fee_inr: number;
+};
+type Receipt = {
+  id: string;
+  receipt_no: string;
+  amount_inr: number;
+  created_at: string;
+  refund_of: string | null;
+};
 
 const GENDERS: { value: Gender; label: string }[] = [
   { value: 'female', label: 'Female' },
@@ -41,11 +61,18 @@ const LANES: { value: Lane; label: string }[] = [
 ];
 const ANY_DOCTOR = '';
 
+const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
+
 function timeOf(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+  return new Date(iso).toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Asia/Kolkata',
+  });
 }
 
 export default function CashDesk() {
+  const insets = useSafeAreaInsets();
   const theme = useTheme();
   const { session } = useSession();
   const { orgId, loading: roleLoading } = useRole(session?.user?.id);
@@ -67,13 +94,18 @@ export default function CashDesk() {
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [issued, setIssued] = useState<string | null>(null);
+  const [issued, setIssued] = useState<{ code: string; cash: boolean } | null>(null);
 
   const refetch = useCallback(async () => {
     if (!orgId) return;
     const [svcRes, docRes, cashRes] = await Promise.all([
       supabase.from('services').select('id, name, is_open').eq('org_id', orgId).order('name'),
-      supabase.from('doctors').select('id, name, service_id, fee_inr').eq('org_id', orgId).eq('active', true).order('name'),
+      supabase
+        .from('doctors')
+        .select('id, name, service_id, fee_inr')
+        .eq('org_id', orgId)
+        .eq('active', true)
+        .order('name'),
       supabase.rpc('my_cash_today'),
     ]);
     const firstError = svcRes.error ?? docRes.error ?? cashRes.error;
@@ -110,7 +142,8 @@ export default function CashDesk() {
     if (dob && !isDate(dob)) return setError('Date of birth must look like 1990-05-21.');
     if (!serviceId) return setError('Pick a department.');
     const override = amount.trim() === '' ? null : Number(amount);
-    if (cash && override !== null && (!Number.isInteger(override) || override < 0)) return setError('Amount must be whole rupees, 0 or more.');
+    if (cash && override !== null && (!Number.isInteger(override) || override < 0))
+      return setError('Amount must be whole rupees, 0 or more.');
 
     setBusy(true);
     setError(null);
@@ -130,7 +163,7 @@ export default function CashDesk() {
     setBusy(false);
     if (rpcError) return setError(mapSupabaseError(rpcError));
 
-    setIssued(`Ticket ${data?.code ?? ''} issued${cash ? ' · cash recorded' : ''}.`);
+    setIssued({ code: data?.code ?? '', cash });
     setName('');
     setPhone('');
     setGender(null);
@@ -150,120 +183,220 @@ export default function CashDesk() {
     );
   }
 
+  const ready = !!orgId && !loadError;
+
   return (
     <ThemedView type="canvas" style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          {!orgId ? (
-            <StateCard kind="error" message="No organization assigned to this account." />
-          ) : loadError ? (
-            <StateCard kind="error" message={loadError} />
-          ) : (
-            <>
-              <Card>
-                <ThemedText type="headingSm">New walk-in</ThemedText>
-                <LabeledInput label="Patient name" value={name} onChangeText={setName} autoCapitalize="words" />
-                <LabeledInput
-                  label="Mobile number (10 digits)"
-                  value={phone}
-                  onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
-                  keyboardType="phone-pad"
-                />
-                <ThemedText type="caption" themeColor="inkMuted">
-                  Gender (optional)
-                </ThemedText>
-                <ChipRow options={GENDERS} value={gender} onChange={setGender} />
-                <View style={styles.pair}>
-                  <View style={styles.flex}>
-                    <LabeledInput label="Date of birth (optional)" value={dob} onChangeText={setDob} placeholder="YYYY-MM-DD" maxLength={10} />
-                  </View>
-                  <View style={styles.flex}>
-                    <LabeledInput label="City (optional)" value={city} onChangeText={setCity} />
-                  </View>
-                </View>
-
-                <ThemedText type="caption" themeColor="inkMuted">
-                  Department
-                </ThemedText>
-                <ChipRow
-                  options={(services ?? []).map((s) => ({ value: s.id, label: s.is_open ? s.name : `${s.name} (closed)` }))}
-                  value={serviceId}
-                  onChange={pickService}
-                />
-                {serviceId && serviceDoctors.length > 0 ? (
-                  <>
-                    <ThemedText type="caption" themeColor="inkMuted">
-                      Doctor
-                    </ThemedText>
-                    <ChipRow
-                      options={[{ value: ANY_DOCTOR, label: 'Any doctor' }, ...serviceDoctors.map((d) => ({ value: d.id, label: `${d.name} · ₹${d.fee_inr}` }))]}
-                      value={doctorId}
-                      onChange={pickDoctor}
-                    />
-                  </>
-                ) : null}
-                <ThemedText type="caption" themeColor="inkMuted">
-                  Lane
-                </ThemedText>
-                <ChipRow options={LANES} value={lane} onChange={setLane} />
-
-                <View style={styles.switchRow}>
-                  <ThemedText type="body">Cash received</ThemedText>
-                  <Switch
-                    value={cash}
-                    onValueChange={setCash}
-                    trackColor={{ false: theme.hairline, true: theme.primaryOutline }}
-                    thumbColor={cash ? theme.primary : theme.surface}
-                  />
-                </View>
-                {cash ? (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        {/* Keeps the pinned Issue ticket bar above the iOS number pad; offset = stack header. */}
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={insets.top + 44}>
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            {!orgId ? (
+              <StateCard kind="error" message="No organization assigned to this account." />
+            ) : loadError ? (
+              <StateCard kind="error" message={loadError} />
+            ) : (
+              <>
+                <Card>
+                  <UIText variant="title3" accessibilityRole="header">
+                    New walk-in
+                  </UIText>
                   <LabeledInput
-                    label="Amount (₹) — blank uses the doctor's fee"
-                    value={amount}
-                    onChangeText={setAmount}
-                    keyboardType="number-pad"
+                    label="Patient name"
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                    style={styles.field}
                   />
-                ) : null}
-
-                {error ? (
-                  <ThemedText type="bodySm" themeColor="danger">
-                    {error}
-                  </ThemedText>
-                ) : null}
-                {issued ? (
-                  <ThemedText type="bodySm" themeColor="success">
-                    {issued}
-                  </ThemedText>
-                ) : null}
-                <PrimaryButton label="Issue ticket" onPress={register} busy={busy} />
-              </Card>
-
-              <Card>
-                <View style={styles.switchRow}>
-                  <ThemedText type="headingSm">My cash today</ThemedText>
-                  <ThemedText type="headingSm">₹{total}</ThemedText>
-                </View>
-                {receipts.length === 0 ? (
-                  <ThemedText type="bodySm" themeColor="inkMuted">
-                    No receipts yet today.
-                  </ThemedText>
-                ) : (
-                  receipts.map((r) => (
-                    <View key={r.id} style={styles.switchRow}>
-                      <ThemedText type="bodySm" themeColor="inkSecondary">
-                        {r.receipt_no} · {timeOf(r.created_at)}
-                        {r.refund_of ? ' · refund' : ''}
-                      </ThemedText>
-                      <ThemedText type="body" themeColor={r.amount_inr < 0 ? 'danger' : 'ink'}>
-                        ₹{r.amount_inr}
-                      </ThemedText>
+                  <LabeledInput
+                    label="Mobile number (10 digits)"
+                    value={phone}
+                    onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
+                    keyboardType="phone-pad"
+                    style={styles.field}
+                  />
+                  <UIText variant="secondaryStrong" color="inkSecondary">
+                    Gender (optional)
+                  </UIText>
+                  <ChipRow options={GENDERS} value={gender} onChange={setGender} />
+                  <View style={styles.pair}>
+                    <View style={styles.flex}>
+                      <LabeledInput
+                        label="Date of birth (optional)"
+                        value={dob}
+                        onChangeText={setDob}
+                        placeholder="YYYY-MM-DD"
+                        maxLength={10}
+                        style={styles.field}
+                      />
                     </View>
-                  ))
-                )}
-              </Card>
-            </>
-          )}
-        </ScrollView>
+                    <View style={styles.flex}>
+                      <LabeledInput label="City (optional)" value={city} onChangeText={setCity} style={styles.field} />
+                    </View>
+                  </View>
+                </Card>
+
+                <Card>
+                  <UIText variant="title3" accessibilityRole="header">
+                    Visit
+                  </UIText>
+                  <UIText variant="secondaryStrong" color="inkSecondary">
+                    Department
+                  </UIText>
+                  <ChipRow
+                    options={(services ?? []).map((s) => ({
+                      value: s.id,
+                      label: s.is_open ? s.name : `${s.name} (closed)`,
+                    }))}
+                    value={serviceId}
+                    onChange={pickService}
+                  />
+                  {serviceId && serviceDoctors.length > 0 ? (
+                    <>
+                      <UIText variant="secondaryStrong" color="inkSecondary">
+                        Doctor
+                      </UIText>
+                      <ChipRow
+                        options={[
+                          { value: ANY_DOCTOR, label: 'Any doctor' },
+                          ...serviceDoctors.map((d) => ({
+                            value: d.id,
+                            label: `${d.name} · ${inr(d.fee_inr)}`,
+                          })),
+                        ]}
+                        value={doctorId}
+                        onChange={pickDoctor}
+                      />
+                    </>
+                  ) : null}
+                  <UIText variant="secondaryStrong" color="inkSecondary">
+                    Lane
+                  </UIText>
+                  <ChipRow options={LANES} value={lane} onChange={setLane} />
+                </Card>
+
+                <Card>
+                  {/* The whole row is the switch's tap target; the native Switch is under 48pt. */}
+                  <Pressable
+                    onPress={() => setCash(!cash)}
+                    accessibilityRole="switch"
+                    accessibilityLabel="Cash received"
+                    accessibilityState={{ checked: cash }}
+                    style={styles.switchRow}>
+                    <View style={styles.flex}>
+                      <UIText variant="bodyStrong">Cash received</UIText>
+                      <UIText variant="secondary">
+                        {cash ? 'A receipt is written with the ticket' : 'Ticket only, no receipt'}
+                      </UIText>
+                    </View>
+                    <View
+                      pointerEvents="none"
+                      importantForAccessibility="no-hide-descendants"
+                      accessibilityElementsHidden>
+                      <Switch
+                        value={cash}
+                        onValueChange={setCash}
+                        trackColor={{
+                          false: theme.hairline,
+                          true: theme.primaryOutline,
+                        }}
+                        thumbColor={cash ? theme.primary : theme.surface}
+                      />
+                    </View>
+                  </Pressable>
+                  {cash ? (
+                    <LabeledInput
+                      label="Amount (₹) — blank uses the doctor's fee"
+                      value={amount}
+                      onChangeText={setAmount}
+                      keyboardType="number-pad"
+                      style={styles.field}
+                    />
+                  ) : null}
+                </Card>
+
+                <Card>
+                  <View style={styles.totalHead}>
+                    <UIText variant="secondaryStrong" color="inkSecondary">
+                      My cash today
+                    </UIText>
+                    <UIText variant="secondary">
+                      {receipts.length} receipt
+                      {receipts.length === 1 ? '' : 's'}
+                    </UIText>
+                  </View>
+                  <UIText variant="title1" color={total < 0 ? 'danger' : 'ink'}>
+                    {inr(total)}
+                  </UIText>
+                  {receipts.length === 0 ? (
+                    <UIText variant="secondary">No receipts yet today.</UIText>
+                  ) : (
+                    receipts.map((r) => (
+                      <View key={r.id} style={[styles.receipt, { borderTopColor: theme.hairline }]}>
+                        <View style={styles.flex}>
+                          <UIText variant="bodyStrong">{r.receipt_no}</UIText>
+                          <UIText variant="secondary">
+                            {timeOf(r.created_at)}
+                            {r.refund_of ? ' · refund' : ''}
+                          </UIText>
+                        </View>
+                        <UIText variant="bodyStrong" color={r.amount_inr < 0 ? 'danger' : 'ink'}>
+                          {inr(r.amount_inr)}
+                        </UIText>
+                      </View>
+                    ))
+                  )}
+                </Card>
+              </>
+            )}
+          </ScrollView>
+
+          {ready ? (
+            // Thumb zone: result + the one action a counter clerk taps, pinned under the form.
+            <View
+              style={[
+                styles.bar,
+                {
+                  backgroundColor: theme.surface,
+                  borderTopColor: theme.hairline,
+                },
+              ]}>
+              {error ? (
+                <UIText variant="secondaryStrong" color="danger" accessibilityLiveRegion="polite">
+                  {error}
+                </UIText>
+              ) : null}
+              {issued ? (
+                <View
+                  style={[styles.issued, { backgroundColor: theme.successSoft }]}
+                  accessible
+                  accessibilityLiveRegion="polite"
+                  accessibilityLabel={`Ticket ${issued.code} issued${issued.cash ? ', cash recorded' : ''}`}>
+                  <UIText variant="secondaryStrong" color="success">
+                    Ticket issued{issued.cash ? ' · cash recorded' : ''}
+                  </UIText>
+                  <UIText variant="title1" color="success">
+                    {issued.code}
+                  </UIText>
+                </View>
+              ) : null}
+              <Button
+                label="Issue ticket"
+                icon={{
+                  ios: 'ticket',
+                  android: 'confirmation_number',
+                  web: 'confirmation_number',
+                }}
+                onPress={register}
+                loading={busy}
+                block
+              />
+            </View>
+          ) : null}
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -272,9 +405,41 @@ export default function CashDesk() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
-  scroll: { paddingVertical: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xxl },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+  scroll: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.lg },
+  field: { minHeight: MIN_TAP, fontSize: 17 },
   pair: { flexDirection: 'row', gap: Spacing.xs },
   flex: { flex: 1 },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    minHeight: 56,
+  },
+  totalHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  receipt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    minHeight: 56,
+    paddingTop: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  bar: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.xs,
+    borderTopWidth: 1,
+  },
+  issued: {
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    alignItems: 'center',
+  },
 });
