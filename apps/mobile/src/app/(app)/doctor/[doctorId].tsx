@@ -103,7 +103,9 @@ export default function DoctorDetail() {
       setActionError(result.error);
       return;
     }
-    router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: result.tokenId } });
+    // checkout/[holdId].tsx hasn't landed yet, so expo-router's generated types don't know this
+    // route -- cast until that file exists.
+    router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: result.tokenId } } as unknown as Parameters<typeof router.push>[0]);
   }
 
   async function handleCancel(appt: Appointment) {
