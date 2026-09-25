@@ -118,7 +118,7 @@ export function DoctorsManager({
   }
 
   async function deactivate(d: DoctorRow) {
-    if (!confirm(`Deactivate Dr. ${d.name}? Their history is kept; they stop appearing for new bookings.`)) return
+    if (!confirm(`Deactivate ${d.name}? Their history is kept; they stop appearing for new bookings.`)) return
     setBusy(true)
     const { error } = await supabase.rpc("admin_upsert_doctor", {
       p_id: d.id,
@@ -205,7 +205,7 @@ export function DoctorsManager({
                   <td>
                     <select
                       className={styles.select}
-                      aria-label={`Set today's status for Dr. ${d.name}`}
+                      aria-label={`Set today's status for ${d.name}`}
                       value={status?.status ?? "available"}
                       disabled={busy}
                       onChange={(e) => updateStatus(d.id, e.target.value as DoctorStatus)}
@@ -229,7 +229,7 @@ export function DoctorsManager({
                   <td>
                     <div className={styles.buttonRow}>
                       <button type="button" className={styles.buttonSecondary} onClick={() => editAndFocus(d)}>
-                        Edit<span className={styles.srOnly}> Dr. {d.name}</span>
+                        Edit<span className={styles.srOnly}> {d.name}</span>
                       </button>
                       <button
                         type="button"
@@ -240,7 +240,7 @@ export function DoctorsManager({
                       </button>
                       {d.active && (
                         <button type="button" className={styles.buttonDanger} onClick={() => deactivate(d)} disabled={busy}>
-                          Deactivate<span className={styles.srOnly}> Dr. {d.name}</span>
+                          Deactivate<span className={styles.srOnly}> {d.name}</span>
                         </button>
                       )}
                     </div>
@@ -350,7 +350,7 @@ function DoctorScheduleEditor({ doctorId, doctorName }: { doctorId: string; doct
   return (
     <section className={styles.card} aria-labelledby={`sched-title-${doctorId}`}>
       <h2 id={`sched-title-${doctorId}`} className={styles.cardTitle}>
-        Schedule — Dr. {doctorName}
+        Schedule — {doctorName}
       </h2>
       {error && (
         <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
