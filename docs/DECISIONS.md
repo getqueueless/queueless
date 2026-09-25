@@ -599,3 +599,17 @@ One line per deviation from the plan/spec, with why.
 - 2026-09-26 (ci): `ios-sidestore.yml` drops `concurrency:` (it keeps one pending run and
   cancels the rest). A `wait-turn` job on ubuntu waits for older runs, then skips the macOS build
   if a newer run is already queued. Needs `actions: read`.
+- 2026-09-25 (payments, found not fixed -- unrelated to `apps/pay`'s owned files):
+  `supabase/tests/040_issue_token.test.sql` fails on current `origin/main`, independent of any
+  payments change (reproduced standalone, `docker exec ... psql < tests/040_issue_token.test.sql`,
+  no payments migration applied at all needed to trigger it). Its own rate-limit fixture (around
+  line 71) does a raw `insert into public.tokens (...)` while impersonating role `authenticated`
+  via `set local role authenticated` -- `authenticated` has never had an INSERT grant on
+  `public.tokens` in the current schema (RPC-only writes throughout, confirmed via
+  `information_schema.role_table_grants`), so this now fails with `permission denied for table
+  tokens`. Whoever owns `issue_token`'s test (`git log` on the file: last real edit was the
+  original `issue_token`/doctors-era commits) should either run that fixture insert as `postgres`
+  (matching every other file's raw-fixture convention, e.g. `080_housekeeping.test.sql`) or grant
+  a narrower path -- not fixed here, out of scope for this branch, but it blocks `test.sh`'s
+  fail-fast loop from ever reaching later files (alphabetical order), so anyone running the full
+  suite locally should know a green run right now requires skipping or fixing this file first.

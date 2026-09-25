@@ -1,5 +1,5 @@
 begin;
-select plan(29);
+select plan(31);
 
 insert into public.organizations (id, slug, name, timezone) values
   ('a0000000-0000-0000-0000-000000000180', 't-180-a', 'Payments Org A', 'Asia/Kolkata'),
