@@ -182,11 +182,21 @@ export default function AdminServices() {
     refetch();
   }
 
-  if (roleLoading || loading) {
+  if (roleLoading || (orgId && loading)) {
     return (
       <ThemedView type="canvas" style={styles.container}>
         <View style={styles.center}>
           <ActivityIndicator color={theme.primary} />
+        </View>
+      </ThemedView>
+    );
+  }
+
+  if (!orgId) {
+    return (
+      <ThemedView type="canvas" style={styles.container}>
+        <View style={styles.center}>
+          <StateCard kind="error" message="No organization assigned to this account." />
         </View>
       </ThemedView>
     );
