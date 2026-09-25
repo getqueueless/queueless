@@ -118,12 +118,12 @@ Plain-English notes per feature: what was built, how it actually works, and why.
 - **Status page (`/t/[id]`).** The page a patient's QR code opens — no login. Shows their ticket's
   live status, how many people are ahead of them, and an estimated wait, updating on its own so
   there's nothing to refresh.
-- **Shared gap.** Several of the RPCs the pages above call (`call_next`, `mark_done`,
-  `mark_no_show`, `recall_token`, `transfer_token`, `staff_issue_token`) aren't in
-  `supabase/migrations` yet, and no RLS policy lets a signed-in user read their own `profiles` row
-  yet either — every page fails closed with a plain "server updating, retry shortly" message rather
-  than crashing or erroring, and the counter/kiosk/admin screens using them will start working
-  end-to-end the moment the database side ships those. Separately, `next build` fails repo-wide
+- **Shared gap.** The counter screen's RPCs (`call_next`, `mark_done`, `mark_no_show`,
+  `recall_token`, `transfer_token`) aren't in `supabase/migrations` yet, and no RLS policy lets a
+  signed-in user read their own `profiles` row yet either — the counter and admin screens fail
+  closed with a plain "server updating, retry shortly" message rather than crashing, and will start
+  working end-to-end the moment the database side ships those. (The kiosk's own RPC,
+  `staff_issue_token`, has since landed.) Separately, `next build` fails repo-wide
   right now on a pre-existing `@queueless/db` package issue (its `errors.js` export doesn't resolve
   under Turbopack, even though typechecking passes clean) — outside this app's scope to fix, flagged
   for that package's owner.
