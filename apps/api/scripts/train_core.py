@@ -7,6 +7,7 @@ copy of the HistGradientBoostingRegressor fit + fair-baseline + bucket-count
 """
 
 import json
+import math
 from pathlib import Path
 
 import sklearn
@@ -15,6 +16,15 @@ from sklearn.metrics import mean_absolute_error
 
 DEFAULT_MIN_BUCKET_SAMPLES = 30
 DEFAULT_SEED = 42
+
+
+def _nan_to_none(d: dict) -> dict:
+    """A service with zero rows in a given split (real deployments with
+    little history for one service, or a small test fixture) produces NaN
+    from pandas' mean()/reindex(). NaN isn't valid JSON -- json.dumps emits
+    a bare `NaN` token that Postgres's jsonb parser (among others) rejects.
+    None is also the honest value here: "no data," not "zero"."""
+    return {k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in d.items()}
 
 
 def read_previous_version(meta_path: Path) -> int:
@@ -67,7 +77,7 @@ def train_and_evaluate(
 
     train_df = X_train.copy()
     train_df[target_column] = y_train
-    avg_service_time_by_service = (
+    avg_service_time_by_service = _nan_to_none(
         train_df.assign(effective_queue=train_df["queue_len_ahead"].clip(lower=1))
         .assign(rate=lambda d: d[target_column] / d["effective_queue"])
         .groupby("service", observed=True)["rate"]
@@ -95,7 +105,7 @@ def train_and_evaluate(
         _y_true=y_test.to_numpy(),
         _abs_err=(y_test.to_numpy() - model_predictions).__abs__(),
     )
-    mae_model_by_service = (
+    mae_model_by_service = _nan_to_none(
         results.groupby("service", observed=True)["_abs_err"]
         .mean()
         .reindex(service_categories)

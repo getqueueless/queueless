@@ -108,3 +108,19 @@ def test_read_previous_version_defaults_to_zero_when_field_absent(tmp_path):
     meta_path = tmp_path / "model_meta.json"
     meta_path.write_text(json.dumps({"mae_model": 1.0}))
     assert read_previous_version(meta_path) == 0
+
+
+def test_train_and_evaluate_reports_none_not_nan_for_unseen_service():
+    """A service with zero rows in this training run (e.g. a real service
+    with too little completed-token history yet) must report None, not NaN
+    -- NaN isn't valid JSON and breaks any caller that json.dumps() the
+    meta dict (e.g. /admin/retrain's audit_log insert into a jsonb column)."""
+    import json
+
+    df = _toy_df()
+    categories_with_unseen = SERVICE_CATEGORIES + ["svc-never-seen"]
+    _, meta = train_and_evaluate(df, FEATURE_COLUMNS, TARGET_COLUMN, categories_with_unseen)
+
+    assert meta["avg_service_time_by_service"]["svc-never-seen"] is None
+    assert meta["mae_model_by_service"]["svc-never-seen"] is None
+    json.dumps(meta)  # must not raise / must not silently emit NaN
