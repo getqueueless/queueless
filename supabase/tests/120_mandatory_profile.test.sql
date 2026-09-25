@@ -37,9 +37,12 @@ select throws_ok(
   $$ select public.complete_my_profile('', '+919876543210', '1990-01-01', 'female', 'Patiala') $$,
   'PGRST', null, 'an empty name is rejected'
 );
+-- a bare 10-digit number is now ACCEPTED (private.normalize_in_phone, see 195's own coverage of
+-- that) -- this now checks a genuinely too-short number is still rejected, not that +91 is
+-- required.
 select throws_ok(
-  $$ select public.complete_my_profile('Asha', '9876543210', '1990-01-01', 'female', 'Patiala') $$,
-  'PGRST', null, 'a phone missing +91 is rejected'
+  $$ select public.complete_my_profile('Asha', '987654321', '1990-01-01', 'female', 'Patiala') $$,
+  'PGRST', null, 'a 9-digit phone is rejected'
 );
 select throws_ok(
   $$ select public.complete_my_profile('Asha', '+911876543210', '1990-01-01', 'female', 'Patiala') $$,
