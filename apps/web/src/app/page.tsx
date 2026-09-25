@@ -107,8 +107,8 @@ export default async function Home() {
             <div className={styles.lookupMain}>
               <AnimatedHeading as="h2" id="status-title" lead="Check your" accent="status" />
               <p className={styles.lookupIntro}>
-                Scan the QR on your slip with your phone camera. Can’t scan it? Type the link
-                printed under it to see how many people are ahead of you.
+                Scan the QR on your slip, here or with your phone camera. Can’t scan it? Type
+                the link printed under it to see how many people are ahead of you.
               </p>
               <StatusLookup />
               <p className={styles.appNote}>
@@ -116,8 +116,8 @@ export default async function Home() {
                   <LogoMark size={16} />
                 </span>
                 <span>
-                  <strong>Queueless for Android</strong> is coming soon. Until then, your slip’s
-                  link opens in any phone browser, with nothing to install.
+                  <strong>Get the Queueless iPhone app</strong> through SideStore. Android is
+                  coming soon; until then your slip’s link opens in any phone browser.
                 </span>
               </p>
             </div>
