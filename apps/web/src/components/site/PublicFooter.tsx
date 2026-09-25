@@ -8,16 +8,15 @@ const COLUMNS = [
   {
     heading: "Patients",
     links: [
-      { href: "/#how", label: "Get a token" },
+      { href: "/login?next=/my", label: "Get a token" },
       { href: "/#status", label: "Check status" },
     ],
   },
   {
-    heading: "Staff",
+    heading: "Project",
     links: [
-      { href: "/login", label: "Log in" },
-      { href: "/counter", label: "Counter console" },
-      { href: "/admin", label: "Admin dashboard" },
+      { href: "https://lpu.lol", label: "lpu.lol" },
+      { href: "https://github.com/getqueueless/queueless", label: "Source on GitHub" },
     ],
   },
 ];
@@ -49,9 +48,15 @@ export function PublicFooter({ credit }: PublicFooterProps) {
             <ul className={styles.list}>
               {col.links.map((link) => (
                 <li key={link.href}>
-                  <Link href={link.href} className={styles.link}>
-                    {link.label}
-                  </Link>
+                  {link.href.startsWith("https://") ? (
+                    <a href={link.href} className={styles.link}>
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link href={link.href} className={styles.link}>
+                      {link.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -59,7 +64,13 @@ export function PublicFooter({ credit }: PublicFooterProps) {
         ))}
       </div>
       <div className={styles.bottom}>
-        <p>© {new Date().getFullYear()} Queueless</p>
+        {/* Staff sign in through the same card as patients; this is their quiet way in. */}
+        <p className={styles.legal}>
+          © {new Date().getFullYear()} Queueless
+          <Link href="/login" className={styles.staff}>
+            Staff login
+          </Link>
+        </p>
         {credit ? <p className={styles.credit}>{credit}</p> : null}
       </div>
     </footer>
