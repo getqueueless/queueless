@@ -11,7 +11,7 @@ type QuickAction = { key: string; label: string; icon: IconName; route: '/(app)/
 
 const QUICK_ACTIONS: QuickAction[] = [
   { key: 'take-token', label: 'Take token', icon: { ios: 'ticket', android: 'confirmation_number', web: 'confirmation_number' }, route: '/(app)/take-token' },
-  { key: 'book-appointment', label: 'Book appointment', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }, route: '/(app)/take-token' },
+  { key: 'book-appointment', label: 'Book visit', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }, route: '/(app)/take-token' },
   { key: 'claim-ticket', label: 'Claim ticket', icon: { ios: 'qrcode', android: 'qr_code', web: 'qr_code' }, route: '/(app)/claim-ticket' },
 ];
 
@@ -27,7 +27,7 @@ export default function Home() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.canvas }]} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content}>
         <HomeHeader />
 

@@ -74,7 +74,7 @@ export default function Profile() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.canvas }]} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content}>
         <SectionHeader title="Profile" />
 
@@ -114,12 +114,20 @@ export default function Profile() {
           <ThemeToggle />
         </Card>
 
+        {/* Not a pressable Card: Card's own contract warns a nested control (the Switch) would
+            hide from screen readers behind the card's own button role. The Switch keeps its own
+            48pt+ tap target and accessibilityLabel instead. */}
         <Card style={styles.rowCard}>
           <View style={styles.flex}>
             <UIText variant="body">Elderly mode</UIText>
             <UIText variant="secondary">Larger text across the app (1.3×)</UIText>
           </View>
-          <Switch value={elderlyMode} onValueChange={setElderlyMode} trackColor={{ true: theme.primary }} />
+          <Switch
+            value={elderlyMode}
+            onValueChange={setElderlyMode}
+            trackColor={{ true: theme.primary }}
+            accessibilityLabel="Elderly mode"
+          />
         </Card>
 
         <Button label="Sign out" variant="danger" onPress={handleSignOut} loading={signingOut} block style={styles.signOut} />

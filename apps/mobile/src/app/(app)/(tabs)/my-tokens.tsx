@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { QueueTracker, type TrackerStatus } from '@/components/motion/QueueTracker';
 import { useEtaAtJoin, useNowServing } from '@/components/motion/use-queue-extras';
 import { Button, Card, Chip, EmptyState, SectionHeader, Skeleton, StatusChip, UIText } from '@/components/ui';
+import { useTheme } from '@/hooks/use-theme';
 import { formatFee } from '@/lib/doctors';
 import { isCheckInWindow } from '@/lib/appointmentWindow';
 import { supabase } from '@/lib/supabase';
@@ -308,10 +309,11 @@ function PastTab() {
 // -------------------- Screen --------------------
 
 export default function MyTokens() {
+  const theme = useTheme();
   const [tab, setTab] = useState<'active' | 'past'>('active');
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.canvas }]} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <SectionHeader title="My tokens" />
         <View style={styles.segmentRow}>

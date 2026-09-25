@@ -201,5 +201,11 @@ export async function fetchNextSlots(doctorId: string, limit = 4): Promise<NextS
   return rows
     .filter((row) => row.booked < row.capacity)
     .slice(0, limit)
-    .map((row) => ({ id: row.id, label: new Date(row.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }));
+    .map((row) => ({
+      id: row.id,
+      // Explicit locale AND hour12 -- the bare `[]` locale silently rendered 24-hour on at least
+      // one build (no AM/PM shown), same class of bug checkout/[holdId].tsx's own formatWhen
+      // works around.
+      label: new Date(row.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+    }));
 }

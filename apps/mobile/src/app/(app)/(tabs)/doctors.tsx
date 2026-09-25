@@ -14,6 +14,7 @@ import {
   Skeleton,
   StatusChip,
   StickyBottomBar,
+  Type,
   UIText,
   usePressScale,
   useStickyBottomBarHeight,
@@ -76,7 +77,7 @@ export default function Doctors() {
   if (!ready) return null;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.canvas }]} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <SectionHeader title="Doctors" />
         <View style={[styles.searchBox, { borderColor: theme.hairline, backgroundColor: theme.surface }]}>
@@ -86,7 +87,7 @@ export default function Doctors() {
             onChangeText={setSearch}
             placeholder="Search doctors or specialties"
             placeholderTextColor={theme.inkMuted}
-            style={[styles.searchInput, { color: theme.ink }]}
+            style={[styles.searchInput, { color: theme.ink, fontFamily: Type.body.fontFamily }]}
           />
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -123,7 +124,7 @@ export default function Doctors() {
               department={doctor.serviceName}
               feeInr={doctor.fee_inr}
               status={doctorCardStatus(doctor)}
-              nextSlot={doctor.todayShifts[0] ?? null}
+              actionLabel={`Book · ${formatFee(doctor.fee_inr)}`}
               onPress={() => setSelectedDoctorId(doctor.id)}
               onAction={() => setSelectedDoctorId(doctor.id)}
             />
@@ -164,11 +165,7 @@ function DoctorDetailSheet({ doctorId, onClose }: { doctorId: string | null; onC
 
   function goToCheckout(holdId: string) {
     onClose();
-    // Payment work's checkout/[holdId].tsx hasn't landed yet, so expo-router's generated types
-    // don't know this route -- cast until that file exists (contract confirmed with them
-    // directly: param name is exactly `holdId`, and the screen tells token vs appointment apart
-    // itself).
-    router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId } } as unknown as Parameters<typeof router.push>[0]);
+    router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId } });
   }
 
   // A selected slot pill mints a paid hold for THAT time (start_paid_appointment); with no slot
@@ -284,5 +281,5 @@ const styles = StyleSheet.create({
   sheetSpecialty: { marginBottom: 4 },
   sheetLabel: { marginTop: 16, marginBottom: 6 },
   slotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, minHeight: 44, justifyContent: 'center' },
+  pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 20, minHeight: 56, justifyContent: 'center' },
 });
