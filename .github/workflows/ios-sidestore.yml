@@ -123,6 +123,22 @@ jobs:
           echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
           echo "Building Queueless $VERSION (build ${{ github.run_number }})"
 
+      - name: Stamp version into app.json
+        working-directory: apps/mobile
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          BUILD: ${{ steps.ver.outputs.build }}
+        run: |
+          set -euo pipefail
+          # The in-app version row reads expo.version / ios.buildNumber via expo-constants.
+          node -e '
+            const fs = require("fs");
+            const j = JSON.parse(fs.readFileSync("app.json", "utf8"));
+            j.expo.version = process.env.VERSION;
+            j.expo.ios = { ...j.expo.ios, buildNumber: process.env.BUILD };
+            fs.writeFileSync("app.json", JSON.stringify(j, null, 2) + "\n");
+          '
+
       - name: Expo prebuild (iOS)
         working-directory: apps/mobile
         env:
