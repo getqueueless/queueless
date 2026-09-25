@@ -117,31 +117,47 @@ select is((r7.tok).recall_count, 2::smallint, 'recall_count increments to 2') fr
 create temp table r8 as select * from pg_temp.try('recall_token', (select id from waiting3));
 select is(r8.err_code, 'illegal_transition', 'a third recall is rejected (max 2)') from r8;
 
--- recall_token: no_show -> called, only while the desk is free
+-- free desk 1 first (waiting3 is still 'called' there from the recall-cap test above)
 reset role;
-update public.tokens set status = 'no_show', recall_count = 0 where id = (select id from waiting2);
+update public.tokens set status = 'skipped' where id = (select id from waiting3);
+
+-- recall_token: no_show -> called, only while the desk is free
+create temp table waiting2b as select pg_temp.mint('W2b') as id;
+grant select on waiting2b to authenticated;
+update public.tokens set status = 'called', counter_id = 'cccccccc-0000-0000-0000-000000000031', called_at = now()
+  where id = (select id from waiting2b);
+update public.tokens set status = 'no_show' where id = (select id from waiting2b);
+
+-- occupy desk 1 with something else so the desk is busy when we try to recall waiting2b
+create temp table occupant as select pg_temp.mint('OCC') as id;
+grant select on occupant to authenticated;
+update public.tokens set status = 'called', counter_id = 'cccccccc-0000-0000-0000-000000000031', called_at = now()
+  where id = (select id from occupant);
+
 select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000081', 'role', 'authenticated')::text, true);
 set local role authenticated;
 
--- desk is currently busy with waiting3 (still 'called')
-create temp table r9 as select * from pg_temp.try('recall_token', (select id from waiting2));
+create temp table r9 as select * from pg_temp.try('recall_token', (select id from waiting2b));
 select is(r9.err_code, 'counter_busy', 'cannot recall a no-show back to a desk that is already serving someone') from r9;
 
 reset role;
-update public.tokens set status = 'done', finished_at = now() where id = (select id from waiting3);
+update public.tokens set status = 'skipped' where id = (select id from occupant);
 select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000081', 'role', 'authenticated')::text, true);
 set local role authenticated;
 
-create temp table r10 as select * from pg_temp.try('recall_token', (select id from waiting2));
+create temp table r10 as select * from pg_temp.try('recall_token', (select id from waiting2b));
 select is(r10.ok, true, 'no_show recalls back to called once the desk is free') from r10;
 select is((r10.tok).status, 'called'::public.token_status, 'status is called again') from r10;
+
+reset role;
+update public.tokens set status = 'skipped' where id = (select id from waiting2b);
 
 -- skipped -> called via recall works the same way
 create temp table waiting4 as select pg_temp.mint('W4') as id;
 grant select on waiting4 to authenticated;
-reset role;
-update public.tokens set status = 'skipped', counter_id = 'cccccccc-0000-0000-0000-000000000032', recall_count = 0
+update public.tokens set status = 'called', counter_id = 'cccccccc-0000-0000-0000-000000000032', called_at = now()
   where id = (select id from waiting4);
+update public.tokens set status = 'skipped' where id = (select id from waiting4);
 select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000081', 'role', 'authenticated')::text, true);
 set local role authenticated;
 

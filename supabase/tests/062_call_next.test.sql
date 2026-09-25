@@ -71,12 +71,18 @@ select is((c3.tok).status, 'called'::public.token_status, 'pulled token becomes 
 create temp table c4 as select * from pg_temp.try_call_next('cccccccc-0000-0000-0000-000000000021');
 select is(c4.err_code, 'counter_busy', 'the desk cannot call another while already holding one') from c4;
 
-update public.tokens set status = 'done', finished_at = now() where id = (select id from emergency_tok);
+reset role;
+update public.tokens set status = 'skipped' where id = (select id from emergency_tok);
+select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000071', 'role', 'authenticated')::text, true);
+set local role authenticated;
 
 create temp table c5 as select * from pg_temp.try_call_next('cccccccc-0000-0000-0000-000000000021');
 select is((c5.tok).id, (select id from normal_tok), 'next call pulls the remaining normal token, not the other service''s peds token') from c5;
 
-update public.tokens set status = 'done', finished_at = now() where id = (select id from normal_tok);
+reset role;
+update public.tokens set status = 'skipped' where id = (select id from normal_tok);
+select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000071', 'role', 'authenticated')::text, true);
+set local role authenticated;
 
 create temp table c6 as select * from pg_temp.try_call_next('cccccccc-0000-0000-0000-000000000021');
 select is(c6.ok, true, 'call_next with nobody waiting still succeeds') from c6;
