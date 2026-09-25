@@ -16,11 +16,19 @@ Security invariants, both enforced here:
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Callable
 from uuid import UUID
 
 import asyncpg
+
+# DeepSeek has no real notion of "today" (found live, round 2 judging day:
+# it sometimes passes the literal word instead of resolving it, sometimes
+# hallucinates a stale training-era date instead) -- the system prompt
+# (app/ai_ask.py) now tells it the real date so it resolves these itself,
+# but a stochastic model can still slip, so this stays as a cheap,
+# deterministic, real-date-based fallback rather than a hard 503.
+_RELATIVE_DAYS = {"today": 0, "yesterday": -1, "tomorrow": 1}
 
 
 class UnknownAnalyticsFunctionError(Exception):
@@ -34,8 +42,11 @@ class InvalidAnalyticsParamsError(Exception):
 def _parse_date(value: Any) -> date:
     if isinstance(value, date):
         return value
+    text = str(value).strip().lower()
+    if text in _RELATIVE_DAYS:
+        return date.today() + timedelta(days=_RELATIVE_DAYS[text])
     try:
-        return date.fromisoformat(str(value))
+        return date.fromisoformat(text)
     except ValueError as exc:
         raise InvalidAnalyticsParamsError(f"not a valid date: {value!r}") from exc
 

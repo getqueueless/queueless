@@ -5,7 +5,7 @@ function name or param outside ANALYTICS_FUNCTIONS must be rejected before
 anything resembling a query executes."""
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -13,6 +13,7 @@ from app.analytics import (
     ANALYTICS_FUNCTIONS,
     InvalidAnalyticsParamsError,
     UnknownAnalyticsFunctionError,
+    _parse_date,
     call_analytics,
 )
 
@@ -23,6 +24,22 @@ async def _seed_token(db_pool, org_id, service_id, day, status="done", counter_i
         "VALUES ($1, $2, $3, $4, $5, $6, now(), now())",
         uuid.uuid4(), org_id, service_id, day, status, counter_id,
     )
+
+
+def test_parse_date_resolves_relative_words():
+    # Real bug, found live in prod (round 2 judging day): DeepSeek has no
+    # notion of "today" and sometimes passes the literal word instead of
+    # resolving it -- date.fromisoformat("today") raised, turning every
+    # "... today" question into a hard invalid_tool_arguments error.
+    today = date.today()
+    assert _parse_date("today") == today
+    assert _parse_date("yesterday") == today - timedelta(days=1)
+    assert _parse_date("tomorrow") == today + timedelta(days=1)
+
+
+def test_parse_date_still_rejects_real_garbage():
+    with pytest.raises(InvalidAnalyticsParamsError):
+        _parse_date("not a date at all")
 
 
 async def test_rejects_unknown_function_name(db_pool):
