@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,8 +9,15 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { formatFee } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
+
+// Client-only reassurance banner, no server backing: there's no "payment_pending"/hold state in
+// token_status (checked every migration through 0042), and the payments page's own token/hold
+// semantics aren't part of this schema yet -- see docs/DECISIONS.md. Purely cosmetic; it never
+// blocks or changes the real queue position underneath it.
+const HOLD_SECONDS = 5 * 60;
 
 // `@queueless/db` only exports the RPC error map, not row types — the real Database types
 // haven't landed yet (see apps/web/types/database.types.ts's own header comment). Typed here
@@ -79,6 +87,38 @@ export default function TokenScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
+  const [feeInr, setFeeInr] = useState<number | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [holdSecondsLeft, setHoldSecondsLeft] = useState(0);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    supabase
+      .from('tokens')
+      .select('doctor_id, doctors(fee_inr)')
+      .eq('id', id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        // Same many-to-one embed quirk as Home's counter_services join — PostgREST returns a
+        // single object here, but supabase-js can't infer that without generated types.
+        const embed = (data as { doctors: { fee_inr: number } | { fee_inr: number }[] | null }).doctors;
+        const doctor = Array.isArray(embed) ? embed[0] : embed;
+        setFeeInr(doctor?.fee_inr ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (holdSecondsLeft <= 0) return;
+    const timer = setInterval(() => setHoldSecondsLeft((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [holdSecondsLeft]);
+
   const refetch = useCallback(async () => {
     if (!id) return;
     const { data, error } = await supabase.rpc('my_queue_status', { p_token: id }).single();
@@ -89,6 +129,26 @@ export default function TokenScreen() {
       setErrorMsg(null);
     }
   }, [id]);
+
+  async function handleBookAndPay() {
+    if (!id || paying) return;
+    setPaying(true);
+    setPayError(null);
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token ?? '';
+    const payUrl = `https://lpu.lol/pay/${id}#access_token=${accessToken}`;
+
+    const result = await WebBrowser.openAuthSessionAsync(payUrl, `queueless://paid/${id}`);
+    setPaying(false);
+
+    if (result.type === 'success') {
+      setHoldSecondsLeft(HOLD_SECONDS);
+      refetch();
+    } else if (result.type !== 'cancel' && result.type !== 'dismiss') {
+      setPayError("Couldn't open the payment page — check your connection and try again.");
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -270,6 +330,36 @@ export default function TokenScreen() {
             </ThemedText>
           ) : null}
 
+          {holdSecondsLeft > 0 ? (
+            <View style={[styles.holdBanner, { backgroundColor: theme.successSoft, borderColor: theme.success }]}>
+              <ThemedText type="headingSm" themeColor="success" style={styles.centerText}>
+                Payment received
+              </ThemedText>
+              <ThemedText type="bodySm" themeColor="inkSecondary" style={styles.centerText}>
+                Your slot is held for {Math.floor(holdSecondsLeft / 60)}:{String(holdSecondsLeft % 60).padStart(2, '0')}
+              </ThemedText>
+            </View>
+          ) : !isTerminal && feeInr != null && feeInr > 0 ? (
+            <Pressable
+              onPress={handleBookAndPay}
+              disabled={paying}
+              style={[styles.payButton, { backgroundColor: theme.primary, opacity: paying ? 0.6 : 1 }]}>
+              {paying ? (
+                <ActivityIndicator color={theme.onPrimary} />
+              ) : (
+                <ThemedText type="button" themeColor="onPrimary">
+                  Book &amp; pay {formatFee(feeInr)}
+                </ThemedText>
+              )}
+            </Pressable>
+          ) : null}
+
+          {payError ? (
+            <ThemedText type="bodySm" themeColor="danger" style={styles.centerText}>
+              {payError}
+            </ThemedText>
+          ) : null}
+
           <PriorityInfoCard />
 
           {cancelError ? (
@@ -320,6 +410,20 @@ const styles = StyleSheet.create({
   progressLabels: { flexDirection: 'row' },
   progressLabelText: { flex: 1, textAlign: 'center' },
   counterBanner: { alignSelf: 'stretch', borderWidth: 1, borderRadius: Rounded.xl, padding: Spacing.md },
+  holdBanner: {
+    alignSelf: 'stretch',
+    borderWidth: 1,
+    borderRadius: Rounded.xl,
+    padding: Spacing.md,
+    gap: Spacing.xxs,
+  },
+  payButton: {
+    alignSelf: 'stretch',
+    minHeight: 48,
+    borderRadius: Rounded.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cancelButton: {
     alignSelf: 'stretch',
     minHeight: 48,
