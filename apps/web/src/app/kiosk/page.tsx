@@ -59,6 +59,7 @@ function KioskShell({
 }
 
 async function siteOrigin(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL
   const h = await headers()
   const proto = h.get("x-forwarded-proto") ?? "http"
   const host = h.get("host") ?? "localhost:3000"
