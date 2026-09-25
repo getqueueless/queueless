@@ -52,3 +52,15 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   the API is fire-and-forget, never blocking.
 - **Offline.** A slim banner (`@react-native-community/netinfo`) appears when connectivity drops
   and disappears on reconnect.
+
+## Database
+
+- **Schema.** Every table lives in self-hosted Postgres behind PostgREST — `organizations`,
+  `profiles`, `services`, `counters`, `counter_services`, `tokens`, `appointment_slots`,
+  `appointments`, `board_services`, `board_counters`, `notifications`, and an append-only
+  `audit_log`. A patient's role, org and priority status are never taken from their own signup
+  metadata — a database trigger on `auth.users` copies only their name and hard-codes
+  `role='patient'`, closing an attack where a client could `signUp({data:{role:'admin'}})` and
+  grant themselves access. `audit_log` can't be edited or deleted by anyone, including the
+  database owner — enforced by a trigger, not just a permission grant, because permission grants
+  don't bind table owners.
