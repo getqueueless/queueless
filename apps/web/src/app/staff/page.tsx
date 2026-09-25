@@ -30,6 +30,10 @@ function safeNextPath(value: string | string[] | undefined): string {
 
 function safeTab(value: string | string[] | undefined): Tab {
   const tab = Array.isArray(value) ? value[0] : value
+  // "email" is the public name for the "otp" tab (its own key, and its
+  // panel's label is "Email code") -- ?tab=email is what a link written by
+  // someone who doesn't know the internal key would use.
+  if (tab === "email") return "otp"
   return (TABS as readonly string[]).includes(tab ?? "") ? (tab as Tab) : "google"
 }
 
