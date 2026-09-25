@@ -1,8 +1,10 @@
 """Throwaway Postgres for local dev/tests, via rootless podman.
 
-Mirrors the DB team's documented (but not-yet-migrated) table names:
-profiles, tokens, push_tokens, token_notifications. This schema lives only
-in this fixture -- it is never written to supabase/migrations.
+Mirrors the REAL landed schema in supabase/migrations for the columns apps/api
+actually queries (profiles.id, tokens.patient_id/service_id, the real
+`notifications` table), as a compatible subset -- not the full FK graph to
+auth.users/organizations/counters, which is the DB team's own concern to test.
+`push_tokens` is apps/api's own table; it isn't in supabase/migrations yet.
 """
 
 import asyncio
@@ -17,17 +19,39 @@ DATABASE_URL = f"postgresql://postgres:postgres@localhost:{HOST_PORT}/postgres"
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS profiles (
-    user_id uuid PRIMARY KEY,
+    id uuid PRIMARY KEY,
     role text NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS services (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS tokens (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    service text NOT NULL,
+    service_id uuid NOT NULL,
+    service_day date NOT NULL DEFAULT current_date,
+    number int NOT NULL DEFAULT 1,
+    lane_rank smallint NOT NULL DEFAULT 1,
+    priority_at timestamptz NOT NULL DEFAULT now(),
     status text NOT NULL,
-    user_id uuid,
+    patient_id uuid,
     called_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id uuid NOT NULL,
+    token_id uuid REFERENCES tokens (id),
+    appointment_id uuid,
+    kind text NOT NULL,
+    title text NOT NULL,
+    body text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    read_at timestamptz,
+    UNIQUE (token_id, kind)
 );
 
 CREATE TABLE IF NOT EXISTS push_tokens (
@@ -35,12 +59,6 @@ CREATE TABLE IF NOT EXISTS push_tokens (
     device_id text NOT NULL,
     token text PRIMARY KEY,
     created_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS token_notifications (
-    token_id uuid NOT NULL,
-    kind text NOT NULL,
-    PRIMARY KEY (token_id, kind)
 );
 """
 

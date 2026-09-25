@@ -52,18 +52,31 @@ async def upsert_push_token(pool: asyncpg.Pool, user_id: UUID, device_id: str, t
     )
 
 
-async def notify_if_new(pool: asyncpg.Pool, token_id: UUID, kind: str) -> bool:
+async def record_and_push(
+    pool: asyncpg.Pool, patient_id: UUID, token_id: UUID, kind: str, title: str, body: str
+) -> bool:
+    """Writes to the DB team's real `notifications` table (supabase/migrations/
+    0006), not a separate apps/api-owned dedup table -- its own
+    `unique (token_id, kind)` constraint is the same atomic dedup primitive a
+    parallel table would give us, and writing here means the row also shows
+    up in the mobile app's own in-app notification history/Realtime feed."""
     row = await pool.fetchrow(
         """
-        INSERT INTO token_notifications (token_id, kind)
-        VALUES ($1, $2)
-        ON CONFLICT DO NOTHING
-        RETURNING 1
+        INSERT INTO notifications (patient_id, token_id, kind, title, body)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (token_id, kind) DO NOTHING
+        RETURNING id
         """,
+        patient_id,
         token_id,
         kind,
+        title,
+        body,
     )
-    return row is not None
+    if row is None:
+        return False
+    await send_push(pool, patient_id, body)
+    return True
 
 
 async def send_push(pool: asyncpg.Pool, user_id: UUID, body: str) -> None:
@@ -85,60 +98,91 @@ async def send_push(pool: asyncpg.Pool, user_id: UUID, body: str) -> None:
 
 async def poll_tick(pool: asyncpg.Pool) -> None:
     """The real, working notification path today -- see listen_task below for
-    why this exists instead of relying solely on LISTEN/NOTIFY."""
-    third_in_line = await pool.fetch(
+    why this exists instead of relying solely on LISTEN/NOTIFY. Queue order
+    and "position" mirror the real ordering used by public.my_queue_status
+    (supabase/migrations/0012): partition by (service_id, service_day), order
+    by (lane_rank, priority_at, number)."""
+    almost_turn = await pool.fetch(
         """
-        SELECT id, user_id, service FROM (
-            SELECT id, user_id, service,
-                   row_number() OVER (PARTITION BY service ORDER BY created_at) AS position
-            FROM tokens
-            WHERE status = 'waiting'
-        ) ranked
-        WHERE position = 3
+        SELECT r.id, r.patient_id, s.name AS service_name FROM (
+            SELECT t.id, t.patient_id, t.service_id,
+                   row_number() OVER (
+                       PARTITION BY t.service_id, t.service_day
+                       ORDER BY t.lane_rank, t.priority_at, t.number
+                   ) AS position
+            FROM tokens t
+            WHERE t.status = 'waiting'
+        ) r
+        JOIN services s ON s.id = r.service_id
+        WHERE r.position = 3
         """
     )
-    for row in third_in_line:
-        if await notify_if_new(pool, row["id"], "third_in_line"):
-            await send_push(pool, row["user_id"], f"You're 3rd in line for {row['service']}")
+    for row in almost_turn:
+        await record_and_push(
+            pool,
+            row["patient_id"],
+            row["id"],
+            "almost_turn",
+            "Almost your turn",
+            f"You're 3rd in line for {row['service_name']}",
+        )
 
     just_called = await pool.fetch(
         """
-        SELECT t.id, t.user_id, t.service FROM tokens t
+        SELECT t.id, t.patient_id, s.name AS service_name
+        FROM tokens t
+        JOIN services s ON s.id = t.service_id
         WHERE t.status = 'called'
           AND NOT EXISTS (
-              SELECT 1 FROM token_notifications n
+              SELECT 1 FROM notifications n
               WHERE n.token_id = t.id AND n.kind = 'called'
           )
         """
     )
     for row in just_called:
-        if await notify_if_new(pool, row["id"], "called"):
-            await send_push(pool, row["user_id"], f"You've been called for {row['service']}")
+        await record_and_push(
+            pool,
+            row["patient_id"],
+            row["id"],
+            "called",
+            "You've been called",
+            f"You've been called for {row['service_name']}",
+        )
 
     waiting_counts = await pool.fetch(
-        "SELECT service, count(*) AS n FROM tokens WHERE status = 'waiting' GROUP BY service"
+        """
+        SELECT s.name AS service, count(*) AS n
+        FROM tokens t JOIN services s ON s.id = t.service_id
+        WHERE t.status = 'waiting'
+        GROUP BY s.name
+        """
     )
     for row in waiting_counts:
         queue_depth.labels(service=row["service"]).set(row["n"])
 
 
 async def _handle_notify_payload(pool: asyncpg.Pool, payload: str) -> None:
+    """Expected shape once a pg_notify('token_events', ...) trigger lands
+    (still absent from supabase/migrations as of this writing): {"token_id":
+    ..., "patient_id": ..., "kind": "almost_turn"|"called", "service_name":
+    ...}. kind must be a value the real notifications.kind check constraint
+    allows (supabase/migrations/0006)."""
     try:
         data = json.loads(payload)
         token_id = UUID(data["token_id"])
-        user_id = UUID(data["user_id"])
+        patient_id = UUID(data["patient_id"])
         kind = data["kind"]
-        service = data.get("service", "")
+        service_name = data.get("service_name", "")
     except (json.JSONDecodeError, KeyError, ValueError) as exc:
         log.warning("token_events_payload_invalid", error=str(exc), payload=payload)
         return
-    if await notify_if_new(pool, token_id, kind):
-        body = (
-            f"You're 3rd in line for {service}"
-            if kind == "third_in_line"
-            else f"You've been called for {service}"
-        )
-        await send_push(pool, user_id, body)
+    title = "Almost your turn" if kind == "almost_turn" else "You've been called"
+    body = (
+        f"You're 3rd in line for {service_name}"
+        if kind == "almost_turn"
+        else f"You've been called for {service_name}"
+    )
+    await record_and_push(pool, patient_id, token_id, kind, title, body)
 
 
 async def listen_task(settings: Settings, pool: asyncpg.Pool) -> None:

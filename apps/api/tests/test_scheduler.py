@@ -11,9 +11,10 @@ async def _seed_called_token(db_pool, minutes_ago: int) -> uuid.UUID:
     token_id = uuid.uuid4()
     called_at = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
     await db_pool.execute(
-        "INSERT INTO tokens(id, service, status, user_id, called_at) "
-        "VALUES ($1, 'general_opd', 'called', $2, $3)",
+        "INSERT INTO tokens(id, service_id, status, patient_id, called_at) "
+        "VALUES ($1, $2, 'called', $3, $4)",
         token_id,
+        uuid.uuid4(),
         uuid.uuid4(),
         called_at,
     )

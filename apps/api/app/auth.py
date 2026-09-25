@@ -55,7 +55,9 @@ async def get_role(pool: asyncpg.Pool, user_id: UUID, ttl_seconds: float) -> str
     now = time.monotonic()
     if cached is not None and cached[1] > now:
         return cached[0]
-    role = await pool.fetchval("SELECT role FROM profiles WHERE user_id = $1", user_id)
+    # profiles.id is the PK (references auth.users.id directly) -- there is no
+    # profiles.user_id column in the real schema (supabase/migrations/0002).
+    role = await pool.fetchval("SELECT role FROM profiles WHERE id = $1", user_id)
     if role is not None:
         _ROLE_CACHE[user_id] = (role, now + ttl_seconds)
     return role

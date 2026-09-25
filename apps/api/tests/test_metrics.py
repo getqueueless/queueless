@@ -17,10 +17,15 @@ def test_metrics_excluded_from_openapi_schema(client):
 
 
 async def test_queue_depth_gauge_reflects_waiting_tokens(db_pool):
+    service_id = uuid.uuid4()
     await db_pool.execute(
-        "INSERT INTO tokens(id, service, status, user_id, created_at) "
-        "VALUES ($1, 'general_opd', 'waiting', $2, now())",
+        "INSERT INTO services(id, name) VALUES ($1, 'general_opd')", service_id
+    )
+    await db_pool.execute(
+        "INSERT INTO tokens(id, service_id, status, patient_id, created_at) "
+        "VALUES ($1, $2, 'waiting', $3, now())",
         uuid.uuid4(),
+        service_id,
         uuid.uuid4(),
     )
     await poll_tick(db_pool)
