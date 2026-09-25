@@ -24,7 +24,8 @@ documented source of truth for the pair — see `docs/DECISIONS.md` for the reco
 | `canvas` | `#ffffff` | template's page background throughout |
 | `canvasSoft` | `#f7fbfc` | derived: a faint tint of `primary` for section backgrounds, not a literal template value |
 | `surface` | `#ffffff` | cards sit on white with a hairline border + soft shadow (style.css:480, 899), never a filled card background |
-| `onPrimary` | `#ffffff` | button text on `primary`/`dark` fills |
+| `primaryDisplay` | `#0a95ae` | apps/web/brand/BRAND.md "Cyan display": large cyan words on white only (3.55:1). `primary` itself is 2.40:1 on white, so it is never text |
+| `onPrimary` | `#252525` | text on `primary` fills: ink, 6.39:1. Not MedWin's white, which is 2.40:1 on `#0cb7d6` and fails AA at every size (BRAND.md) |
 
 `primarySoft` (light tint of `primary`) and `surfaceSunken` are kept as compatibility tokens so
 pre-existing usages (banners, badges) keep compiling while the shared module lands ahead of
@@ -50,6 +51,7 @@ tint), unchanged from the pre-redesign `theme.ts`.
 | `canvas` | `#0a0c0f` |
 | `canvasSoft` | `#0e1518` |
 | `surface` | `#14171c` |
+| `primaryDisplay` | `#3fd6f0` |
 | `onPrimary` | `#04201e` |
 | `danger` | `#e5766f`, `dangerSoft` `#301715` |
 | `warning` | `#dba24d`, `warningSoft` `#2e2211` |
@@ -84,10 +86,10 @@ consistency there.
 ## Components
 
 - **`TwoToneHeading`** (`src/components/TwoToneHeading.tsx`) — takes the full heading string plus
-  which word(s) render in `primary`, e.g. `<TwoToneHeading text="OUR MEDICAL SERVICES" accent="SERVICES" />`.
+  which word(s) render in `primaryDisplay`, e.g. `<TwoToneHeading text="OUR MEDICAL SERVICES" accent="SERVICES" />`.
   Mirrors index.html:127's `Book <span style="color:#0cb7d6">Appointment</span>` pattern, reused
   as a component instead of hand-splitting `<Text>` runs on every screen.
-- **Numbered card** — a large faint `primary`-tinted number (`01`–`04` style, style.css's
+- **Numbered card** — a large faint `primaryDisplay`-tinted number (`01`–`04` style, style.css's
   `.number_text`/`.care_text` pattern from index.html:221-241), a heading, a short line. Used for
   Home's service list — the pattern, not the literal MedWin icon set.
 - **Card** — white `surface`, `hairline` border, soft shadow (`0 0 10px rgba(0,0,0,0.08)`-ish,
