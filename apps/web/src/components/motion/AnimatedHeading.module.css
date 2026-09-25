@@ -1,0 +1,70 @@
+/* display-lg (DESIGN.md) with the tracking pulled in. The accent word is
+   #087589 in light (5.36:1 on white) and #0a95ae in dark and on slate
+   (5.2:1 on canvas, 4.5:1 on surface, 3.81:1 on slate: large text). Hover
+   lifts it one step (#0a95ae 3.55:1 on white, #0cb7d6 on dark). */
+.heading {
+  --accent: #087589;
+  --accent-hover: #0a95ae;
+
+  font-family: var(--font-display);
+  font-size: clamp(28px, 1.6vw + 20px, 40px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  text-wrap: balance;
+}
+
+:global(:root[data-theme="dark"]) .heading,
+.onDark {
+  --accent: #0a95ae;
+  --accent-hover: #0cb7d6;
+}
+
+.onDark {
+  color: var(--color-on-slate);
+}
+
+.heading:hover {
+  --accent: var(--accent-hover);
+}
+
+.center {
+  text-align: center;
+}
+
+.accent {
+  color: var(--accent);
+}
+
+/* Inline-block letters would break anywhere; words keep them together. */
+.word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Colour comes from the parent, so a hover or a theme flip sweeps across the
+   heading letter by letter. */
+.letter {
+  display: inline-block;
+  transition: color 300ms ease calc(var(--i) * 12ms);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .heading[data-phase="armed"] .letter {
+    opacity: 0;
+  }
+
+  .heading[data-phase="in"] .letter {
+    animation: letter-in 700ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 30ms) backwards;
+  }
+}
+
+@keyframes letter-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4em);
+    filter: blur(8px);
+  }
+}

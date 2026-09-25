@@ -2,10 +2,10 @@ import Image from "next/image"
 import Link from "next/link"
 
 import { LogoMark } from "@/components/brand/Logo"
+import { AnimatedHeading } from "@/components/motion/AnimatedHeading"
 import { RolodexWord } from "@/components/motion/RolodexWord"
 import { PublicFooter } from "@/components/site/PublicFooter"
 import { PublicHeader } from "@/components/site/PublicHeader"
-import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { createClient } from "@/lib/supabase/server"
 
 import corridor from "../../public/images/opd-corridor.jpg"
@@ -106,7 +106,7 @@ export default async function Home() {
         <div className={styles.container}>
           <section id="status" aria-labelledby="status-title" className={styles.lookupCard}>
             <div className={styles.lookupMain}>
-              <TwoToneHeading id="status-title" lead="Check your" accent="status" />
+              <AnimatedHeading as="h2" id="status-title" lead="Check your" accent="status" />
               <p className={styles.lookupIntro}>
                 Scan the QR on your slip with your phone camera. Can’t scan it? Type the link
                 printed under it to see how many people are ahead of you.
@@ -129,7 +129,7 @@ export default async function Home() {
           <LiveStats initial={board?.stats ?? null} />
 
           <section aria-labelledby="services-title" className={styles.services}>
-            <TwoToneHeading id="services-title" lead="Services" accent="open today" align="center" />
+            <AnimatedHeading as="h2" id="services-title" lead="Services" accent="open today" align="center" />
             <p className={styles.sectionIntro}>
               Each service keeps its own line. Tokens start with the service code, so you always
               know which board to watch.
@@ -190,7 +190,7 @@ export default async function Home() {
             <LogoMark size={360} />
           </span>
           <div className={styles.howInner}>
-            <TwoToneHeading id="how-title" lead="How it" accent="works" onDark align="center" />
+            <AnimatedHeading as="h2" id="how-title" lead="How it" accent="works" onDark align="center" />
             <p className={styles.howIntro}>Three steps, and the middle one is the point.</p>
             <ol className={styles.steps}>
               {STEPS.map((step) => (
