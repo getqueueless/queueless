@@ -13,6 +13,7 @@ import { formatFee } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
 import { markTokenPaid } from '@/lib/paid-tokens';
 import { supabase } from '@/lib/supabase';
+import { useLiveRefresh } from '@/lib/use-live-refresh';
 
 // Client-only reassurance banner, no server backing: there's no "payment_pending"/hold state in
 // token_status (checked every migration through 0042), and the payments page's own token/hold
@@ -24,7 +25,10 @@ const HOLD_SECONDS = 5 * 60;
 // haven't landed yet (see apps/web/types/database.types.ts's own header comment). Typed here
 // straight from supabase/README.md's `my_queue_status` signature instead of importing another
 // app's hand-written placeholder.
-type TokenStatus = 'waiting' | 'called' | 'serving' | 'done' | 'no_show' | 'cancelled' | 'skipped';
+// `pending_payment` landed in `0050_payments_enum.sql` — included here (see docs/DECISIONS.md's
+// 2026-09-25 payments self-review flag) so a token mid-checkout never hits the `STATUS_LABELS`
+// lookup as `undefined`, even though this screen doesn't drive the payment flow itself.
+type TokenStatus = 'pending_payment' | 'waiting' | 'called' | 'serving' | 'done' | 'no_show' | 'cancelled' | 'skipped';
 
 type QueueStatus = {
   code: string;
@@ -47,6 +51,7 @@ const PROGRESS_STEPS: { key: TokenStatus; label: string }[] = [
 ];
 
 const STATUS_LABELS: Record<TokenStatus, string> = {
+  pending_payment: 'Waiting for payment',
   waiting: 'Waiting',
   called: "You've been called",
   serving: 'Now serving you',
@@ -130,6 +135,12 @@ export default function TokenScreen() {
       setErrorMsg(null);
     }
   }, [id]);
+
+  // Belt-and-suspenders on top of the realtime channels below: self-hosted Realtime can miss
+  // events on reconnect, so re-pull the real status on every screen focus and every 10s while
+  // this screen stays open. 10s (not the shared 15s default) since a queue position is the one
+  // thing a patient stares at waiting for it to move.
+  useLiveRefresh(refetch, 10_000);
 
   async function handleBookAndPay() {
     if (!id || paying) return;
