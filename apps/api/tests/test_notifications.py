@@ -1,11 +1,12 @@
+import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
 
+import asyncpg
 import pytest
 from exponent_server_sdk import PushTicket
 
 import app.notifications as notifications_module
-from app.notifications import poll_tick, record_and_push
+from app.notifications import deliver_notification, poll_tick
 
 
 @pytest.fixture(autouse=True)
@@ -16,85 +17,99 @@ def fake_expo(monkeypatch):
     monkeypatch.setattr(notifications_module.PushClient, "publish_multiple", fake_publish_multiple)
 
 
-async def _seed_service(db_pool, name="General OPD") -> uuid.UUID:
-    service_id = uuid.uuid4()
+async def _seed_notification(db_pool, patient_id=None, body="hello", pushed=False):
+    patient_id = patient_id or uuid.uuid4()
+    notification_id = uuid.uuid4()
     await db_pool.execute(
-        "INSERT INTO services(id, name) VALUES ($1, $2)", service_id, name
-    )
-    return service_id
-
-
-async def test_record_and_push_fires_once_then_dedups(db_pool):
-    token_id = uuid.uuid4()
-    patient_id = uuid.uuid4()
-    await db_pool.execute(
-        "INSERT INTO tokens(id, service_id, status, patient_id) VALUES ($1, $2, 'called', $3)",
-        token_id,
-        uuid.uuid4(),
+        "INSERT INTO notifications(id, patient_id, kind, title, body) VALUES ($1, $2, 'called', 't', $3)",
+        notification_id,
         patient_id,
+        body,
     )
-    first = await record_and_push(db_pool, patient_id, token_id, "called", "t", "b")
-    second = await record_and_push(db_pool, patient_id, token_id, "called", "t", "b")
+    if pushed:
+        await db_pool.execute(
+            "UPDATE notifications SET pushed_at = now() WHERE id = $1", notification_id
+        )
+    return notification_id, patient_id
+
+
+async def test_deliver_notification_claims_exactly_once(db_pool):
+    notification_id, patient_id = await _seed_notification(db_pool)
+
+    first = await deliver_notification(db_pool, notification_id, patient_id, "hello")
+    second = await deliver_notification(db_pool, notification_id, patient_id, "hello")
+
     assert first is True
     assert second is False
-
-
-async def test_poll_tick_notifies_almost_turn_and_called(db_pool):
-    service_id = await _seed_service(db_pool)
-    base = datetime.now(timezone.utc)
-    ids = [uuid.uuid4() for _ in range(3)]
-    patient_ids = [uuid.uuid4() for _ in range(3)]
-    for i, (tid, pid) in enumerate(zip(ids, patient_ids)):
-        await db_pool.execute(
-            "INSERT INTO tokens(id, service_id, status, patient_id, number, priority_at) "
-            "VALUES ($1, $2, 'waiting', $3, $4, $5)",
-            tid,
-            service_id,
-            pid,
-            i,
-            base + timedelta(seconds=i),
-        )
-        await db_pool.execute(
-            "INSERT INTO push_tokens(user_id, expo_token, platform) VALUES ($1, $2, 'ios')",
-            pid,
-            f"ExponentPushToken[{i}]",
-        )
-
-    called_id = uuid.uuid4()
-    called_patient = uuid.uuid4()
-    await db_pool.execute(
-        "INSERT INTO tokens(id, service_id, status, patient_id, called_at) "
-        "VALUES ($1, $2, 'called', $3, now())",
-        called_id,
-        service_id,
-        called_patient,
+    row = await db_pool.fetchrow(
+        "SELECT pushed_at FROM notifications WHERE id = $1", notification_id
     )
+    assert row["pushed_at"] is not None
+
+
+async def test_two_concurrent_claims_on_same_row_exactly_one_wins(db_pool):
+    notification_id, patient_id = await _seed_notification(db_pool)
+
+    results = await asyncio.gather(
+        deliver_notification(db_pool, notification_id, patient_id, "hello"),
+        deliver_notification(db_pool, notification_id, patient_id, "hello"),
+    )
+
+    assert sorted(results) == [False, True]
+
+
+async def test_deliver_notification_sends_push_to_patients_tokens(db_pool):
+    notification_id, patient_id = await _seed_notification(db_pool, body="you're up")
     await db_pool.execute(
         "INSERT INTO push_tokens(user_id, expo_token, platform) VALUES ($1, $2, 'ios')",
-        called_patient,
-        "ExponentPushToken[called]",
+        patient_id,
+        "ExponentPushToken[aaa]",
+    )
+    sent = []
+
+    def fake_publish_multiple(self, messages):
+        sent.extend(m.to for m in messages)
+        return [PushTicket(m, "ok", None, None, None) for m in messages]
+
+    notifications_module.PushClient.publish_multiple = fake_publish_multiple
+
+    await deliver_notification(db_pool, notification_id, patient_id, "you're up")
+
+    assert sent == ["ExponentPushToken[aaa]"]
+
+
+async def test_poll_tick_delivers_only_unpushed_rows(db_pool):
+    unpushed_id, patient_id = await _seed_notification(db_pool, body="deliver me")
+    pushed_id, _ = await _seed_notification(db_pool, body="already sent", pushed=True)
+    await db_pool.execute(
+        "INSERT INTO push_tokens(user_id, expo_token, platform) VALUES ($1, $2, 'ios')",
+        patient_id,
+        "ExponentPushToken[bbb]",
+    )
+    pushed_row_before = await db_pool.fetchrow(
+        "SELECT pushed_at FROM notifications WHERE id = $1", pushed_id
     )
 
     await poll_tick(db_pool)
 
-    almost_turn = await db_pool.fetchrow(
-        "SELECT 1 FROM notifications WHERE token_id = $1 AND kind = 'almost_turn'",
-        ids[2],
+    unpushed_row = await db_pool.fetchrow(
+        "SELECT pushed_at FROM notifications WHERE id = $1", unpushed_id
     )
-    assert almost_turn is not None
+    assert unpushed_row["pushed_at"] is not None
 
-    second_position = await db_pool.fetchrow(
-        "SELECT 1 FROM notifications WHERE token_id = $1 AND kind = 'almost_turn'",
-        ids[1],
+    pushed_row_after = await db_pool.fetchrow(
+        "SELECT pushed_at FROM notifications WHERE id = $1", pushed_id
     )
-    assert second_position is None
+    assert pushed_row_after["pushed_at"] == pushed_row_before["pushed_at"]
 
-    called_notified = await db_pool.fetchrow(
-        "SELECT 1 FROM notifications WHERE token_id = $1 AND kind = 'called'",
-        called_id,
-    )
-    assert called_notified is not None
 
-    await poll_tick(db_pool)
-    total = await db_pool.fetchval("SELECT count(*) FROM notifications")
-    assert total == 2
+async def test_poll_tick_logs_once_and_does_not_raise_when_column_missing():
+    class FakePool:
+        async def fetch(self, *args, **kwargs):
+            raise asyncpg.exceptions.UndefinedColumnError("column pushed_at does not exist")
+
+    notifications_module._grant_missing_logged = False
+    # Must not raise -- this is the "don't crash-loop while waiting on the
+    # DB grant/column" behavior the DB agent hasn't shipped yet.
+    await poll_tick(FakePool())
+    assert notifications_module._grant_missing_logged is True

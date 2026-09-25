@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     body text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     read_at timestamptz,
+    pushed_at timestamptz,
     UNIQUE (token_id, kind)
 );
 

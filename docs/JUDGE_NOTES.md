@@ -223,14 +223,19 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   seconds so it isn't a database round trip every time — meaning a revoked staff account is locked
   out within 5 seconds, not instantly). Nothing a client sends in a request body or header is ever
   treated as a role.
-- **Push notifications.** Two moments matter to a waiting patient: "you're 3rd in line" and "you've
-  been called." The database side of this system doesn't yet have the trigger that would notify
-  `apps/api` the instant either happens (that's a small piece of SQL the database team still needs
-  to add), so today `apps/api` checks for both conditions itself every 5 seconds and sends the
-  push — a documented, working, degraded mode rather than a feature that's silently broken. The
-  moment that trigger lands, the faster instant-notify path activates automatically alongside it,
-  with no risk of double-notifying (each notification is recorded once, so a repeat check is a
-  no-op).
+- **Notifications: DB decides, API delivers.** The database itself now decides who to notify and
+  when — a trigger writes a row the instant a ticket is 3rd in line or gets called, and a
+  scheduled database job automatically marks a called patient as a no-show if they don't respond
+  in time. `apps/api`'s only job left is turning an undelivered notification row into an actual
+  Expo push on the patient's phone, exactly once (claimed via a `WHERE pushed_at IS NULL` guard,
+  so two running copies of `apps/api` can never both send the same push) — it no longer decides
+  anything itself, which also means it can no longer double-guess or drift out of sync with what
+  the database already decided. **Currently blocked on one missing piece from the database side**:
+  the column and permission `apps/api` needs to mark a notification as delivered aren't there yet
+  (`pushed_at` doesn't exist on the table, and `apps/api`'s database account isn't allowed to read
+  or write it) — `apps/api` detects this, logs it once, and waits rather than crash-looping, so it
+  will start delivering the moment that lands with no redeploy needed. Flagged plainly rather than
+  worked around.
 - **push_tokens correction, and a real gap it exposed.** The Expo push-token table
   (`push_tokens`) is owned and written by the client directly under Supabase Row Level Security
   (the signed-in user writes their own row, `apps/api`'s own database role only has read/delete
@@ -242,11 +247,6 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   endpoint — it does not yet write to `push_tokens` directly via the Supabase SDK.** Push
   notifications will not reach a device until mobile switches to writing its own row under the
   `push_tokens_owner` policy; flagged here rather than silently left broken.
-- **No-show handling.** If a patient is called and doesn't show up within a set window (15 minutes
-  by default), a background job automatically marks their ticket as a no-show so the desk can move
-  on. If this service is ever run as multiple copies for scale, a database-level lock guarantees
-  only one copy actually does the work on any given tick — proven with an automated test that runs
-  two copies at once and checks exactly one of them wins.
 - **`/predict` matches the real system now.** It takes a real `service_id` (the actual per-org
   UUID from the database) instead of a fixed list of made-up service names, and checks that id
   against the live `board_services` table before predicting — an earlier version hardcoded 5

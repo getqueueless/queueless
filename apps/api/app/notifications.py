@@ -23,32 +23,13 @@ log = structlog.get_logger()
 # 0018), so there is no registration write path here. apps/api only reads it
 # to send pushes and deletes a row once Expo reports it as unregistered.
 
+# apps/api is delivery-only: the DB decides who to notify and writes the row
+# (private.tokens_after_write, supabase/migrations/0024; private.housekeeping,
+# 0027) -- this module only turns an undelivered notifications row into an
+# Expo push, exactly once. It used to also decide who was 3rd in line / who
+# was just called, duplicating the DB trigger; that logic was removed.
 
-async def record_and_push(
-    pool: asyncpg.Pool, patient_id: UUID, token_id: UUID, kind: str, title: str, body: str
-) -> bool:
-    """Writes to the DB team's real `notifications` table (supabase/migrations/
-    0006), not a separate apps/api-owned dedup table -- its own
-    `unique (token_id, kind)` constraint is the same atomic dedup primitive a
-    parallel table would give us, and writing here means the row also shows
-    up in the mobile app's own in-app notification history/Realtime feed."""
-    row = await pool.fetchrow(
-        """
-        INSERT INTO notifications (patient_id, token_id, kind, title, body)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (token_id, kind) DO NOTHING
-        RETURNING id
-        """,
-        patient_id,
-        token_id,
-        kind,
-        title,
-        body,
-    )
-    if row is None:
-        return False
-    await send_push(pool, patient_id, body)
-    return True
+_grant_missing_logged = False
 
 
 async def send_push(pool: asyncpg.Pool, user_id: UUID, body: str) -> None:
@@ -68,58 +49,48 @@ async def send_push(pool: asyncpg.Pool, user_id: UUID, body: str) -> None:
             log.warning("push_ticket_error", token=ticket.push_message.to, error=str(exc))
 
 
-async def poll_tick(pool: asyncpg.Pool) -> None:
-    """The real, working notification path today -- see listen_task below for
-    why this exists instead of relying solely on LISTEN/NOTIFY. Queue order
-    and "position" mirror the real ordering used by public.my_queue_status
-    (supabase/migrations/0012): partition by (service_id, service_day), order
-    by (lane_rank, priority_at, number)."""
-    almost_turn = await pool.fetch(
-        """
-        SELECT r.id, r.patient_id, s.name AS service_name FROM (
-            SELECT t.id, t.patient_id, t.service_id,
-                   row_number() OVER (
-                       PARTITION BY t.service_id, t.service_day
-                       ORDER BY t.lane_rank, t.priority_at, t.number
-                   ) AS position
-            FROM tokens t
-            WHERE t.status = 'waiting'
-        ) r
-        JOIN services s ON s.id = r.service_id
-        WHERE r.position = 3
-        """
+async def deliver_notification(pool: asyncpg.Pool, notification_id: UUID, patient_id: UUID, body: str) -> bool:
+    """Claims one notifications row and pushes it. The `WHERE pushed_at IS
+    NULL` guard makes this atomic under Postgres's own row locking -- two
+    replicas racing the same row can't both claim it, no advisory lock
+    needed (unlike the old no-show tick, this claims one row at a time, not
+    a whole batch)."""
+    claimed = await pool.fetchval(
+        "UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL RETURNING id",
+        notification_id,
     )
-    for row in almost_turn:
-        await record_and_push(
-            pool,
-            row["patient_id"],
-            row["id"],
-            "almost_turn",
-            "Almost your turn",
-            f"You're 3rd in line for {row['service_name']}",
-        )
+    if claimed is None:
+        return False
+    await send_push(pool, patient_id, body)
+    return True
 
-    just_called = await pool.fetch(
-        """
-        SELECT t.id, t.patient_id, s.name AS service_name
-        FROM tokens t
-        JOIN services s ON s.id = t.service_id
-        WHERE t.status = 'called'
-          AND NOT EXISTS (
-              SELECT 1 FROM notifications n
-              WHERE n.token_id = t.id AND n.kind = 'called'
-          )
-        """
-    )
-    for row in just_called:
-        await record_and_push(
-            pool,
-            row["patient_id"],
-            row["id"],
-            "called",
-            "You've been called",
-            f"You've been called for {row['service_name']}",
+
+async def poll_tick(pool: asyncpg.Pool) -> None:
+    """Delivery only. `public.notifications.pushed_at` and the SELECT/UPDATE
+    grant on it for the `queueless_api` role are not in
+    supabase/migrations/0018_queueless_api_role.sql as of this writing --
+    apps/api cannot fix that itself (out of scope). Until the DB agent adds
+    both, this logs once and no-ops every tick instead of crash-looping; it
+    starts working the moment the grant/column land, no redeploy needed."""
+    global _grant_missing_logged
+    try:
+        rows = await pool.fetch(
+            "SELECT id, patient_id, body FROM notifications WHERE pushed_at IS NULL "
+            "ORDER BY created_at LIMIT 100"
         )
+    except (asyncpg.exceptions.UndefinedColumnError, asyncpg.exceptions.InsufficientPrivilegeError) as exc:
+        if not _grant_missing_logged:
+            log.warning(
+                "notifications_delivery_pending_db_grant",
+                note="queueless_api needs SELECT, UPDATE (pushed_at) ON public.notifications "
+                "and an ADD COLUMN pushed_at timestamptz -- see supabase/migrations/0018",
+                error=str(exc),
+            )
+            _grant_missing_logged = True
+        return
+
+    for row in rows:
+        await deliver_notification(pool, row["id"], row["patient_id"], row["body"])
 
     waiting_counts = await pool.fetch(
         """
@@ -134,38 +105,31 @@ async def poll_tick(pool: asyncpg.Pool) -> None:
 
 
 async def _handle_notify_payload(pool: asyncpg.Pool, payload: str) -> None:
-    """Expected shape once a pg_notify('token_events', ...) trigger lands
-    (still absent from supabase/migrations as of this writing): {"token_id":
-    ..., "patient_id": ..., "kind": "almost_turn"|"called", "service_name":
-    ...}. kind must be a value the real notifications.kind check constraint
-    allows (supabase/migrations/0006)."""
+    """Expected shape once a NOTIFY trigger lands on `public.notifications`
+    inserts (none exists in supabase/migrations as of this writing):
+    {"id": ..., "patient_id": ..., "body": ...} -- the row's own columns,
+    since apps/api no longer decides kind/title/body, it only delivers."""
     try:
         data = json.loads(payload)
-        token_id = UUID(data["token_id"])
+        notification_id = UUID(data["id"])
         patient_id = UUID(data["patient_id"])
-        kind = data["kind"]
-        service_name = data.get("service_name", "")
+        body = data["body"]
     except (json.JSONDecodeError, KeyError, ValueError) as exc:
-        log.warning("token_events_payload_invalid", error=str(exc), payload=payload)
+        log.warning("notifications_payload_invalid", error=str(exc), payload=payload)
         return
-    title = "Almost your turn" if kind == "almost_turn" else "You've been called"
-    body = (
-        f"You're 3rd in line for {service_name}"
-        if kind == "almost_turn"
-        else f"You've been called for {service_name}"
-    )
-    await record_and_push(pool, patient_id, token_id, kind, title, body)
+    await deliver_notification(pool, notification_id, patient_id, body)
 
 
 async def listen_task(settings: Settings, pool: asyncpg.Pool) -> None:
-    """Activates the moment the DB team lands a pg_notify('token_events', ...)
-    trigger in supabase/migrations (none exists there yet). Until then this
+    """Activates the moment the DB team lands a NOTIFY trigger on
+    `public.notifications` inserts (none exists there yet). Until then this
     holds an idle, auto-reconnecting LISTEN connection; poller_task below is
-    the path actually delivering notifications. notify_if_new's dedup table
-    makes it safe to run both concurrently once the trigger does exist."""
+    the path actually delivering notifications. deliver_notification's
+    pushed_at guard makes it safe to run both concurrently once the trigger
+    does exist."""
     log.info(
-        "token_events_listener_starting",
-        note="polling fallback is the active path until a NOTIFY trigger exists on origin/main",
+        "notifications_listener_starting",
+        note="polling is the active delivery path until a NOTIFY trigger exists on origin/main",
     )
     conn: asyncpg.Connection | None = None
     backoff = 1.0
@@ -174,7 +138,7 @@ async def listen_task(settings: Settings, pool: asyncpg.Pool) -> None:
             if conn is None or conn.is_closed():
                 conn = await get_direct_connection(settings)
                 await conn.add_listener(
-                    "token_events",
+                    "notifications_events",
                     lambda *args: asyncio.create_task(_handle_notify_payload(pool, args[-1])),
                 )
                 backoff = 1.0
@@ -184,7 +148,7 @@ async def listen_task(settings: Settings, pool: asyncpg.Pool) -> None:
                 await conn.close()
             raise
         except Exception as exc:  # noqa: BLE001 - reconnect loop must never die
-            log.warning("token_events_listener_error", error=str(exc))
+            log.warning("notifications_listener_error", error=str(exc))
             conn = None
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)
