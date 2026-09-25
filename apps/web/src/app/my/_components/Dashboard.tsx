@@ -5,9 +5,10 @@ import { AnimatedHeading } from "@/components/motion/AnimatedHeading"
 
 import { DoctorActions } from "../DoctorActions"
 import styles from "../my.module.css"
-import { loadActiveToken, type ActiveToken, type Org } from "./data"
+import { loadActiveToken, loadDepartments, type ActiveToken, type Department, type Org } from "./data"
 import { dayKey, firstName } from "./format"
 import { ArrowIcon, TicketIcon } from "./icons"
+import { LiveNow, LiveNowSkeleton } from "./LiveNow"
 import { ClaimDialog, QuickActions } from "./QuickActions"
 import { TokenCard } from "./TokenCard"
 import t from "./TokenCard.module.css"
@@ -35,6 +36,7 @@ export function Dashboard({ supabase, userId, fullName, org, now, doctors }: Das
     month: "long",
   })
   const token = userId ? loadActiveToken(supabase, userId) : Promise.resolve(null)
+  const departments = loadDepartments(supabase)
 
   return (
     <div className={styles.page}>
@@ -67,6 +69,19 @@ export function Dashboard({ supabase, userId, fullName, org, now, doctors }: Das
       </section>
 
       <div className={styles.body}>
+        <section className={styles.full} aria-labelledby="live-now">
+          <div className={ui.sectionHead}>
+            <AnimatedHeading as="h2" id="live-now" lead="Live" accent="now" />
+            <p className={ui.aside}>
+              <span className={ui.liveDot} aria-hidden="true" />
+              Queue lengths as they change, waits from our prediction model
+            </p>
+          </div>
+          <Suspense fallback={<LiveNowSkeleton />}>
+            <LiveSlot departments={departments} day={dayKey(now, org.timeZone)} />
+          </Suspense>
+        </section>
+
         <div id="doctors" className={styles.full}>
           <DoctorActions doctors={doctors} />
         </div>
@@ -75,6 +90,10 @@ export function Dashboard({ supabase, userId, fullName, org, now, doctors }: Das
       <ClaimDialog />
     </div>
   )
+}
+
+async function LiveSlot({ departments, day }: { departments: Promise<Department[]>; day: string }) {
+  return <LiveNow departments={await departments} day={day} />
 }
 
 async function TokenSlot({ token }: { token: Promise<ActiveToken | null> }) {

@@ -81,6 +81,33 @@
   font-size: 13px;
 }
 
+/* A real live indicator: the numbers beside it are pushed, not polled only. */
+.liveDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-xs);
+  border-radius: 50%;
+  background: var(--color-success);
+  vertical-align: 1px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .liveDot {
+    animation: beat 2.4s var(--ease-out) infinite;
+  }
+}
+
+@keyframes beat {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-success) 45%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
 /* Skeletons: the final layout's shapes in surface-sunken, with one slow
    sweep of light across them when motion is allowed. */
 .skel {
