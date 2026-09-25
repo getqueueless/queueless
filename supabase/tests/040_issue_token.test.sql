@@ -14,6 +14,15 @@ insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000001
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000002', 'p040b@queueless.test');
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000003', 'p040c@queueless.test');
 
+-- issue_token requires a completed profile as of 0037; not what this file tests, so stamp it
+-- directly rather than routing every fixture patient through complete_my_profile.
+update public.profiles set profile_completed_at = now()
+  where id in (
+    '55555555-0000-0000-0000-000000000001',
+    '55555555-0000-0000-0000-000000000002',
+    '55555555-0000-0000-0000-000000000003'
+  );
+
 create or replace function pg_temp.try_issue(
   p_service uuid,
   out ok boolean, out err_code text, out retry_after text, out tok public.tokens

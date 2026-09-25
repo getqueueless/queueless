@@ -18,6 +18,14 @@ insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000031
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000032', 'p050b@queueless.test');
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000033', 'p050c@queueless.test');
 
+-- book_appointment requires a completed profile as of 0037; not what this file tests.
+update public.profiles set profile_completed_at = now()
+  where id in (
+    '55555555-0000-0000-0000-000000000031',
+    '55555555-0000-0000-0000-000000000032',
+    '55555555-0000-0000-0000-000000000033'
+  );
+
 create or replace function pg_temp.try_book(p_slot uuid, out ok boolean, out err_code text, out appt public.appointments) as $$
 declare v_message text;
 begin
@@ -131,6 +139,7 @@ values
   ('dddddddd-0000-0000-0000-000000000013', 'bbbbbbbb-0000-0000-0000-000000000033', now() + interval '7 hours', 1, 0),
   ('dddddddd-0000-0000-0000-000000000014', 'bbbbbbbb-0000-0000-0000-000000000034', now() + interval '8 hours', 1, 0);
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000034', 'p050d@queueless.test');
+update public.profiles set profile_completed_at = now() where id = '55555555-0000-0000-0000-000000000034';
 select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000034', 'role', 'authenticated')::text, true);
 set local role authenticated;
 
