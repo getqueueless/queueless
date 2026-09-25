@@ -53,10 +53,12 @@ export type ListRowProps = {
   trailing?: ReactNode;
   destructive?: boolean;
   accessibilityHint?: string;
+  /** Show the full title and subtitle (help and policy text) instead of clipping to 1 / 2 lines. */
+  wrap?: boolean;
 };
 
 /** A 56pt row: icon tile, title (+ subtitle), then a value, a control, or a chevron. */
-export function ListRow({ title, subtitle, icon, tone = 'teal', value, onPress, trailing, destructive, accessibilityHint }: ListRowProps) {
+export function ListRow({ title, subtitle, icon, tone = 'teal', value, onPress, trailing, destructive, accessibilityHint, wrap }: ListRowProps) {
   const theme = useTheme();
   const dark = useColorScheme() === 'dark';
   const t = tone === 'danger' ? null : Tones[tone][dark ? 'dark' : 'light'];
@@ -71,11 +73,11 @@ export function ListRow({ title, subtitle, icon, tone = 'teal', value, onPress, 
         </View>
       ) : null}
       <View style={styles.text}>
-        <UIText color={destructive ? 'danger' : 'ink'} numberOfLines={1}>
+        <UIText color={destructive ? 'danger' : 'ink'} numberOfLines={wrap ? undefined : 1}>
           {title}
         </UIText>
         {subtitle ? (
-          <UIText variant="secondary" numberOfLines={2}>
+          <UIText variant="secondary" numberOfLines={wrap ? undefined : 2}>
             {subtitle}
           </UIText>
         ) : null}

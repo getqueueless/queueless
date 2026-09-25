@@ -96,7 +96,7 @@ export default function HelpTopic() {
         ) : (
           <ListGroup>
             {page.points.map((p) => (
-              <ListRow key={p.title} title={p.title} subtitle={p.text} icon={p.icon} tone={p.tone} />
+              <ListRow key={p.title} title={p.title} subtitle={p.text} icon={p.icon} tone={p.tone} wrap />
             ))}
           </ListGroup>
         )}
