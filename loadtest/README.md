@@ -9,8 +9,8 @@ numbers and zero double-called tokens; reports p50/p95/p99 latency and error rat
 The script creates its own throwaway org (`loadtest-org-<random>`, own service, own 2 counters,
 own staff account) and tears it down in a `finally` block — it never targets the demo
 org, never touches a real patient's data, and is safe to run at any time without a
-demo-reset (cleanup still had a real bug at 1500+ users — see "Known issue" below, not
-yet fixed as of this write-up). The full `LOADTEST_WAVES=100,200,500,1000` escalation
+demo-reset (cleanup had a real bug at 1500+ users, found and fixed after this run — see
+below). The full `LOADTEST_WAVES=100,200,500,1000` escalation
 plus the DB-level burst and the call_next race have now all run to completion against
 prod (org `loadtest-org-2482fb2c`).
 
@@ -47,12 +47,18 @@ that held at every concurrency level run, including 1000-wide.
 plus more PostgREST replicas behind a load balancer — not a code change to `apps/api` or
 the RPCs themselves, which already held up correctly at this scale.
 
-**Known issue, not yet fixed:** cleanup left ~1500 users + the org behind on this run
-(cleaned up by hand). Suspected: `delete_org_and_dependents`'s `profiles` deletion runs
-before checking whether some other, non-tokens FK still blocks it at this scale (the
-tokens→profiles order was supposed to be handled, needs re-verification against a run
-this size specifically — not reproduced at the smaller scales this was tested at
-earlier in this document).
+**Cleanup bug found and fixed after this run:** it left ~1500 users + the org behind
+(cleaned up by hand at the time). Root cause: `supabase/docker-compose.yml` sets
+`PGRST_DB_MAX_ROWS: 1000` — the plain GET fetching this org's tokens (to know which
+notifications/profiles to clear before the org cascade) silently returned only the
+first 1000 of 2500 rows, no error at all, so the remaining ~1500 tokens (and every
+profile referencing one) were never targeted for deletion, leaving them blocking the
+org cascade and every one of those users' `auth.users` delete with the same
+`tokens_patient_id_fkey` violation this document already fixed once at smaller scale —
+just past the row cap this time, not past a URL-length limit. Fixed by paging through
+`Range` headers until a page comes back short (`_fetch_all()`); the pagination
+mechanism itself was confirmed against the real Kong/PostgREST stack with a safe,
+read-only check, not re-run against a real loadtest org yet.
 
 **Found and fixed while verifying:** `issue_token` 403s with `profile_incomplete` since
 migration 0037 — a probe using un-completed test patients never got past that. Also,
