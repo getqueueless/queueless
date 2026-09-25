@@ -20,6 +20,7 @@ const NAV = [
   { key: "home", href: "/", label: "Home" },
   { key: "how", href: "/login?next=/my", label: "Get a token" },
   { key: "status", href: "/#status", label: "Check status" },
+  { key: "app", href: "/#get-app", label: "Get app" },
 ] as const;
 
 type PublicHeaderProps = {

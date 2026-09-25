@@ -92,7 +92,11 @@
   color: var(--color-primary);
 }
 
+/* Capped so a long name can't push the inline nav past 1024px. */
 .userName {
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 0 var(--space-xs);
   font-size: 13px;
   font-weight: 500;
@@ -305,6 +309,7 @@
   .userName {
     display: flex;
     align-items: center;
+    max-width: none;
     min-height: 40px;
     padding: 0 var(--space-sm);
     border-top: 1px solid var(--color-hairline);

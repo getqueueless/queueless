@@ -10,6 +10,7 @@ const COLUMNS = [
     links: [
       { href: "/login?next=/my", label: "Get a token" },
       { href: "/#status", label: "Check status" },
+      { href: "/#get-app", label: "Get the app" },
     ],
   },
   {
