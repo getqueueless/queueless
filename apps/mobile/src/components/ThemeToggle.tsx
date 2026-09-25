@@ -19,16 +19,16 @@ import { setThemePreference } from '@/lib/theme-preference';
 const TRACK_LIGHT = '#D9DDDA';
 const TRACK_MID = '#B9A3F0';
 const TRACK_DARK = '#7B3FE4';
-const SUN = '#B7791F'; // 3.4:1 on the white knob
-const MOON = TRACK_DARK; // 5.6:1 on the white knob
+const SUN = '#5b615d'; // 6.2:1 on the white knob
+const MOON = TRACK_DARK; // 5.7:1 on the white knob
 
 const WIDTH = 60;
 const HEIGHT = 30;
 const PAD = 3;
 const KNOB = HEIGHT - PAD * 2;
 const TRAVEL = WIDTH - KNOB - PAD * 2;
-const STRETCH = 0.16; // extra knob width at mid-travel
-const ICON_SHIFT = KNOB * 0.7;
+const STRETCH = 0.15; // extra knob width at mid-travel
+const ICON_SHIFT = KNOB;
 const TIMING = { duration: 600, easing: Easing.bezier(0.65, 0, 0.35, 1) };
 
 /** Light/dark switch: a 60×30 pill whose knob carries a sun or a moon. */
@@ -58,14 +58,14 @@ export function ThemeToggle() {
     transform: [{ scaleX: 1 / (1 + STRETCH * Math.sin(Math.PI * progress.get())) }],
   }));
 
-  // Opacity, travel and scale stand in for a motion blur: the old icon slides out one side as
-  // the new one slides in from the other, both clipped to the knob.
+  // As on the web, the outgoing icon leaves in the direction of travel and the incoming one
+  // enters from the other side, clipped to the knob. Opacity and scale stand in for a blur.
   const sunStyle = useAnimatedStyle(() => {
     const p = progress.get();
     return {
       opacity: interpolate(p, [0, 0.5], [1, 0], 'clamp'),
       transform: [
-        { translateX: interpolate(p, [0, 0.6], [0, -ICON_SHIFT], 'clamp') },
+        { translateX: interpolate(p, [0, 0.6], [0, ICON_SHIFT], 'clamp') },
         { scale: interpolate(p, [0, 0.6], [1, 0.6], 'clamp') },
       ],
     };
@@ -76,7 +76,7 @@ export function ThemeToggle() {
     return {
       opacity: interpolate(p, [0.5, 1], [0, 1], 'clamp'),
       transform: [
-        { translateX: interpolate(p, [0.4, 1], [ICON_SHIFT, 0], 'clamp') },
+        { translateX: interpolate(p, [0.4, 1], [-ICON_SHIFT, 0], 'clamp') },
         { scale: interpolate(p, [0.4, 1], [0.6, 1], 'clamp') },
       ],
     };
