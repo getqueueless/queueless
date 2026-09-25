@@ -14,6 +14,7 @@ from exponent_server_sdk import (
 from app.config import Settings
 from app.db import get_direct_connection
 from app.metrics import queue_depth
+from app.translate import TranslateDeps, translate_text
 
 log = structlog.get_logger()
 
@@ -32,11 +33,11 @@ log = structlog.get_logger()
 _grant_missing_logged = False
 
 
-async def send_push(pool: asyncpg.Pool, user_id: UUID, body: str) -> None:
+async def send_push(pool: asyncpg.Pool, user_id: UUID, body: str, *, title: str = "") -> None:
     rows = await pool.fetch("SELECT expo_token FROM push_tokens WHERE user_id = $1", user_id)
     if not rows:
         return
-    messages = [PushMessage(to=row["expo_token"], body=body) for row in rows]
+    messages = [PushMessage(to=row["expo_token"], title=title or None, body=body) for row in rows]
     tickets = await asyncio.to_thread(PushClient().publish_multiple, messages)
     for ticket in tickets:
         try:
@@ -49,7 +50,36 @@ async def send_push(pool: asyncpg.Pool, user_id: UUID, body: str) -> None:
             log.warning("push_ticket_error", token=ticket.push_message.to, error=str(exc))
 
 
-async def deliver_notification(pool: asyncpg.Pool, notification_id: UUID, patient_id: UUID, body: str) -> bool:
+_language_column_missing_logged = False
+
+
+async def _patient_language(pool: asyncpg.Pool, patient_id: UUID) -> str | None:
+    """profiles.language doesn't exist in the real schema yet (as of this
+    writing) -- same missing-column shape as notifications.pushed_at was
+    before 0031 landed. Degrade to "no translation" rather than crash."""
+    global _language_column_missing_logged
+    try:
+        return await pool.fetchval("SELECT language FROM profiles WHERE id = $1", patient_id)
+    except asyncpg.exceptions.UndefinedColumnError as exc:
+        if not _language_column_missing_logged:
+            log.warning(
+                "profiles_language_column_missing",
+                note="ADD COLUMN language text to public.profiles for AI translation to activate",
+                error=str(exc),
+            )
+            _language_column_missing_logged = True
+        return None
+
+
+async def deliver_notification(
+    pool: asyncpg.Pool,
+    notification_id: UUID,
+    patient_id: UUID,
+    body: str,
+    *,
+    title: str = "",
+    translate_deps: TranslateDeps | None = None,
+) -> bool:
     """Claims one notifications row and pushes it. The `WHERE pushed_at IS
     NULL` guard makes this atomic under Postgres's own row locking -- two
     replicas racing the same row can't both claim it, no advisory lock
@@ -61,11 +91,25 @@ async def deliver_notification(pool: asyncpg.Pool, notification_id: UUID, patien
     )
     if claimed is None:
         return False
-    await send_push(pool, patient_id, body)
+
+    if translate_deps is not None:
+        language = await _patient_language(pool, patient_id)
+        if language in ("hi", "pa"):
+            if title:
+                title = await translate_text(
+                    translate_deps.client, translate_deps.model, translate_deps.max_tokens,
+                    translate_deps.cache_size, title, language,
+                )
+            body = await translate_text(
+                translate_deps.client, translate_deps.model, translate_deps.max_tokens,
+                translate_deps.cache_size, body, language,
+            )
+
+    await send_push(pool, patient_id, body, title=title)
     return True
 
 
-async def poll_tick(pool: asyncpg.Pool) -> None:
+async def poll_tick(pool: asyncpg.Pool, *, translate_deps: TranslateDeps | None = None) -> None:
     """Delivery only. `public.notifications.pushed_at` and the SELECT/UPDATE
     grant on it for the `queueless_api` role are not in
     supabase/migrations/0018_queueless_api_role.sql as of this writing --
@@ -75,7 +119,7 @@ async def poll_tick(pool: asyncpg.Pool) -> None:
     global _grant_missing_logged
     try:
         rows = await pool.fetch(
-            "SELECT id, patient_id, body FROM notifications WHERE pushed_at IS NULL "
+            "SELECT id, patient_id, title, body FROM notifications WHERE pushed_at IS NULL "
             "ORDER BY created_at LIMIT 100"
         )
     except (asyncpg.exceptions.UndefinedColumnError, asyncpg.exceptions.InsufficientPrivilegeError) as exc:
@@ -90,7 +134,10 @@ async def poll_tick(pool: asyncpg.Pool) -> None:
         return
 
     for row in rows:
-        await deliver_notification(pool, row["id"], row["patient_id"], row["body"])
+        await deliver_notification(
+            pool, row["id"], row["patient_id"], row["body"],
+            title=row["title"], translate_deps=translate_deps,
+        )
 
     waiting_counts = await pool.fetch(
         """
@@ -104,23 +151,29 @@ async def poll_tick(pool: asyncpg.Pool) -> None:
         queue_depth.labels(service=row["service"]).set(row["n"])
 
 
-async def _handle_notify_payload(pool: asyncpg.Pool, payload: str) -> None:
+async def _handle_notify_payload(
+    pool: asyncpg.Pool, payload: str, *, translate_deps: TranslateDeps | None = None
+) -> None:
     """Expected shape once a NOTIFY trigger lands on `public.notifications`
     inserts (none exists in supabase/migrations as of this writing):
-    {"id": ..., "patient_id": ..., "body": ...} -- the row's own columns,
-    since apps/api no longer decides kind/title/body, it only delivers."""
+    {"id": ..., "patient_id": ..., "title": ..., "body": ...} -- the row's
+    own columns, since apps/api no longer decides kind/title/body, it only
+    delivers."""
     try:
         data = json.loads(payload)
         notification_id = UUID(data["id"])
         patient_id = UUID(data["patient_id"])
+        title = data.get("title", "")
         body = data["body"]
     except (json.JSONDecodeError, KeyError, ValueError) as exc:
         log.warning("notifications_payload_invalid", error=str(exc), payload=payload)
         return
-    await deliver_notification(pool, notification_id, patient_id, body)
+    await deliver_notification(pool, notification_id, patient_id, body, title=title, translate_deps=translate_deps)
 
 
-async def listen_task(settings: Settings, pool: asyncpg.Pool) -> None:
+async def listen_task(
+    settings: Settings, pool: asyncpg.Pool, *, translate_deps: TranslateDeps | None = None
+) -> None:
     """Activates the moment the DB team lands a NOTIFY trigger on
     `public.notifications` inserts (none exists there yet). Until then this
     holds an idle, auto-reconnecting LISTEN connection; poller_task below is
@@ -139,7 +192,9 @@ async def listen_task(settings: Settings, pool: asyncpg.Pool) -> None:
                 conn = await get_direct_connection(settings)
                 await conn.add_listener(
                     "notifications_events",
-                    lambda *args: asyncio.create_task(_handle_notify_payload(pool, args[-1])),
+                    lambda *args: asyncio.create_task(
+                        _handle_notify_payload(pool, args[-1], translate_deps=translate_deps)
+                    ),
                 )
                 backoff = 1.0
             await asyncio.sleep(5)
@@ -154,10 +209,12 @@ async def listen_task(settings: Settings, pool: asyncpg.Pool) -> None:
             backoff = min(backoff * 2, 30)
 
 
-async def poller_task(pool: asyncpg.Pool, interval_seconds: int) -> None:
+async def poller_task(
+    pool: asyncpg.Pool, interval_seconds: int, *, translate_deps: TranslateDeps | None = None
+) -> None:
     while True:
         try:
-            await poll_tick(pool)
+            await poll_tick(pool, translate_deps=translate_deps)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - one bad tick must not kill the loop

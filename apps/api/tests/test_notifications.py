@@ -17,13 +17,14 @@ def fake_expo(monkeypatch):
     monkeypatch.setattr(notifications_module.PushClient, "publish_multiple", fake_publish_multiple)
 
 
-async def _seed_notification(db_pool, patient_id=None, body="hello", pushed=False):
+async def _seed_notification(db_pool, patient_id=None, body="hello", title="t", pushed=False):
     patient_id = patient_id or uuid.uuid4()
     notification_id = uuid.uuid4()
     await db_pool.execute(
-        "INSERT INTO notifications(id, patient_id, kind, title, body) VALUES ($1, $2, 'called', 't', $3)",
+        "INSERT INTO notifications(id, patient_id, kind, title, body) VALUES ($1, $2, 'called', $3, $4)",
         notification_id,
         patient_id,
+        title,
         body,
     )
     if pushed:
@@ -113,3 +114,71 @@ async def test_poll_tick_logs_once_and_does_not_raise_when_column_missing():
     # DB grant/column" behavior the DB agent hasn't shipped yet.
     await poll_tick(FakePool())
     assert notifications_module._grant_missing_logged is True
+
+
+async def test_deliver_notification_translates_when_patient_language_hi(db_pool, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.translate import TranslateDeps
+
+    notification_id, patient_id = await _seed_notification(db_pool, body="You are being called", title="Called")
+    await db_pool.execute(
+        "INSERT INTO profiles (id, role, language) VALUES ($1, 'patient', 'hi') "
+        "ON CONFLICT (id) DO UPDATE SET language = 'hi'",
+        patient_id,
+    )
+
+    response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="आपको बुलाया जा रहा है"))])
+    fake_client = SimpleNamespace()
+    fake_client.chat = SimpleNamespace()
+    fake_client.chat.completions = SimpleNamespace()
+    fake_client.chat.completions.create = AsyncMock(return_value=response)
+    deps = TranslateDeps(client=fake_client, model="deepseek-chat", max_tokens=100, cache_size=8)
+
+    sent_bodies = []
+
+    def fake_publish_multiple(self, messages):
+        sent_bodies.extend(m.body for m in messages)
+        return [PushTicket(m, "ok", None, None, None) for m in messages]
+
+    notifications_module.PushClient.publish_multiple = fake_publish_multiple
+    await db_pool.execute(
+        "INSERT INTO push_tokens(user_id, expo_token, platform) VALUES ($1, $2, 'ios')",
+        patient_id, "ExponentPushToken[hi-test]",
+    )
+
+    await deliver_notification(db_pool, notification_id, patient_id, "You are being called", title="Called", translate_deps=deps)
+
+    assert sent_bodies == ["आपको बुलाया जा रहा है"]
+
+
+async def test_deliver_notification_no_translation_when_language_missing_column(db_pool):
+    """profiles.language doesn't exist in the real schema yet -- must
+    degrade to English, never crash, exactly like the pushed_at grant gap."""
+    notification_id, patient_id = await _seed_notification(db_pool, body="plain english")
+    await db_pool.execute(
+        "INSERT INTO push_tokens(user_id, expo_token, platform) VALUES ($1, $2, 'ios')",
+        patient_id, "ExponentPushToken[no-lang]",
+    )
+
+    class NoLanguagePool:
+        def __init__(self, real_pool):
+            self._real = real_pool
+
+        async def fetchval(self, query, *args):
+            if "language" in query:
+                raise asyncpg.exceptions.UndefinedColumnError("column profiles.language does not exist")
+            return await self._real.fetchval(query, *args)
+
+        def __getattr__(self, name):
+            return getattr(self._real, name)
+
+    from app.translate import TranslateDeps
+    deps = TranslateDeps(client=object(), model="deepseek-chat", max_tokens=100, cache_size=8)
+
+    result = await deliver_notification(
+        NoLanguagePool(db_pool), notification_id, patient_id, "plain english",
+        title="Title", translate_deps=deps,
+    )
+    assert result is True

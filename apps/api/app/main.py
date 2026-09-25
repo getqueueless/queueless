@@ -18,6 +18,7 @@ from app.ml_runtime import load as load_ml
 from app.notifications import listen_task, poller_task
 from app.rate_limit import limiter
 from app.routes import admin, ai, health, predict, staff
+from app.translate import TranslateDeps
 
 configure_logging()
 settings = Settings()
@@ -38,10 +39,18 @@ async def lifespan(app: FastAPI):
     app.state.shutting_down = False
     load_ml(app)
     app.state.deepseek_client = get_deepseek_client(settings)
+    translate_deps = TranslateDeps(
+        client=app.state.deepseek_client,
+        model=settings.deepseek_model,
+        max_tokens=settings.deepseek_max_tokens,
+        cache_size=settings.translate_cache_size,
+    )
     app.state.db_pool = await create_pool(settings)
-    app.state.listener_task = asyncio.create_task(listen_task(settings, app.state.db_pool))
+    app.state.listener_task = asyncio.create_task(
+        listen_task(settings, app.state.db_pool, translate_deps=translate_deps)
+    )
     app.state.poller_task = asyncio.create_task(
-        poller_task(app.state.db_pool, settings.poll_interval_seconds)
+        poller_task(app.state.db_pool, settings.poll_interval_seconds, translate_deps=translate_deps)
     )
     try:
         yield

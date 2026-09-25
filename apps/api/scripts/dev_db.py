@@ -26,7 +26,12 @@ SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS profiles (
     id uuid PRIMARY KEY,
     role text NOT NULL,
-    org_id uuid
+    org_id uuid,
+    -- Doesn't exist in the real schema yet (see docs/DECISIONS.md) --
+    -- fixture-only so app/notifications.py's translation lookup is
+    -- genuinely exercised; prod degrades via UndefinedColumnError until
+    -- the DB agent adds it.
+    language text
 );
 
 CREATE TABLE IF NOT EXISTS services (
