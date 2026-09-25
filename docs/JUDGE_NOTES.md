@@ -784,3 +784,26 @@ under "Web app" above.
   already shipped on `t/[id]/status.module.css`'s `.card::before` (6px) and a 4px variant on
   `counter/counter.module.css`'s `.tokenCard::before`. It's a deliberate, repeated motif across
   three token-card surfaces, not an isolated accident — confirmed fine, left as-is.
+
+## Landing motion: theme switch, rolling hero word, letter-by-letter headings
+
+- **Theme switch.** The old sun/moon icon button is now a small sliding switch, rebuilt frame by
+  frame from a reference animation. Clicking it slides a raised white knob across (stretching it
+  a little mid-way, like something with weight), fades the track from grey through lavender to
+  violet, and swaps the sun for a moon inside the knob. It is a real `role="switch"` with
+  `aria-checked`, works with Space and Enter, and jumps instantly for people who ask their OS for
+  reduced motion. Its look is driven by the same `data-theme` attribute the pre-paint script
+  sets, so a returning dark-mode visitor never sees it animate on page load.
+- **Hero word.** "Skip the line." rolls through wait, crowd and queue on a 3D drum, once, and
+  rests on "queue" (the brand). One pass takes about 4 seconds, which keeps it inside the WCAG
+  rule that auto-moving content must stop within 5 seconds (the TV board's call ripple follows the
+  same rule). Screen readers hear "Skip the queue." once, never the flips. Every word reserves
+  its width, so the headline never shifts.
+- **Section headings.** Each landing section title fades up letter by letter out of a blur the
+  first time it scrolls into view, watched by one IntersectionObserver per heading. A heading
+  already on screen at load is left alone, and without JavaScript nothing is hidden. Screen
+  readers get the whole heading from `aria-label`.
+- **Why no animation library.** All three are plain CSS keyframes and transitions on transform,
+  opacity and filter, with React only flipping an attribute. Measured in Chromium: a steady
+  60 fps through the hero animation, one layout per word flip, zero console errors. No
+  dependency added.
