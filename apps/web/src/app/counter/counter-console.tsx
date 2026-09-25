@@ -206,7 +206,7 @@ export function CounterConsole({
       }
       switch (event.key.toLowerCase()) {
         case "n":
-          if (!current) {
+          if (!current && counter.state === "open") {
             event.preventDefault()
             void callNext()
           }
@@ -233,7 +233,7 @@ export function CounterConsole({
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [current, callNext, markDone, skip, recall])
+  }, [current, counter.state, callNext, markDone, skip, recall])
 
   return (
     <div className={styles.shell}>
@@ -259,13 +259,19 @@ export function CounterConsole({
             type="button"
             className={styles.callNextButton}
             onClick={() => void callNext()}
-            disabled={pending}
+            disabled={pending || counter.state !== "open"}
             aria-keyshortcuts="N"
           >
             {pending ? "Calling…" : "Call Next"}
           </button>
           <p className={styles.idleHint}>
-            Press <kbd className={styles.kbd}>N</kbd> to call the next token.
+            {counter.state !== "open" ? (
+              "This desk is closed. Open it to call tokens."
+            ) : (
+              <>
+                Press <kbd className={styles.kbd}>N</kbd> to call the next token.
+              </>
+            )}
           </p>
         </div>
       ) : (
