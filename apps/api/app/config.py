@@ -26,3 +26,20 @@ class Settings(BaseSettings):
     # than a handful of rows -- see docs/api/model-card.md for the full
     # justification.
     retrain_min_real_rows: int = 500
+
+    # DeepSeek (OpenAI-compatible). api_key is Optional on purpose: every AI
+    # route/job must degrade gracefully (not crash) when it's unset -- see
+    # app/ai_client.py::get_deepseek_client. Never logged anywhere.
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-chat"
+    deepseek_timeout_seconds: float = 20.0
+    deepseek_max_tokens: int = 400
+
+    translate_cache_size: int = 512
+
+    # Distinct from retrain_lock_key -- advisory lock keys share one global
+    # keyspace per Postgres instance.
+    daily_summary_lock_key: int = 612_004_337
+    daily_summary_hour_ist: int = 21
+    daily_summary_timezone: str = "Asia/Kolkata"
