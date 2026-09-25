@@ -418,7 +418,8 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 - **`card-overlap`**: the same with `shadow-raised`, pulled up over the hero.
 - **`section-dark`**: slate fill, white text, `radius-section` corners.
 - **`TwoToneHeading`** (`src/components/site/TwoToneHeading.tsx`): `display-lg` with the lead words in ink and the accent words in `accent-display`, or brand accent with `onDark`.
-- **`PublicHeader` / `PublicFooter`** (`src/components/site/`): the logo, public nav, theme toggle, and a slate-deep footer with cyan-dot headings.
+- **`PublicHeader`** (`src/components/site/`): skip link, logo, public nav (Home, Get a token, Check status, Staff login as an outline button) and the theme toggle. `tone="slate"` sits it transparent on the hero overlay with white text. Pages that use it render `<main id="main">` (skip-link target), and the landing page's status lookup carries `id="status"` ("Check status" links to `/#status`).
+- **`PublicFooter`** (`src/components/site/`): slate-deep in both themes, logo and tagline, cyan-dot column headings, and a `credit` slot for photo credits.
 - **`ThemeToggle`** (`src/components/theme/ThemeToggle.tsx`): a 44px round icon button in every header. `aria-label` names the target theme ("Switch to dark theme").
 - **Status badges, token tile, stat tile, text input**: unchanged in shape. Inputs take `radius-sm` and the `hairline-strong` border.
 
@@ -444,7 +445,7 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 |---|---|---|
 | Desktop | ≥1024px | Staff console: sidebar + content. Public: 4-up numbered cards, hero card overlaps. |
 | Tablet | 768–1023px | Admin sidebar collapses to icons; grids go 2-up. |
-| Mobile | <768px | Public header nav collapses; single column; 16px side gutter; no horizontal scroll. |
+| Mobile | <768px | Public header nav drops to its own full-width row under the logo (no menu button, so "Get a token" is one tap); single column; 16px side gutter; no horizontal scroll. |
 
 Touch targets are at least 44px on any control a counter/staff user taps repeatedly (call next, mark done), and on public nav and CTAs.
 
