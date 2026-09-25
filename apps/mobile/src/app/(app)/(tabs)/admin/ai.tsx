@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Button, Card, Radius, Skeleton, Type, UIText } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { supabase } from '@/lib/supabase';
 import { useRole } from '@/lib/use-role';
@@ -33,13 +33,16 @@ async function aiError(res: Response): Promise<string> {
   return UNREACHABLE;
 }
 
+// Tapping one only fills the box; the admin still presses Ask.
+const EXAMPLES = ['Which service had the longest wait today?', 'No-shows by service this week', 'Busiest counters today'];
+
 function AiBadge() {
   const theme = useTheme();
   return (
-    <View style={[styles.badge, { backgroundColor: theme.primarySoft, borderColor: theme.primaryOutline }]}>
-      <ThemedText type="caption" themeColor="primaryText">
+    <View style={[styles.badge, { backgroundColor: theme.primarySoft }]}>
+      <UIText variant="secondaryStrong" color="primaryText">
         AI-generated
-      </ThemedText>
+      </UIText>
     </View>
   );
 }
@@ -49,22 +52,23 @@ function AiBadge() {
 // columns), so this renders it generically as one line per row rather than assuming a specific
 // {label, value} pair per function.
 function RowsList({ rows, functionName }: { rows: unknown; functionName: string | null }) {
+  const theme = useTheme();
   if (!Array.isArray(rows) || rows.length === 0) return null;
   return (
-    <View style={styles.chart}>
-      {functionName ? (
-        <ThemedText type="caption" themeColor="inkMuted">
-          Based on: {functionName}
-        </ThemedText>
-      ) : null}
+    <View style={[styles.rows, { borderColor: theme.hairline }]}>
+      {functionName ? <UIText variant="secondary">Based on: {functionName}</UIText> : null}
       {rows.map((row, i) => (
-        <ThemedText key={i} type="caption" themeColor="inkSecondary" style={styles.rowLine}>
+        <UIText
+          key={i}
+          variant="secondary"
+          color="ink"
+          style={[styles.rowLine, i > 0 && { borderTopWidth: 1, borderColor: theme.hairline }]}>
           {typeof row === 'object' && row !== null
             ? Object.entries(row as Record<string, unknown>)
                 .map(([k, v]) => `${k}: ${v}`)
                 .join(' · ')
             : String(row)}
-        </ThemedText>
+        </UIText>
       ))}
     </View>
   );
@@ -217,89 +221,88 @@ export default function AdminAsk() {
   return (
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <UIText variant="title3" accessibilityRole="header" style={styles.sectionLabel}>
             Ask your data
-          </ThemedText>
-          <View style={styles.askRow}>
+          </UIText>
+          <Card>
             <TextInput
               value={question}
               onChangeText={setQuestion}
-              placeholder="e.g. Which service had the longest wait today?"
+              placeholder="Ask about waits, no-shows, counters…"
               placeholderTextColor={theme.inkMuted}
               onSubmitEditing={handleAsk}
               returnKeyType="send"
-              style={[styles.askInput, { color: theme.ink, borderColor: theme.hairline }]}
+              submitBehavior="blurAndSubmit"
+              multiline
+              accessibilityLabel="Your question"
+              style={[styles.askInput, Type.body, { color: theme.ink, borderColor: theme.hairlineStrong, backgroundColor: theme.canvasSoft }]}
             />
-            <Pressable
-              onPress={handleAsk}
-              disabled={asking || !question.trim()}
-              style={[styles.askButton, { backgroundColor: theme.dark, opacity: asking || !question.trim() ? 0.6 : 1 }]}>
-              {asking ? <ActivityIndicator color={theme.onPrimary} /> : (
-                <ThemedText type="button" themeColor="onPrimary">
-                  Ask
-                </ThemedText>
-              )}
-            </Pressable>
-          </View>
-
-          {askError ? (
-            <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
-              {askError}
-            </ThemedText>
-          ) : null}
+            <View style={styles.examples}>
+              {EXAMPLES.map((q) => (
+                <Pressable
+                  key={q}
+                  onPress={() => setQuestion(q)}
+                  accessibilityRole="button"
+                  accessibilityHint="Fills in the question"
+                  style={({ pressed }) => [styles.example, { backgroundColor: pressed ? theme.primarySoft : theme.surface, borderColor: theme.hairline }]}>
+                  <UIText variant="secondary" color="primaryText">
+                    {q}
+                  </UIText>
+                </Pressable>
+              ))}
+            </View>
+            <Button label="Ask" onPress={handleAsk} loading={asking} disabled={!question.trim()} block />
+            {askError ? (
+              <UIText variant="secondary" color="danger" accessibilityLiveRegion="polite">
+                {askError}
+              </UIText>
+            ) : null}
+          </Card>
 
           {askResult ? (
-            <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
-              {askResult.ai_generated ? <AiBadge /> : null}
-              <ThemedText type="body" style={styles.answerText}>
-                {askResult.answer}
-              </ThemedText>
+            <Card>
+              <View style={styles.cardHead}>
+                <UIText variant="bodyStrong">Answer</UIText>
+                {askResult.ai_generated ? <AiBadge /> : null}
+              </View>
+              <UIText variant="body">{askResult.answer}</UIText>
               <RowsList rows={askResult.rows} functionName={askResult.function} />
-            </ThemedView>
+            </Card>
           ) : null}
 
-          <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
+          <UIText variant="title3" accessibilityRole="header" style={styles.sectionLabel}>
             Daily summary
-          </ThemedText>
-          <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
+          </UIText>
+          <Card>
             {summaryLoading ? (
-              <ActivityIndicator color={theme.primary} />
+              <View accessibilityLabel="Loading summary" style={styles.skeleton}>
+                <Skeleton height={18} />
+                <Skeleton height={18} />
+                <Skeleton height={18} width="60%" />
+              </View>
             ) : summary ? (
               <>
-                {summary.ai_generated ? <AiBadge /> : null}
-                <ThemedText type="body" style={styles.answerText}>
-                  {summary.report}
-                </ThemedText>
-                <ThemedText type="caption" themeColor="inkMuted">
-                  {summary.day}
-                </ThemedText>
+                <View style={styles.cardHead}>
+                  <UIText variant="secondaryStrong" color="inkSecondary">
+                    {summary.day}
+                  </UIText>
+                  {summary.ai_generated ? <AiBadge /> : null}
+                </View>
+                <UIText variant="body">{summary.report}</UIText>
               </>
             ) : (
-              <ThemedText type="bodySm" themeColor="inkMuted">
-                {summaryError ?? 'No summary has been generated yet.'}
-              </ThemedText>
+              <UIText variant="secondary">{summaryError ?? 'No summary has been generated yet.'}</UIText>
             )}
 
             {generateMessage ? (
-              <ThemedText type="bodySm" themeColor={generateMessage.startsWith('Generated') ? 'success' : 'danger'} style={styles.error}>
+              <UIText variant="secondary" color={generateMessage.startsWith('Generated') ? 'success' : 'danger'} accessibilityLiveRegion="polite">
                 {generateMessage}
-              </ThemedText>
+              </UIText>
             ) : null}
 
-            <Pressable
-              onPress={handleGenerate}
-              disabled={generating}
-              style={[styles.generateButton, { borderColor: theme.primaryOutline, opacity: generating ? 0.6 : 1 }]}>
-              {generating ? (
-                <ActivityIndicator color={theme.primaryText} />
-              ) : (
-                <ThemedText type="button" themeColor="primaryText">
-                  Generate now
-                </ThemedText>
-              )}
-            </Pressable>
-          </ThemedView>
+            <Button label="Generate now" onPress={handleGenerate} loading={generating} variant="secondary" block />
+          </Card>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -309,31 +312,29 @@ export default function AdminAsk() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  safeArea: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
-  scroll: { paddingBottom: Spacing.xxl, gap: Spacing.xs },
-  sectionLabel: { marginTop: Spacing.md },
-  error: { marginTop: Spacing.xs },
-  askRow: { flexDirection: 'row', gap: Spacing.xs },
+  safeArea: { flex: 1, paddingHorizontal: Spacing.md, paddingTop: Spacing.sm },
+  scroll: { paddingBottom: Spacing.xxl, gap: Spacing.sm },
+  sectionLabel: { marginTop: Spacing.sm },
   askInput: {
-    flex: 1,
     borderWidth: 1,
-    borderRadius: Rounded.md,
-    paddingHorizontal: Spacing.sm,
-    minHeight: 44,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    minHeight: 96,
+    textAlignVertical: 'top',
   },
-  askButton: { minHeight: 44, borderRadius: Rounded.md, paddingHorizontal: Spacing.md, justifyContent: 'center' },
-  card: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.md, gap: Spacing.xs },
-  badge: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: Rounded.pill, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
-  answerText: { marginTop: Spacing.xxs },
-  chart: { marginTop: Spacing.xs, gap: Spacing.xxs },
-  chartRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  rowLine: { paddingVertical: 2 },
-  generateButton: {
-    minHeight: 44,
-    borderRadius: Rounded.md,
-    borderWidth: 1,
-    alignItems: 'center',
+  examples: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  example: {
+    minHeight: 48,
     justifyContent: 'center',
-    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderRadius: Radius.pill,
   },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.xs, flexWrap: 'wrap' },
+  badge: { borderRadius: Radius.pill, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xxs },
+  rows: { borderTopWidth: 1, paddingTop: Spacing.sm, gap: Spacing.xxs },
+  rowLine: { paddingVertical: Spacing.xs },
+  skeleton: { gap: Spacing.xs },
 });

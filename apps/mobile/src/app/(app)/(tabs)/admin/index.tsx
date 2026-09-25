@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { type Href, useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StateCard } from '@/components/admin/state-card';
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Card, StatusChip, UIText, type ChipStatus, type IconName } from '@/components/ui';
+import { Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { todayDateString } from '@/lib/service-day';
@@ -42,6 +43,13 @@ type TokenRow = { service_id: string; created_at: string; called_at: string | nu
 type HourBucket = { hour: number; count: number; actualWaitMin: number | null; topServiceId: string };
 
 const MAX_BAR_HEIGHT = 96;
+const CHEVRON: IconName = { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' };
+// Counter state as a dot + word, reusing StatusChip's AA-checked colour pairs.
+const COUNTER_CHIP: Record<BoardCounterRow['state'], { status: ChipStatus; label: string }> = {
+  open: { status: 'available', label: 'Open' },
+  paused: { status: 'late', label: 'Paused' },
+  closed: { status: 'leave', label: 'Closed' },
+};
 
 function formatMinutes(seconds: number | null): string {
   if (seconds == null) return '—';
@@ -224,41 +232,46 @@ export default function AdminDashboard() {
   }
 
   const maxWaitMin = Math.max(1, ...hourly.map((h) => h.actualWaitMin ?? 0), ...Object.values(predicted));
+  const hasPredicted = Object.keys(predicted).length > 0;
 
   return (
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <ThemedText type="headingMd" themeColor="inkSecondary">
+          <UIText variant="title3" accessibilityRole="header" style={styles.sectionLabel}>
             Manage
-          </ThemedText>
-          <ThemedView type="surface" style={[styles.listCard, CardShadow, { borderColor: theme.hairline }]}>
+          </UIText>
+          <Card style={styles.listCard}>
             {MANAGE_LINKS.map((link, i) => (
               <Pressable
                 key={link.href}
                 onPress={() => router.push(link.href as Href)}
                 accessibilityRole="link"
-                style={[styles.counterRow, i > 0 && { borderTopWidth: 1, borderColor: theme.hairline }]}>
-                <View>
-                  <ThemedText type="bodyLg">{link.label}</ThemedText>
-                  <ThemedText type="caption" themeColor="inkMuted">
+                accessibilityLabel={link.label}
+                accessibilityHint={link.hint}
+                style={({ pressed }) => [
+                  styles.linkRow,
+                  i > 0 && { borderTopWidth: 1, borderColor: theme.hairline },
+                  pressed && { backgroundColor: theme.surfaceSunken },
+                ]}>
+                <View style={styles.rowText}>
+                  <UIText variant="bodyStrong">{link.label}</UIText>
+                  <UIText variant="secondary" numberOfLines={1}>
                     {link.hint}
-                  </ThemedText>
+                  </UIText>
                 </View>
-                <ThemedText type="bodyLg" themeColor="inkMuted">
-                  ›
-                </ThemedText>
+                <SymbolView name={CHEVRON} size={20} tintColor={theme.inkSecondary} />
               </Pressable>
             ))}
-          </ThemedView>
+          </Card>
 
           {loadError ? (
             <StateCard kind="error" message={loadError} />
           ) : (
             <>
-              <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
+              <UIText variant="title3" accessibilityRole="header" style={styles.sectionLabel}>
                 Today
-              </ThemedText>
+              </UIText>
               {services.length === 0 ? (
                 <StateCard kind="empty" message="No services set up yet." />
               ) : (
@@ -269,94 +282,106 @@ export default function AdminDashboard() {
                     const noShow = board?.no_show_count ?? 0;
                     const denom = served + noShow;
                     return (
-                      <ThemedView key={service.id} type="surface" style={[styles.statCard, CardShadow, { borderColor: theme.hairline }]}>
-                        <ThemedText type="bodySm" themeColor="inkMuted">
+                      <Card key={service.id} style={styles.statCard}>
+                        <UIText variant="secondaryStrong" color="inkSecondary" numberOfLines={2}>
                           {service.name}
-                        </ThemedText>
-                        <ThemedText type="headingLg" themeColor="primaryDisplay">
-                          {board?.waiting_count ?? 0}
-                        </ThemedText>
-                        <ThemedText type="caption" themeColor="inkMuted">
-                          waiting
-                        </ThemedText>
-                        <View style={styles.statRow}>
-                          <ThemedText type="caption" themeColor="inkSecondary">
-                            avg wait {formatMinutes(board?.avg_service_secs ?? null)}
-                          </ThemedText>
-                          <ThemedText type="caption" themeColor="inkSecondary">
-                            no-show {denom > 0 ? formatPercent(noShow / denom) : '—'}
-                          </ThemedText>
+                        </UIText>
+                        <View>
+                          <UIText variant="title2" color="primaryDisplay">
+                            {board?.waiting_count ?? 0}
+                          </UIText>
+                          <UIText variant="secondary">waiting</UIText>
                         </View>
-                      </ThemedView>
+                        <View style={[styles.statFoot, { borderColor: theme.hairline }]}>
+                          <View style={styles.statLine}>
+                            <UIText variant="secondary">Avg wait</UIText>
+                            <UIText variant="secondaryStrong">{formatMinutes(board?.avg_service_secs ?? null)}</UIText>
+                          </View>
+                          <View style={styles.statLine}>
+                            <UIText variant="secondary">No-show</UIText>
+                            <UIText variant="secondaryStrong">{denom > 0 ? formatPercent(noShow / denom) : '—'}</UIText>
+                          </View>
+                        </View>
+                      </Card>
                     );
                   })}
                 </View>
               )}
 
-              <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
+              <UIText variant="title3" accessibilityRole="header" style={styles.sectionLabel}>
                 Tokens / hour
-              </ThemedText>
-              <ThemedView type="surface" style={[styles.chartCard, CardShadow, { borderColor: theme.hairline }]}>
+              </UIText>
+              <Card>
                 {hourly.length === 0 ? (
-                  <ThemedText type="bodySm" themeColor="inkMuted" style={styles.chartEmpty}>
+                  <UIText variant="secondary" style={styles.chartEmpty}>
                     No tokens issued yet today.
-                  </ThemedText>
+                  </UIText>
                 ) : (
                   <>
-                    <View style={styles.chartRow}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartRow}>
                       {hourly.map((bucket) => {
                         const actualHeight = bucket.actualWaitMin != null ? Math.max(4, (bucket.actualWaitMin / maxWaitMin) * MAX_BAR_HEIGHT) : 4;
                         const predictedMin = predicted[bucket.hour];
                         const predictedHeight = predictedMin != null ? Math.max(4, (predictedMin / maxWaitMin) * MAX_BAR_HEIGHT) : null;
                         return (
-                          <View key={bucket.hour} style={styles.chartCol}>
-                            <ThemedText type="caption" themeColor="inkMuted">
-                              {bucket.count}
-                            </ThemedText>
+                          <View
+                            key={bucket.hour}
+                            style={styles.chartCol}
+                            accessible
+                            accessibilityLabel={`${String(bucket.hour).padStart(2, '0')}:00, ${bucket.count} tokens, average wait ${
+                              bucket.actualWaitMin != null ? `${Math.round(bucket.actualWaitMin)} min` : 'not yet known'
+                            }${predictedMin != null ? `, predicted ${Math.round(predictedMin)} min` : ''}`}>
+                            <UIText variant="secondaryStrong">{bucket.count}</UIText>
                             <View style={styles.barsWrap}>
                               <View style={[styles.bar, { height: actualHeight, backgroundColor: theme.primary }]} />
                               {predictedHeight != null ? (
-                                <View style={[styles.bar, styles.barPredicted, { height: predictedHeight, borderColor: theme.primaryOutline }]} />
+                                <View style={[styles.bar, styles.barPredicted, { height: predictedHeight, borderColor: theme.primaryText }]} />
                               ) : null}
                             </View>
-                            <ThemedText type="caption" themeColor="inkMuted">
-                              {String(bucket.hour).padStart(2, '0')}h
-                            </ThemedText>
+                            <UIText variant="secondary">{String(bucket.hour).padStart(2, '0')}h</UIText>
                           </View>
                         );
                       })}
+                    </ScrollView>
+                    <View style={[styles.legend, { borderColor: theme.hairline }]}>
+                      <UIText variant="secondary">Top number = tokens issued</UIText>
+                      <View style={styles.legendItem}>
+                        <View style={[styles.swatch, { backgroundColor: theme.primary }]} />
+                        <UIText variant="secondary">Avg wait (min)</UIText>
+                      </View>
+                      {hasPredicted ? (
+                        <View style={styles.legendItem}>
+                          <View style={[styles.swatch, styles.barPredicted, { borderColor: theme.primaryText }]} />
+                          <UIText variant="secondary">Predicted wait</UIText>
+                        </View>
+                      ) : null}
                     </View>
-                    <ThemedText type="caption" themeColor="inkMuted" style={styles.chartLegend}>
-                      Number = tokens issued · solid bar = avg wait (min){Object.keys(predicted).length > 0 ? ' · outline bar = predicted' : ''}
-                    </ThemedText>
                   </>
                 )}
-              </ThemedView>
+              </Card>
 
-              <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
+              <UIText variant="title3" accessibilityRole="header" style={styles.sectionLabel}>
                 Counters
-              </ThemedText>
-              <ThemedView type="surface" style={[styles.listCard, CardShadow, { borderColor: theme.hairline }]}>
+              </UIText>
+              <Card style={styles.listCard}>
                 {counters.length === 0 ? (
-                  <ThemedText type="bodySm" themeColor="inkMuted" style={styles.chartEmpty}>
+                  <UIText variant="secondary" style={styles.chartEmpty}>
                     No counters set up yet.
-                  </ThemedText>
+                  </UIText>
                 ) : (
                   counters.map((c, i) => (
-                    <View key={c.counter_id} style={[styles.counterRow, i > 0 && { borderTopWidth: 1, borderColor: theme.hairline }]}>
-                      <View>
-                        <ThemedText type="bodyLg">{c.counter_name}</ThemedText>
-                        <ThemedText type="caption" themeColor="inkMuted" style={styles.capitalize}>
-                          {c.state}
-                        </ThemedText>
+                    <View key={c.counter_id} style={[styles.linkRow, i > 0 && { borderTopWidth: 1, borderColor: theme.hairline }]}>
+                      <View style={styles.rowText}>
+                        <UIText variant="bodyStrong">{c.counter_name}</UIText>
+                        <UIText variant="secondary" color={c.token_code ? 'ink' : 'inkSecondary'}>
+                          {c.token_code ? `${c.token_code} · ${c.token_status}` : 'Nobody'}
+                        </UIText>
                       </View>
-                      <ThemedText type="bodySm" themeColor={c.token_code ? 'ink' : 'inkMuted'}>
-                        {c.token_code ? `${c.token_code} · ${c.token_status}` : 'Nobody'}
-                      </ThemedText>
+                      <StatusChip status={COUNTER_CHIP[c.state].status} label={COUNTER_CHIP[c.state].label} />
                     </View>
                   ))
                 )}
-              </ThemedView>
+              </Card>
             </>
           )}
         </ScrollView>
@@ -368,21 +393,31 @@ export default function AdminDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
-  scroll: { paddingVertical: Spacing.md, gap: Spacing.xs, paddingBottom: Spacing.xxl },
-  sectionLabel: { marginTop: Spacing.md, marginBottom: Spacing.xs },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.xs },
-  statCard: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.md, gap: 2, flexBasis: '47%', flexGrow: 1 },
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.xxs },
-  chartCard: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.md },
+  safeArea: { flex: 1, paddingHorizontal: Spacing.md },
+  scroll: { paddingVertical: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xxl },
+  sectionLabel: { marginTop: Spacing.sm },
+  listCard: { padding: 0, gap: 0 },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    minHeight: 56,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  rowText: { flex: 1, gap: 2 },
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  statCard: { flexBasis: '47%', flexGrow: 1, gap: Spacing.xs },
+  statFoot: { borderTopWidth: 1, paddingTop: Spacing.xs, gap: 2 },
+  statLine: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.xs },
   chartEmpty: { textAlign: 'center', paddingVertical: Spacing.md },
   chartRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-end' },
-  chartCol: { alignItems: 'center', gap: 2, minWidth: 32 },
+  chartCol: { alignItems: 'center', gap: Spacing.xxs, minWidth: 40 },
   barsWrap: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: MAX_BAR_HEIGHT },
-  bar: { width: 10, borderRadius: Rounded.xs },
-  barPredicted: { backgroundColor: 'transparent', borderWidth: 1 },
-  chartLegend: { marginTop: Spacing.sm },
-  listCard: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.sm },
-  counterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.xs },
-  capitalize: { textTransform: 'capitalize' },
+  bar: { width: 12, borderRadius: Rounded.xs },
+  barPredicted: { backgroundColor: 'transparent', borderWidth: 2 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.md, rowGap: Spacing.xs, borderTopWidth: 1, paddingTop: Spacing.sm },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  swatch: { width: 14, height: 14, borderRadius: Rounded.xs },
 });
