@@ -95,3 +95,85 @@ Plain-English notes per feature: what was built, how it actually works, and why.
 - **Env vars.** `.env.example` lists the 4 required vars as placeholders — the two public Supabase
   values, the server-only service-role key (never `NEXT_PUBLIC_`), and `NEXT_PUBLIC_API_BASE_URL`
   for the FastAPI service's `/predict` and `/metrics`. Real values live in untracked `.env.local`.
+
+## Backend
+
+- **What it is.** `apps/api` is a separate Python FastAPI service that runs beside Supabase, not
+  inside it — it handles the three things a database and a static frontend can't do well on their
+  own: verifying who's calling, pushing notifications to a phone that isn't open, and running a
+  background job safely across multiple copies of the service. Endpoints: `GET /health` (is the
+  process alive), `GET /ready` (can it reach Postgres — what a load balancer should watch), `POST
+  /push-tokens` (register a phone for push, requires login), `POST /predict` (wait-time estimate,
+  public), `GET /metrics` (Prometheus stats for monitoring).
+- **Who you are, checked twice.** A Supabase login token proves *identity* (which user), never
+  *permission* (what they're allowed to do) — the token's own claims are editable by the client
+  SDK and can't be trusted for that. So `apps/api` decodes the token once to get the user's id,
+  then looks up their real role from the `profiles` table on every privileged request (cached 5
+  seconds so it isn't a database round trip every time — meaning a revoked staff account is locked
+  out within 5 seconds, not instantly). Nothing a client sends in a request body or header is ever
+  treated as a role.
+- **Push notifications.** Two moments matter to a waiting patient: "you're 3rd in line" and "you've
+  been called." The database side of this system doesn't yet have the trigger that would notify
+  `apps/api` the instant either happens (that's a small piece of SQL the database team still needs
+  to add), so today `apps/api` checks for both conditions itself every 5 seconds and sends the
+  push — a documented, working, degraded mode rather than a feature that's silently broken. The
+  moment that trigger lands, the faster instant-notify path activates automatically alongside it,
+  with no risk of double-notifying (each notification is recorded once, so a repeat check is a
+  no-op).
+- **No-show handling.** If a patient is called and doesn't show up within a set window (15 minutes
+  by default), a background job automatically marks their ticket as a no-show so the desk can move
+  on. If this service is ever run as multiple copies for scale, a database-level lock guarantees
+  only one copy actually does the work on any given tick — proven with an automated test that runs
+  two copies at once and checks exactly one of them wins.
+- **Known gap, stated plainly.** `/predict` currently takes one of the 5 fixed Hospital-OPD service
+  names (general_opd, pediatrics, ortho, dental, eye) directly, matching how the ML model was
+  trained. The real `services` table uses a generated id per service instead of these names, so
+  wiring the web/mobile screens up to call `/predict` for real needs one small lookup (id → name)
+  on whichever side calls it — not built yet, called out here instead of hidden.
+
+## AI/ML
+
+- **What it predicts.** How many minutes a patient will likely wait, given their service, the hour
+  and day, how many people are ahead of them, and how many counters are open.
+- **The model.** A gradient-boosted regression model (`HistGradientBoostingRegressor`), trained
+  once offline and loaded at startup — never retrained live, never trained on a live request.
+- **The data is synthetic, and that's stated up front.** No real patient data exists yet, so 20,000
+  rows were generated from a documented formula (base wait time per service, slower at peak hours
+  and on Mondays, divided by counters open, plus realistic random noise) — every assumption behind
+  that formula is written out in `docs/api/model-card.md`.
+- **The actual, measured numbers** (from running `scripts/train.py`, not hand-typed): the model's
+  average error is **3.84 minutes**; a naive guess (people-ahead × average service time, ignoring
+  everything else) is off by **49.88 minutes** on average — a **92.3% improvement**. The
+  naive-guess comparison matters because it's the honest bar the model has to clear, not a
+  strawman.
+- **The responsible-AI part.** If the model is asked about a situation it barely saw in training
+  (fewer than 30 similar examples), it does not guess — it falls back to that same honest naive
+  estimate and says so in the response (`"fallback": true`). This is the guardrail against a
+  confident-sounding wrong number for a case the model doesn't actually know.
+- **What this is not.** Not clinical triage, not a staffing tool, not validated against any real
+  hospital. It's a "here's roughly how long" number shown to a patient, nothing more, and it says
+  so in its own documentation.
+
+## Security
+
+- **The live red-team question judges will test:** can a client claim a role it doesn't have, or
+  break in with a forged/expired/tampered login token? No. The token's signature, expiry, and
+  audience are checked with a fixed algorithm the client can never influence (never trusts a
+  token's own claim about how it was signed — the classic `"alg": "none"` bypass), and every
+  permission decision is re-checked against the database's own record of who that user actually
+  is, never against anything the client sent.
+- **Every input is validated at the door.** Every request shape is locked down — wrong types,
+  missing fields, or extra fields the client had no business sending are all rejected before any
+  of that data reaches application logic or the database. Nothing is ever assembled into a SQL
+  query from raw text.
+- **Abuse limits.** Login-checking endpoints are rate-limited tighter than public ones; health
+  checks used by infrastructure are never rate-limited (they're not user traffic). Cross-site
+  requests are only ever allowed from an explicit, named list of web addresses — never "allow
+  anyone," which is a real, common hole this system deliberately avoids.
+- **If something breaks, it fails safely.** An unexpected server error never shows a stack trace
+  or internal detail to the caller — just a generic message and a request id support can trace.
+- **Two limits stated honestly rather than hidden:** the rate limiter counts per running copy of
+  the service, so running several copies at once raises the effective ceiling proportionally (fine
+  for a single-instance hackathon demo, a named upgrade path exists for real scale); and the
+  no-show job's safety lock assumes one database, not a sharded cluster (also fine at this scale).
+  Full write-up in `docs/api/threat-model.md`.
