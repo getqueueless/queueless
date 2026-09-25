@@ -66,12 +66,18 @@ compose up -d` still works the same way, reachable at `http://localhost:9090` /
 
 | Variable | What it is |
 |---|---|
-| `QL_API_TARGET` | `host:port` where apps/api's `/metrics` is reachable from Prometheus's own network view. Defaults to `ql-api:8000` (the real VPS topology, since this compose file's `prometheus` service now joins `mcbots_bots`, the same network `deploy/api/deploy.sh` puts `ql-api` on) — override only for local dev against a differently-reachable server |
 | `POSTGRES_EXPORTER_DSN` | Postgres connection string for a **read-only** role — see `docs/DECISIONS.md` for the exact `CREATE ROLE`/`GRANT` the DB agent needs to add; never `queueless_api` and never `postgres` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Real SMTP creds for `noreply@lpu.lol` — Alertmanager's own config file (`alertmanager/alertmanager.yml`) does **not** auto-expand these; see that file's header comment for why and what the deploy session needs to do |
 | `ALERT_EMAIL_TO` | Where alert emails go |
 | `GRAFANA_ADMIN_PASSWORD` | Real admin password — never the image default |
 | `PROMETHEUS_PORT` / `GRAFANA_PORT` | Optional 127.0.0.1 host-port overrides (Alertmanager/postgres_exporter publish no host port at all, nothing to override) |
+
+The `ql-api` scrape target is a literal `ql-api:8000` directly in
+`prometheus/prometheus.yml`, not a `.env` variable — found live on the VPS:
+Prometheus's own config has no env-var substitution at all, so
+`${QL_API_TARGET:-ql-api:8000}` (this file's own earlier mistake) was
+scraping a literal, unexpanded string and showing `ql-api` permanently
+`DOWN`. To point at a different target, edit that line directly.
 
 ## Admin-only exposure
 

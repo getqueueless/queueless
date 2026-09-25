@@ -31,7 +31,7 @@ services:
     mem_limit: 180m
     networks:
       - default
-      - mcbots_bots   # to scrape ql-api:8000, see prometheus.yml's QL_API_TARGET
+      - mcbots_bots   # to scrape ql-api:8000, the literal target in prometheus.yml
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro

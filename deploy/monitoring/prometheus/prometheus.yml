@@ -14,13 +14,17 @@ scrape_configs:
   - job_name: ql-api
     metrics_path: /metrics
     static_configs:
-      # ql-api (deploy/api/deploy.sh) publishes no host port at all -- it's
-      # only reachable by container name on the `mcbots_bots` network, which
-      # this prometheus container now joins too (docker-compose.yml). Real
-      # default for the real VPS topology; override via QL_API_TARGET in
-      # this directory's .env for anything else (local dev, a different
-      # host).
-      - targets: ["${QL_API_TARGET:-ql-api:8000}"]
+      # Literal target, not `${QL_API_TARGET:-...}` -- found live on the
+      # VPS: Prometheus's own YAML config has no env-var substitution at
+      # all (that syntax is Docker Compose's, for docker-compose.yml
+      # itself, not something Prometheus expands in files it reads), so
+      # ql-api showed permanently DOWN with that literal string as the
+      # target. ql-api (deploy/api/deploy.sh) publishes no host port at
+      # all -- it's only reachable by container name on the `mcbots_bots`
+      # network, which this prometheus container joins too
+      # (docker-compose.yml). For local dev against a differently-
+      # reachable server, edit this line directly.
+      - targets: ["ql-api:8000"]
 
   - job_name: postgres
     static_configs:
