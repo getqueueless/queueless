@@ -1,7 +1,7 @@
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -9,7 +9,6 @@ import { ThemedView } from '@/components/themed-view';
 import { TwoToneHeading } from '@/components/TwoToneHeading';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mapSupabaseError } from '@/lib/errors';
 import { estimateWaitSeconds } from '@/lib/predict';
 import { todayDateString } from '@/lib/service-day';
 import { supabase } from '@/lib/supabase';
@@ -126,10 +125,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [selected, setSelected] = useState<Service | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
-
   useEffect(() => {
     let cancelled = false;
 
@@ -213,51 +208,6 @@ export default function Home() {
     };
   }, []);
 
-  async function handleConfirm() {
-    if (!selected || submitting) return;
-    setSubmitting(true);
-    setConfirmError(null);
-
-    const { data, error } = await supabase.rpc('issue_token', { p_service: selected.id });
-
-    if (!error && data) {
-      const ticket = data as { id: string };
-      const serviceId = selected.id;
-      setSubmitting(false);
-      setSelected(null);
-      router.push({ pathname: '/(app)/token/[id]', params: { id: ticket.id, serviceId } });
-      return;
-    }
-
-    // Idempotency: a retry after a successful mint returns `already_active` with the existing
-    // ticket in error.details (a JSON string) instead of a fresh success — treat it the same
-    // as success rather than showing an error.
-    if (error && (error.code === 'already_active' || error.message === 'already_active')) {
-      try {
-        const raw = (error as { details?: string }).details;
-        const details = typeof raw === 'string' ? JSON.parse(raw) : null;
-        if (details?.id) {
-          const serviceId = selected.id;
-          setSubmitting(false);
-          setSelected(null);
-          router.push({ pathname: '/(app)/token/[id]', params: { id: details.id, serviceId } });
-          return;
-        }
-      } catch {
-        // Malformed/missing details — fall through to the mapped error toast below.
-      }
-    }
-
-    setSubmitting(false);
-    setConfirmError(mapSupabaseError({ code: error?.code, message: error?.message }));
-  }
-
-  function closeSheet() {
-    if (submitting) return;
-    setSelected(null);
-    setConfirmError(null);
-  }
-
   return (
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -300,52 +250,23 @@ export default function Home() {
                   avg_service_secs: boardRows[service.id]?.avg_service_secs ?? service.default_service_secs,
                   open_counters: openCounters[service.id] ?? EMPTY_BOARD_ROW.open_counters,
                 }}
-                onPress={() => setSelected(service)}
+                onPress={() => router.push({ pathname: '/(app)/department/[serviceId]', params: { serviceId: service.id } })}
               />
             ))}
           </ScrollView>
         )}
+
+        <Pressable
+          onPress={() => router.push('/(app)/claim-ticket')}
+          style={({ pressed }) => [
+            styles.claimBar,
+            { borderColor: theme.primaryOutline, backgroundColor: theme.primarySoft, opacity: pressed ? 0.85 : 1 },
+          ]}>
+          <ThemedText type="button" themeColor="primaryText">
+            Add my paper ticket
+          </ThemedText>
+        </Pressable>
       </SafeAreaView>
-
-      <Modal visible={selected !== null} transparent animationType="slide" onRequestClose={closeSheet}>
-        <View style={styles.modalRoot}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
-          <ThemedView type="surface" style={[styles.sheet, CardShadow, { borderColor: theme.hairline }]}>
-            <ThemedText type="headingLg">{selected?.name}</ThemedText>
-            <ThemedText type="body" themeColor="inkSecondary" style={styles.sheetSubtitle}>
-              You&apos;ll get a token number and your place in the queue.
-            </ThemedText>
-
-            {confirmError ? (
-              <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
-                {confirmError}
-              </ThemedText>
-            ) : null}
-
-            <Pressable
-              onPress={handleConfirm}
-              disabled={submitting}
-              style={[styles.button, { backgroundColor: theme.primary, opacity: submitting ? 0.6 : 1 }]}>
-              {submitting ? (
-                <ActivityIndicator color={theme.onPrimary} />
-              ) : (
-                <ThemedText type="button" themeColor="onPrimary">
-                  Take token
-                </ThemedText>
-              )}
-            </Pressable>
-
-            <Pressable
-              onPress={closeSheet}
-              disabled={submitting}
-              style={[styles.cancelButton, { borderColor: theme.primaryOutline }]}>
-              <ThemedText type="button" themeColor="inkSecondary">
-                Cancel
-              </ThemedText>
-            </Pressable>
-          </ThemedView>
-        </View>
-      </Modal>
     </ThemedView>
   );
 }
@@ -384,31 +305,13 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: Spacing.xxs,
   },
-  modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: {
-    borderTopLeftRadius: Rounded.xl,
-    borderTopRightRadius: Rounded.xl,
+  claimBar: {
     borderWidth: 1,
-    borderBottomWidth: 0,
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xl,
-  },
-  sheetSubtitle: { marginTop: Spacing.xxs, marginBottom: Spacing.md },
-  error: { marginBottom: Spacing.xs },
-  button: {
     borderRadius: Rounded.md,
     paddingVertical: Spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
-  },
-  cancelButton: {
-    marginTop: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-    borderWidth: 1,
-    borderRadius: Rounded.md,
+    marginBottom: Spacing.sm,
   },
 });
