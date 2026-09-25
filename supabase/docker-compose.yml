@@ -161,6 +161,7 @@ services:
       PGDATABASE: postgres
       POSTGRES_DB: postgres
       JWT_EXP: ${JWT_EXPIRY}
+      QUEUELESS_API_PASSWORD: ${QUEUELESS_API_PASSWORD}
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "log_min_messages=fatal"]
 
 volumes:

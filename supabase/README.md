@@ -27,6 +27,29 @@ Mobile/Expo note: a phone can't reach `localhost`. Use the laptop's LAN IP in
 `apps/mobile/.env` (`EXPO_PUBLIC_SUPABASE_URL=http://<lan-ip>:8000`); the Android emulator
 uses `10.0.2.2` instead.
 
+## apps/api's database access
+
+`apps/api` connects directly to Postgres (`127.0.0.1:54322`) as its own least-privilege role,
+**never** as `postgres` or `service_role`. Set a real value for `QUEUELESS_API_PASSWORD` in
+`supabase/.env` (not touched by `generate-keys.sh`) before the first `db:reset`, then connect
+apps/api with:
+
+```
+postgresql://queueless_api:<QUEUELESS_API_PASSWORD>@127.0.0.1:54322/postgres
+```
+
+`queueless_api` can (only): `select` on `tokens` and `board_services` (queue state for the
+`/predict` endpoint), `select`/`delete` on `push_tokens` (find a patient's device tokens to
+push to, prune dead ones), and `select`/`insert` on `private.token_notifications` (idempotent
+send tracking — this table has no RLS and is never exposed through PostgREST; it exists purely
+for this role). It cannot write `tokens`, `profiles`, or anything else. Registering/removing a
+push token is the **client's own job** through the normal anon+JWT path (`push_tokens` has
+owner-only RLS for `authenticated`), not the API's.
+
+`token_notifications(token_id, kind, sent_at)` — `kind` is `3_ahead` or `called`; the primary
+key on `(token_id, kind)` is what makes a send idempotent: `insert ... on conflict do nothing`
+before pushing, and only push if the insert actually landed a new row.
+
 ## RPCs
 
 All RPCs are `POST /rest/v1/rpc/<name>` with `apikey: <ANON_KEY>` and
