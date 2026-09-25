@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { DeptTile, EmptyState, Skeleton, UIText } from '@/components/ui';
+import { hospitalOrgId } from '@/lib/hospital-org';
 import { estimateWaitSeconds } from '@/lib/predict';
 import { useServiceUpdates } from '@/lib/service-updates';
 import { todayDateString } from '@/lib/service-day';
@@ -65,8 +66,11 @@ export function DepartmentGrid({ onPressDepartment }: DepartmentGridProps) {
   const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
+    // Only the hospital's departments, never another org's (e.g. a load test's).
+    const orgId = await hospitalOrgId();
+    const services = supabase.from('services').select('id, name, default_service_secs').eq('is_open', true).order('name');
     const [servicesRes, boardRes, counterRes] = await Promise.all([
-      supabase.from('services').select('id, name, default_service_secs').eq('is_open', true).order('name'),
+      orgId ? services.eq('org_id', orgId) : services,
       supabase.from('board_services').select('service_id, waiting_count, avg_service_secs').eq('day', todayDateString()),
       supabase.from('counter_services').select('service_id, counters(state)'),
     ]);
