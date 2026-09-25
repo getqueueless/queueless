@@ -103,6 +103,11 @@ select is(
   (select created_at - interval '15 minutes' from public.tokens where id = (select (tok).id from i5)),
   'priority_at pulled to created_at minus the org head start'
 ) from v3;
+
+-- DB-state check, not an RLS-visibility check: profiles has real RLS now (staff only see a
+-- profile in their own org, and a patient's profile has no org_id at all), so this reads back as
+-- postgres, same as every other "did the RPC's side effect actually land" check in this suite.
+reset role;
 select is(
   (select priority_status from public.profiles where id = '55555555-0000-0000-0000-000000000052'),
   'senior'::public.lane,
@@ -115,6 +120,8 @@ select is(
 );
 
 -- walk-in ticket (no patient_id) can still be verified without crashing
+select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000051', 'role', 'authenticated')::text, true);
+set local role authenticated;
 create temp table v4 as select * from pg_temp.try_verify((select (tok).id from i4), 'pregnant');
 select is(v4.ok, true, 'a walk-in ticket with no linked profile can still be verified') from v4;
 select is((v4.tok).lane, 'pregnant'::public.lane, 'walk-in token lane updates too') from v4;

@@ -66,16 +66,19 @@ select is(r3.err_code, 'already_active', 'second attempt on same service is alre
 select is((r3.tok is null), true, 'already_active returns no new token') from r3;
 
 reset role;
-select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000002', 'role', 'authenticated')::text, true);
-set local role authenticated;
 
--- rate limited: mint 3 on tiny-cap-unrelated org via a fresh service each counts toward the 10-min window regardless of service
+-- rate limited: mint 3 on tiny-cap-unrelated org via a fresh service each counts toward the 10-min
+-- window regardless of service. Fixture inserted as postgres, before switching role -- tokens has
+-- had real RLS since the security-hardening pass, so `authenticated` only ever writes through the
+-- RPCs under test, never via a raw insert (same pattern the cooldown fixture below already used).
 insert into public.tokens (org_id, service_id, service_day, number, code, lane, lane_rank, priority_at, status, patient_id, created_at)
 values
   ('44444444-4444-4444-4444-444444444444', 'bbbbbbbb-0000-0000-0000-000000000001', current_date, 901, 'G-901', 'normal', 1, now(), 'cancelled', '55555555-0000-0000-0000-000000000002', now() - interval '2 minutes'),
   ('44444444-4444-4444-4444-444444444444', 'bbbbbbbb-0000-0000-0000-000000000001', current_date, 902, 'G-902', 'normal', 1, now(), 'cancelled', '55555555-0000-0000-0000-000000000002', now() - interval '3 minutes'),
   ('44444444-4444-4444-4444-444444444444', 'bbbbbbbb-0000-0000-0000-000000000001', current_date, 903, 'G-903', 'normal', 1, now(), 'cancelled', '55555555-0000-0000-0000-000000000002', now() - interval '4 minutes');
 
+select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000002', 'role', 'authenticated')::text, true);
+set local role authenticated;
 create temp table r4 as select * from pg_temp.try_issue('bbbbbbbb-0000-0000-0000-000000000001');
 select is(r4.err_code, 'rate_limited', '3 tokens in the last 10 minutes trips the rate limit') from r4;
 select cmp_ok((r4.retry_after)::int, '>', 0, 'rate_limited carries a positive Retry-After') from r4;
