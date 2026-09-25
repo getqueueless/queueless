@@ -77,7 +77,7 @@ export default function AdminPriority() {
     setSaved(true);
   }
 
-  if (roleLoading || loading) {
+  if (roleLoading || (orgId && loading)) {
     return (
       <ThemedView type="canvas" style={styles.container}>
         <View style={styles.center}>
@@ -97,9 +97,9 @@ export default function AdminPriority() {
           runs out.
         </UIText>
 
-        {loadError ? (
+        {loadError || !orgId ? (
           <UIText variant="secondary" color="danger">
-            {loadError}
+            {loadError ?? 'No organization assigned to this account.'}
           </UIText>
         ) : (
           <Card style={styles.card}>
