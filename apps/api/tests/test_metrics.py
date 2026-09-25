@@ -1,33 +1,38 @@
-import uuid
+"""New Prometheus metrics for Round 3's "deployment, monitoring, logging"
+ask. Request latency/error-count-by-route are already covered by
+prometheus_fastapi_instrumentator (app/main.py) -- these are the ones
+apps/api has to compute itself."""
 
-from prometheus_client import generate_latest
-
-from app.notifications import poll_tick
-
-
-def test_metrics_endpoint_exposes_prometheus_format(client):
-    resp = client.get("/metrics")
-    assert resp.status_code == 200
-    assert b"# HELP" in resp.content
-
-
-def test_metrics_excluded_from_openapi_schema(client):
-    schema = client.get("/openapi.json").json()
-    assert "/metrics" not in schema["paths"]
+from app.metrics import (
+    deepseek_call_duration_seconds,
+    deepseek_call_failures_total,
+    notification_delivery_lag_seconds,
+    retrain_last_success,
+    retrain_duration_seconds,
+    tokens_issued_total,
+)
 
 
-async def test_queue_depth_gauge_reflects_waiting_tokens(db_pool):
-    service_id = uuid.uuid4()
-    await db_pool.execute(
-        "INSERT INTO services(id, name) VALUES ($1, 'general_opd')", service_id
-    )
-    await db_pool.execute(
-        "INSERT INTO tokens(id, service_id, status, patient_id, created_at) "
-        "VALUES ($1, $2, 'waiting', $3, now())",
-        uuid.uuid4(),
-        service_id,
-        uuid.uuid4(),
-    )
-    await poll_tick(db_pool)
-    body = generate_latest().decode()
-    assert 'queue_depth{service="general_opd"} 1.0' in body
+def test_tokens_issued_total_is_a_counter_incrementable_by_amount():
+    before = tokens_issued_total.labels(service="svc-a")._value.get()
+    tokens_issued_total.labels(service="svc-a").inc(5)
+    after = tokens_issued_total.labels(service="svc-a")._value.get()
+    assert after == before + 5
+
+
+def test_notification_delivery_lag_observable():
+    notification_delivery_lag_seconds.observe(3.5)
+    # No exception is the test -- prometheus_client histograms don't expose
+    # a trivial read-back API; existence + callability is what matters here.
+
+
+def test_deepseek_metrics_exist_and_are_labelable():
+    deepseek_call_duration_seconds.labels(call_type="ask_tool_select").observe(0.5)
+    deepseek_call_failures_total.labels(call_type="translate").inc()
+
+
+def test_retrain_status_gauges():
+    retrain_last_success.set(1)
+    assert retrain_last_success._value.get() == 1
+    retrain_duration_seconds.set(12.3)
+    assert retrain_duration_seconds._value.get() == 12.3

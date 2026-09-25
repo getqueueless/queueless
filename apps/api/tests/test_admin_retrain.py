@@ -137,3 +137,49 @@ async def test_retrain_writes_audit_via_write_audit_rpc(db_pool, tmp_path, monke
     )
     assert row is not None
     assert json.loads(row["new"])["triggered_by"] == str(admin_id)
+
+
+async def test_retrain_sets_success_gauges(db_pool, tmp_path, monkeypatch):
+    from app.metrics import retrain_duration_seconds, retrain_last_success
+    from app.routes import admin as admin_module
+
+    monkeypatch.setattr(admin_module, "ML_DIR", tmp_path)
+    (tmp_path / "model_meta.json").write_text('{"version": 1}')
+    await _seed_called_tokens(db_pool, n=520)
+
+    class _FakeApp:
+        class state:
+            ml_model = None
+            ml_meta = None
+
+    result = await admin_module.retrain_once(
+        _FakeApp(), db_pool, lock_key=555_000_005, min_real_rows=500, admin_user_id=uuid.uuid4()
+    )
+    assert result["status"] == "retrained"
+    assert retrain_last_success._value.get() == 1
+    assert retrain_duration_seconds._value.get() > 0
+
+
+async def test_retrain_sets_failure_gauge_on_exception(db_pool, tmp_path, monkeypatch):
+    from app.metrics import retrain_last_success
+    from app.routes import admin as admin_module
+
+    monkeypatch.setattr(admin_module, "ML_DIR", tmp_path)
+    (tmp_path / "model_meta.json").write_text('{"version": 1}')
+    await _seed_called_tokens(db_pool, n=520)
+
+    def _boom(*a, **kw):
+        raise RuntimeError("training exploded")
+
+    monkeypatch.setattr(admin_module, "train_and_evaluate", _boom)
+
+    class _FakeApp:
+        class state:
+            ml_model = None
+            ml_meta = None
+
+    with pytest.raises(RuntimeError):
+        await admin_module.retrain_once(
+            _FakeApp(), db_pool, lock_key=555_000_006, min_real_rows=500, admin_user_id=uuid.uuid4()
+        )
+    assert retrain_last_success._value.get() == 0

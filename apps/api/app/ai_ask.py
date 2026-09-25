@@ -66,6 +66,7 @@ async def answer_question(client, model: str, max_tokens: int, pool, org_id, que
     try:
         first = await timed_completion(
             client,
+            call_type="ask_tool_select",
             model=model,
             max_tokens=max_tokens,
             messages=[
@@ -112,6 +113,7 @@ async def answer_question(client, model: str, max_tokens: int, pool, org_id, que
     try:
         second = await timed_completion(
             client,
+            call_type="ask_answer",
             model=model,
             max_tokens=max_tokens,
             messages=[

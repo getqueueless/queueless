@@ -13,7 +13,7 @@ from exponent_server_sdk import (
 
 from app.config import Settings
 from app.db import get_direct_connection
-from app.metrics import queue_depth
+from app.metrics import notification_delivery_lag_seconds, queue_depth, tokens_issued_total
 from app.translate import SUPPORTED_LANGUAGES, TranslateDeps, translate_text
 
 log = structlog.get_logger()
@@ -31,6 +31,26 @@ log = structlog.get_logger()
 # was just called, duplicating the DB trigger; that logic was removed.
 
 _grant_missing_logged = False
+_tokens_checkpoint = None
+
+
+async def _update_tokens_issued_metric(pool: asyncpg.Pool) -> None:
+    """tokens_issued_total, by service, since the last tick. The first
+    call after (re)start only establishes the checkpoint -- otherwise
+    every restart would spike the counter by however many tokens already
+    existed, which isn't "issued since we started watching"."""
+    global _tokens_checkpoint
+    now = await pool.fetchval("SELECT now()")
+    if _tokens_checkpoint is not None:
+        rows = await pool.fetch(
+            "SELECT service_id, count(*) AS n FROM tokens "
+            "WHERE created_at > $1 AND created_at <= $2 GROUP BY service_id",
+            _tokens_checkpoint,
+            now,
+        )
+        for row in rows:
+            tokens_issued_total.labels(service=str(row["service_id"])).inc(row["n"])
+    _tokens_checkpoint = now
 
 
 async def send_push(pool: asyncpg.Pool, user_id: UUID, body: str, *, title: str = "") -> None:
@@ -85,12 +105,17 @@ async def deliver_notification(
     replicas racing the same row can't both claim it, no advisory lock
     needed (unlike the old no-show tick, this claims one row at a time, not
     a whole batch)."""
-    claimed = await pool.fetchval(
-        "UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL RETURNING id",
+    claimed = await pool.fetchrow(
+        "UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL "
+        "RETURNING id, extract(epoch from (pushed_at - created_at)) AS lag_seconds",
         notification_id,
     )
     if claimed is None:
         return False
+    # extract(epoch from ...) comes back from asyncpg as a Decimal, not a
+    # float -- prometheus_client's Histogram.observe() does `float += x`
+    # internally and raises TypeError on a bare Decimal.
+    notification_delivery_lag_seconds.observe(float(claimed["lag_seconds"]))
 
     if translate_deps is not None:
         language = await _patient_language(pool, patient_id)
@@ -117,6 +142,11 @@ async def poll_tick(pool: asyncpg.Pool, *, translate_deps: TranslateDeps | None 
     both, this logs once and no-ops every tick instead of crash-looping; it
     starts working the moment the grant/column land, no redeploy needed."""
     global _grant_missing_logged
+    try:
+        await _update_tokens_issued_metric(pool)
+    except Exception as exc:  # noqa: BLE001 - metrics must never block delivery
+        log.warning("tokens_issued_metric_update_failed", error=str(exc))
+
     try:
         rows = await pool.fetch(
             "SELECT id, patient_id, title, body FROM notifications WHERE pushed_at IS NULL "

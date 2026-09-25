@@ -46,7 +46,7 @@ async def test_timed_completion_returns_response_on_success():
     client.chat.completions = SimpleNamespace()
     client.chat.completions.create = AsyncMock(return_value=expected)
 
-    result = await timed_completion(client, model="deepseek-chat", messages=[])
+    result = await timed_completion(client, call_type="unit_test", model="deepseek-chat", messages=[])
     assert result is expected
     client.chat.completions.create.assert_awaited_once_with(model="deepseek-chat", messages=[])
 
@@ -68,4 +68,47 @@ async def test_timed_completion_reraises_on_failure():
     client.chat.completions.create = _boom
 
     with pytest.raises(RuntimeError):
-        await timed_completion(client, model="deepseek-chat", messages=[])
+        await timed_completion(client, call_type="unit_test", model="deepseek-chat", messages=[])
+
+
+async def test_timed_completion_records_duration_metric_on_success():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.ai_client import timed_completion
+    from app.metrics import deepseek_call_duration_seconds
+
+    expected = SimpleNamespace(choices=[])
+    client = SimpleNamespace()
+    client.chat = SimpleNamespace()
+    client.chat.completions = SimpleNamespace()
+    client.chat.completions.create = AsyncMock(return_value=expected)
+
+    before = deepseek_call_duration_seconds.labels(call_type="unit_test_success")._sum.get()
+    await timed_completion(client, call_type="unit_test_success", model="deepseek-chat", messages=[])
+    after = deepseek_call_duration_seconds.labels(call_type="unit_test_success")._sum.get()
+    assert after > before
+
+
+async def test_timed_completion_records_failure_metric():
+    from types import SimpleNamespace
+
+    import pytest
+
+    from app.ai_client import timed_completion
+    from app.metrics import deepseek_call_failures_total
+
+    client = SimpleNamespace()
+    client.chat = SimpleNamespace()
+    client.chat.completions = SimpleNamespace()
+
+    async def _boom(**kwargs):
+        raise RuntimeError("boom")
+
+    client.chat.completions.create = _boom
+
+    before = deepseek_call_failures_total.labels(call_type="unit_test_failure")._value.get()
+    with pytest.raises(RuntimeError):
+        await timed_completion(client, call_type="unit_test_failure", model="deepseek-chat", messages=[])
+    after = deepseek_call_failures_total.labels(call_type="unit_test_failure")._value.get()
+    assert after == before + 1

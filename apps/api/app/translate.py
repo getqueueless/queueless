@@ -68,6 +68,7 @@ async def translate_text(client, model: str, max_tokens: int, cache_size: int, t
     try:
         response = await timed_completion(
             client,
+            call_type="translate",
             model=model,
             max_tokens=max_tokens,
             messages=[

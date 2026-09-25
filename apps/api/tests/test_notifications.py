@@ -182,3 +182,27 @@ async def test_deliver_notification_no_translation_when_language_missing_column(
         title="Title", translate_deps=deps,
     )
     assert result is True
+
+
+async def test_poll_tick_increments_tokens_issued_metric_since_last_tick(db_pool):
+    import uuid
+
+    import app.notifications as notifications_module
+    from app.metrics import tokens_issued_total
+
+    notifications_module._tokens_checkpoint = None
+    service_id = uuid.uuid4()
+
+    # First tick: only establishes the checkpoint, must not count anything
+    # that existed before apps/api started watching (avoids a startup spike).
+    await notifications_module.poll_tick(db_pool)
+    before = tokens_issued_total.labels(service=str(service_id))._value.get()
+
+    await db_pool.execute(
+        "INSERT INTO tokens (id, service_id, status, created_at) VALUES ($1, $2, 'waiting', now())",
+        uuid.uuid4(), service_id,
+    )
+
+    await notifications_module.poll_tick(db_pool)
+    after = tokens_issued_total.labels(service=str(service_id))._value.get()
+    assert after == before + 1

@@ -91,6 +91,7 @@ async def run_daily_summary(pool: asyncpg.Pool, client, model: str, max_tokens: 
         try:
             response = await timed_completion(
                 client,
+                call_type="daily_summary",
                 model=model,
                 max_tokens=max_tokens,
                 messages=[

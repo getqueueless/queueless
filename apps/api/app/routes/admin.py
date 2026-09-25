@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
@@ -12,6 +13,7 @@ import structlog
 from fastapi import APIRouter, Depends, Request, Response
 
 from app.auth import AuthedUser, require_role
+from app.metrics import retrain_duration_seconds, retrain_last_success
 from app.rate_limit import limiter
 from scripts.generate_training_data import SERVICES
 from scripts.train_core import read_previous_version, train_and_evaluate
@@ -142,19 +144,32 @@ async def retrain_once(app, pool: asyncpg.Pool, lock_key: int, min_real_rows: in
                     "rows_required": min_real_rows,
                 }
 
-            df = _rows_to_training_frame(rows, SERVICES)
-            model, meta = await asyncio.to_thread(
-                train_and_evaluate, df, FEATURE_COLUMNS, TARGET_COLUMN, SERVICES
-            )
-            meta["trained_on"] = "real"
-            meta["trained_at"] = datetime.now(timezone.utc).isoformat()
+            # Gauges, not a histogram: an ops dashboard/alert wants "did the
+            # most recent retrain succeed, how long did it take", not a
+            # distribution -- retrains are rare (rate-limited to 1/10min,
+            # meant to be occasional) so a Gauge is the right shape here.
+            started = time.monotonic()
+            try:
+                df = _rows_to_training_frame(rows, SERVICES)
+                model, meta = await asyncio.to_thread(
+                    train_and_evaluate, df, FEATURE_COLUMNS, TARGET_COLUMN, SERVICES
+                )
+                meta["trained_on"] = "real"
+                meta["trained_at"] = datetime.now(timezone.utc).isoformat()
 
-            # All synchronous file I/O (version read, model dump, atomic
-            # replace x2) in one asyncio.to_thread call -- this runs while
-            # holding the advisory lock + DB transaction, so blocking the
-            # event loop here would stall every other request on this
-            # worker for however long the writes take, not just this one.
-            meta["version"] = await asyncio.to_thread(_write_model_atomically, model, meta)
+                # All synchronous file I/O (version read, model dump, atomic
+                # replace x2) in one asyncio.to_thread call -- this runs
+                # while holding the advisory lock + DB transaction, so
+                # blocking the event loop here would stall every other
+                # request on this worker for however long the writes take,
+                # not just this one.
+                meta["version"] = await asyncio.to_thread(_write_model_atomically, model, meta)
+            except Exception:
+                retrain_last_success.set(0)
+                retrain_duration_seconds.set(time.monotonic() - started)
+                raise
+            retrain_last_success.set(1)
+            retrain_duration_seconds.set(time.monotonic() - started)
 
             app.state.ml_model, app.state.ml_meta = model, meta
 
