@@ -353,13 +353,21 @@
    bordered box below the main sign-in card's content, set apart from it. */
 .signupBox {
   margin-top: 8px;
-  padding: 16px;
+  padding: 10px 16px;
   border: 1px solid var(--color-hairline-strong);
   border-radius: var(--radius-md);
 }
 
 .signupBox .prompt {
   margin: 0;
+}
+
+/* Inline link in a sentence: the 48px column-link sizing made the box tall. */
+.signupBox .linkButton {
+  display: inline;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 0;
 }
 
 @media (max-width: 767px) {
