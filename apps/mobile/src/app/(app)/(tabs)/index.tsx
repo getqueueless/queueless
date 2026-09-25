@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AnimatedHeading } from '@/components/AnimatedHeading';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { TwoToneHeading } from '@/components/TwoToneHeading';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { estimateWaitSeconds } from '@/lib/predict';
@@ -211,7 +212,10 @@ export default function Home() {
   return (
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <TwoToneHeading text="TAKE A TOKEN" accent="TOKEN" style={styles.title} />
+        <View style={styles.header}>
+          <AnimatedHeading text="TAKE A TOKEN" accent="TOKEN" />
+          <ThemeToggle />
+        </View>
         <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
           Tap a service to take a token.
         </ThemedText>
@@ -274,7 +278,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
-  title: { marginTop: Spacing.sm },
+  header: { marginTop: Spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   subtitle: { marginTop: Spacing.xxs, marginBottom: Spacing.md },
   list: { paddingBottom: Spacing.xl, gap: Spacing.md },
   centerFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
