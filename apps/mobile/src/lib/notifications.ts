@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { deletePushToken, OWNED_BY_ANOTHER_ACCOUNT, type PushPlatform, savePushToken } from '@/lib/push-tokens';
 import { supabase } from '@/lib/supabase';
 
 Notifications.setNotificationHandler({
@@ -12,11 +13,18 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// The token this install last saved. Sign-out deletes exactly this row, so the patient's other
+// devices keep theirs.
+let registeredToken: string | null = null;
+
 /**
  * Best-effort remote push registration. Returns `null` (never throws) whenever a token can't be
  * obtained — notably Expo Go on Android since SDK 53, which no longer supports remote push at
- * all. This is a nice-to-have layered on top of the Realtime + local-notification path in
- * `(app)/_layout.tsx`, which is the reliable mechanism and works with zero push wiring.
+ * all, and any build without an EAS projectId: `getExpoPushTokenAsync` throws
+ * ERR_NOTIFICATIONS_NO_EXPERIENCE_ID, and app.json has no `extra.eas.projectId` yet. The token
+ * is saved straight to `push_tokens` under owner-only RLS. This is a nice-to-have layered on top
+ * of the Realtime + local-notification path in `(app)/_layout.tsx`, which is the reliable
+ * mechanism and works with zero push wiring.
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   try {
@@ -37,7 +45,18 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     const { data: token } = await Notifications.getExpoPushTokenAsync();
     if (!token) return null;
 
-    await registerTokenWithApi(token);
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) return token;
+
+    const code = await savePushToken(supabase, userId, token, Platform.OS as PushPlatform);
+    if (code === null) {
+      registeredToken = token;
+    } else if (code === OWNED_BY_ANOTHER_ACCOUNT) {
+      console.log('[push] token belongs to a different account on this device');
+    } else {
+      console.log(`[push] saving push token failed (non-fatal): ${code}`);
+    }
     return token;
   } catch (err) {
     console.log('[notifications] no push token available:', err);
@@ -45,39 +64,27 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 }
 
-const DEVICE_ID_KEY = 'queueless-device-id';
-
-/** A stable per-install id for apps/api's `push_tokens.device_id` — persisted in the same
- * expo-sqlite-backed localStorage the Supabase client already uses for its session. */
-function getOrCreateDeviceId(): string {
-  const existing = localStorage.getItem(DEVICE_ID_KEY);
-  if (existing) return existing;
-  const generated = `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-  localStorage.setItem(DEVICE_ID_KEY, generated);
-  return generated;
+/** Deletes this device's token row. Call before sign-out: RLS only lets the owner delete it. */
+export async function unregisterPushTokenAsync(): Promise<void> {
+  if (!registeredToken) return;
+  try {
+    if (await deletePushToken(supabase, registeredToken)) registeredToken = null;
+    else console.log('[push] deleting push token failed (non-fatal)');
+  } catch (err) {
+    console.log('[push] deleting push token failed (non-fatal):', err);
+  }
 }
 
-async function registerTokenWithApi(expoPushToken: string): Promise<void> {
+/** Re-registers when the OS rotates the token. Returns the unsubscribe (a no-op when unsupported). */
+export function watchPushTokenRotation(): () => void {
   try {
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (!apiUrl) return;
-
-    const { data } = await supabase.auth.getSession();
-    const accessToken = data.session?.access_token;
-    if (!accessToken) return;
-
-    // apps/api's real endpoint: POST /push-tokens, body {token, device_id}, 204 on success.
-    await fetch(`${apiUrl}/push-tokens`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ token: expoPushToken, device_id: getOrCreateDeviceId() }),
+    // Throws in Expo Go on Android, which has no remote push.
+    const sub = Notifications.addPushTokenListener(() => {
+      registerForPushNotificationsAsync();
     });
-  } catch (err) {
-    // API may not be up yet — never let this block the caller.
-    console.log('[notifications] push-tokens registration failed (non-fatal):', err);
+    return () => sub.remove();
+  } catch {
+    return () => {};
   }
 }
 
