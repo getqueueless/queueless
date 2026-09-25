@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./RolodexWord.module.css";
 
 type RolodexWordProps = {
@@ -31,10 +31,29 @@ export function RolodexWord({ words, hold, className }: RolodexWordProps) {
     return () => clearTimeout(id);
   }, [hold, index, words.length]);
 
+  // Once the last flip has landed, the slot shrinks from the widest word to
+  // the one it rests on, so a centred line ends truly centred. In em, so it
+  // still fits when the font size changes with the viewport.
+  const slot = useRef<HTMLSpanElement>(null);
+  const resting = Boolean(hold) && index === words.length - 1;
+  useEffect(() => {
+    const el = slot.current;
+    if (!resting || !el) return;
+    const id = setTimeout(() => {
+      const face = el.lastElementChild as HTMLElement | null;
+      const em = parseFloat(getComputedStyle(el).fontSize) || 16;
+      if (!face) return;
+      el.style.width = `${el.getBoundingClientRect().width / em}em`;
+      void el.offsetWidth; // start the transition from the reserved width
+      el.style.width = `${face.getBoundingClientRect().width / em}em`;
+    }, 650);
+    return () => clearTimeout(id);
+  }, [resting]);
+
   return (
     <span className={className ? `${styles.rolodex} ${className}` : styles.rolodex} aria-live="off">
       <span className={styles.srOnly}>{words[words.length - 1]}</span>
-      <span className={styles.drum} aria-hidden="true">
+      <span ref={slot} className={styles.drum} aria-hidden="true">
         {words.map((word, i) => (
           <span key={`size-${i}`} className={`${styles.face} ${styles.sizer}`}>
             {word}
