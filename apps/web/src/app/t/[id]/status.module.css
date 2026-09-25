@@ -1,0 +1,134 @@
+/* Extra DESIGN.md tokens not yet in globals.css (success/warning colors,
+   surface-sunken, xl radius/spacing, the monospace token-number type) --
+   scoped to .page only so this doesn't touch the shared stylesheet. */
+.page {
+  --success: #1c8a5c;
+  --success-soft: #e3f4ea;
+  --warning: #a9660c;
+  --surface-sunken: #eef0f3;
+  --radius-xl: 16px;
+  --space-xxl: 48px;
+
+  flex: 1;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: var(--color-canvas-soft);
+}
+
+@media (prefers-color-scheme: dark) {
+  .page {
+    --success: #4cbf8b;
+    --success-soft: #0f2b21;
+    --warning: #dba24d;
+    --surface-sunken: #0e1114;
+  }
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-sm);
+  color: var(--color-ink-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tokenNumber {
+  font-family: var(--font-jetbrains-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: var(--color-ink);
+  margin-bottom: var(--space-md);
+  word-break: break-all;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+
+.badgeWaiting {
+  background: var(--surface-sunken);
+  color: var(--color-ink-secondary);
+}
+
+.badgeCalled {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.badgeDone {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.badgeNoShow {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.body {
+  margin-top: var(--space-lg);
+}
+
+.line {
+  margin: 0 0 var(--space-xs);
+  color: var(--color-ink);
+  font-size: 16px;
+}
+
+.lineUrgent {
+  margin: 0 0 var(--space-xs);
+  color: var(--color-primary);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.eta {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  font-size: 14px;
+}
+
+.etaNote {
+  color: var(--color-ink-muted);
+}
+
+.footer {
+  margin: var(--space-xl) 0 0;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+}
+
+.title {
+  margin: 0 0 var(--space-xs);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
