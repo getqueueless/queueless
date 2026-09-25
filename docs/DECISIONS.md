@@ -53,3 +53,9 @@ One line per deviation from the plan/spec, with why.
   identity instead of connecting as `postgres`. `token_notifications` lives in schema `private`
   (never exposed via PostgREST) since only `queueless_api` ever touches it directly; `push_tokens`
   lives in `public` with owner-only RLS since the mobile client registers its own row directly.
+- 2026-09-25 (for web): `apps/web`'s counter screen (per JUDGE_NOTES "Web app" section) calls
+  `mark_done`, `mark_no_show`, and `transfer_token`. None of those exist -- the real RPC names
+  are `complete_token` and `skip_token`; there is no no-show RPC at all (no-shows are set only by
+  the automatic housekeeping job on a timer, never by staff action) and no `transfer_token`
+  (moving a ticket to a different desk isn't in the spec). `call_next` and `recall_token` do
+  match. Flagging this now since it's a real integration break, not a documentation gap.
