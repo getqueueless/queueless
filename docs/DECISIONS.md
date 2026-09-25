@@ -48,3 +48,8 @@ One line per deviation from the plan/spec, with why.
   (`issue_token`, `my_queue_status`, etc.) still aren't implemented on `origin/main` as of this
   reconciliation, so the *_call_ contracts in `supabase/README.md` remain unverified against
   running code — table-level reads are now schema-accurate, RPC calls are not yet testable.
+- 2026-09-25: `push_tokens`/`token_notifications`/`queueless_api` role (0016-0018) aren't in the
+  original spec -- added on direct request to give `apps/api` its own least-privilege Postgres
+  identity instead of connecting as `postgres`. `token_notifications` lives in schema `private`
+  (never exposed via PostgREST) since only `queueless_api` ever touches it directly; `push_tokens`
+  lives in `public` with owner-only RLS since the mobile client registers its own row directly.
