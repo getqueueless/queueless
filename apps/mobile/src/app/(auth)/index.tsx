@@ -100,8 +100,10 @@ export default function Otp() {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     if (userId) {
-      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      if (!profile?.full_name) {
+      const { data: profile } = await supabase.from('profiles').select('full_name, role').eq('id', userId).maybeSingle();
+      // The profile form is patient-only (phone/DOB/city for booking); staff and admin accounts
+      // have no full_name in prod and must land on their Counter tab, not a patient form.
+      if (profile?.role === 'patient' && !profile.full_name) {
         router.replace('/(app)/name-entry');
         return;
       }
