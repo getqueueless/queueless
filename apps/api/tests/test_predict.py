@@ -260,3 +260,22 @@ async def test_predict_without_doctor_id_still_works(client, db_pool):
     )
     assert resp.status_code == 200
     assert resp.json()["doctor_used"] is False
+
+
+def test_predict_with_fallback_handles_service_unseen_by_model():
+    from app.ml_runtime import predict_with_fallback
+
+    meta = {
+        "bucket_counts": {},
+        "min_bucket_samples": 30,
+        "avg_service_time_by_service": {"svc-a": 5.0, "svc-b": 15.0},
+    }
+
+    class FakeModel:
+        def predict(self, row):
+            raise AssertionError("model.predict must not run for a service the model never saw")
+
+    result = predict_with_fallback(FakeModel(), meta, "svc-never-trained", 10, 2, 3, 2)
+    assert result["fallback"] is True
+    assert result["reason"] == "unknown_to_model"
+    assert result["predicted_wait_minutes"] == 3 * 10.0 / 2

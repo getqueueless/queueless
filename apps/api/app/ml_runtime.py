@@ -46,7 +46,19 @@ def predict_with_fallback(
     bucket_count = meta["bucket_counts"].get(bucket_key, 0)
 
     if bucket_count < meta["min_bucket_samples"]:
-        avg_service_time = meta["avg_service_time_by_service"][service]
+        avg_service_time = meta["avg_service_time_by_service"].get(service)
+        reason = "sparse_training_data"
+        if avg_service_time is None:
+            # service is real (predict.py already checked board_services)
+            # but never appeared in the data this model trained on -- e.g.
+            # created after the last retrain. Found live in prod
+            # (docs/DECISIONS.md, 2026-09-26): a direct dict index here
+            # raised an uncaught KeyError -> 500 for a perfectly valid
+            # service_id. Fall back to the mean of every service the model
+            # does know, instead of crashing.
+            known_averages = [v for v in meta["avg_service_time_by_service"].values() if v is not None]
+            avg_service_time = sum(known_averages) / len(known_averages) if known_averages else 0.0
+            reason = "unknown_to_model"
         # Same formula scripts/train.py validates against as the "fair
         # baseline" (and that docs/JUDGE_NOTES.md documents as the mobile
         # app's own client-side fallback) -- the live fallback shown to real
@@ -54,7 +66,7 @@ def predict_with_fallback(
         return {
             "predicted_wait_minutes": queue_len_ahead * avg_service_time / counters_open,
             "fallback": True,
-            "reason": "sparse_training_data",
+            "reason": reason,
             "doctor_used": False,
         }
 
