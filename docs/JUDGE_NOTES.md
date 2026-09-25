@@ -748,3 +748,29 @@ under "Web app" above.
   this public page reads, has no doctor column, and tokens' own `doctor_id` isn't exposed through
   it — showing a doctor next to a called number here would be fabricated, not real, so it's left
   out rather than faked.
+
+## Payments (online prepaid bookings)
+
+- **What it is.** A patient can pay a doctor's fee online (Razorpay, test mode) instead of
+  waiting to pay cash at the desk. Tapping "Book & pay" holds the spot for 10 minutes — the
+  queue number is minted right away, so the place in line is fair even before the payment
+  clears — and confirms into a real, live ticket the moment Razorpay reports a capture.
+- **Why a hold, not a plain "pay then book."** Minting the number only after payment would let a
+  slow or abandoned checkout eat 10 minutes of someone else's queue position for nothing; holding
+  the spot first and releasing it automatically if unpaid (the existing housekeeping cron, every
+  30s) means the queue always reflects real, currently-payable intent.
+- **Where the trust boundary actually is.** The fee is read from the doctor's own row server-side
+  at hold time (`start_paid_booking`) and never accepted from the client again — the web page
+  only ever displays it. The two functions apps/api calls to record a payment
+  (`record_order`/`confirm_payment`) independently re-check that amount before marking anything
+  captured, so a compromised or buggy API layer still can't record a payment for the wrong sum;
+  that check lives in the database, not just the request handler.
+- **Refunds.** Automatic the moment a doctor's leave covers today (a background job polls for
+  captured payments matching that condition and refunds them through Razorpay); anything else
+  needs an admin to approve it explicitly from the admin console.
+- **Mobile handoff.** The in-app browser Razorpay's checkout needs can't share the native app's
+  session, so the mobile app hands the payment page a short-lived access token in the URL
+  fragment (never a query string, so it's never logged or sent in a Referer header) and the page
+  hands control back via a `queueless://paid/<tokenId>` deep link once payment is confirmed.
+- Full technical detail (schema, API contract, the exact idempotency/amount-check behavior,
+  webhook event handling): `docs/PAYMENTS.md`.

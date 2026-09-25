@@ -6,7 +6,11 @@ import { getMyProfile } from "./get-role";
 // Routes anyone can reach without a session: the landing page, the staff/
 // patient login surface and its OAuth callback, the patient-status QR link,
 // the TV display board. /kiosk is a signed-in staff device now (it mints
-// cash walk-ins), not public.
+// cash walk-ins), not public. /pay/[id] is public for the same reason --
+// mobile opens it in an in-app browser carrying the patient's access token
+// in the URL fragment (never a cookie this middleware could see), so its own
+// auth is handled client-side; gating it here would break that handoff
+// before the page ever renders.
 const PUBLIC_PATH_PATTERNS = [
   /^\/$/,
   /^\/login$/,
@@ -14,6 +18,7 @@ const PUBLIC_PATH_PATTERNS = [
   /^\/auth\/callback$/,
   /^\/display\/[^/]+$/,
   /^\/t\/[^/]+$/,
+  /^\/pay\/[^/]+$/,
 ];
 
 // Staff-only device screens -- a signed-in patient must never land here.
