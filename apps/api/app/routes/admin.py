@@ -6,12 +6,15 @@ from pathlib import Path
 from uuid import UUID
 
 import asyncpg
+import joblib
 import pandas as pd
 import structlog
 from fastapi import APIRouter, Depends, Request, Response
 
 from app.auth import AuthedUser, require_role
 from app.rate_limit import limiter
+from scripts.generate_training_data import SERVICES
+from scripts.train_core import read_previous_version, train_and_evaluate
 
 router = APIRouter()
 log = structlog.get_logger()
@@ -90,6 +93,31 @@ def _rows_to_training_frame(rows: list[asyncpg.Record], service_categories: list
     return df
 
 
+def _write_model_atomically(model, meta: dict) -> int:
+    """Reads the previous version, writes the new model + meta to temp
+    paths, then os.replace()'s both onto the live path (atomic on POSIX
+    same-filesystem renames -- a concurrent /predict request never sees a
+    half-written file). All synchronous; call via asyncio.to_thread from
+    async code, since this runs while retrain_once still holds the
+    advisory lock + DB transaction, and blocking the event loop there
+    would stall every other request on this worker for however long these
+    writes take."""
+    version = read_previous_version(ML_DIR / "model_meta.json") + 1
+    meta["version"] = version
+
+    ML_DIR.mkdir(exist_ok=True)
+    tmp_model = ML_DIR / "wait_time_model.joblib.tmp"
+    joblib.dump(model, tmp_model)
+    os.replace(tmp_model, ML_DIR / "wait_time_model.joblib")
+
+    tmp_meta = ML_DIR / "model_meta.json.tmp"
+    with open(tmp_meta, "w") as f:
+        json.dump(meta, f, indent=2)
+    os.replace(tmp_meta, ML_DIR / "model_meta.json")
+
+    return version
+
+
 async def retrain_once(app, pool: asyncpg.Pool, lock_key: int, min_real_rows: int, admin_user_id: UUID) -> dict:
     """Idempotent, safe across N replicas: pg_try_advisory_xact_lock is
     transaction-scoped and auto-releases on commit/rollback (even on a mid-
@@ -97,9 +125,6 @@ async def retrain_once(app, pool: asyncpg.Pool, lock_key: int, min_real_rows: in
     app/scheduler.py used this exact pattern before the delivery-only
     refactor deleted that file -- rewritten here fresh with a distinct lock
     key (lock keys share one global keyspace per Postgres instance)."""
-    from scripts.generate_training_data import SERVICES
-    from scripts.train_core import read_previous_version, train_and_evaluate
-
     async with pool.acquire() as conn:
         async with conn.transaction():
             got_lock = await conn.fetchval("SELECT pg_try_advisory_xact_lock($1)", lock_key)
@@ -123,22 +148,13 @@ async def retrain_once(app, pool: asyncpg.Pool, lock_key: int, min_real_rows: in
             )
             meta["trained_on"] = "real"
             meta["trained_at"] = datetime.now(timezone.utc).isoformat()
-            meta["version"] = read_previous_version(ML_DIR / "model_meta.json") + 1
 
-            # Atomic swap: write to a temp path, then os.replace() onto the
-            # live path (atomic on POSIX same-filesystem renames) -- a
-            # concurrent /predict request must never see a half-written file.
-            ML_DIR.mkdir(exist_ok=True)
-            import joblib
-
-            tmp_model = ML_DIR / "wait_time_model.joblib.tmp"
-            joblib.dump(model, tmp_model)
-            os.replace(tmp_model, ML_DIR / "wait_time_model.joblib")
-
-            tmp_meta = ML_DIR / "model_meta.json.tmp"
-            with open(tmp_meta, "w") as f:
-                json.dump(meta, f, indent=2)
-            os.replace(tmp_meta, ML_DIR / "model_meta.json")
+            # All synchronous file I/O (version read, model dump, atomic
+            # replace x2) in one asyncio.to_thread call -- this runs while
+            # holding the advisory lock + DB transaction, so blocking the
+            # event loop here would stall every other request on this
+            # worker for however long the writes take, not just this one.
+            meta["version"] = await asyncio.to_thread(_write_model_atomically, model, meta)
 
             app.state.ml_model, app.state.ml_meta = model, meta
 
