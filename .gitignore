@@ -11,3 +11,6 @@ dist/
 .claude/
 *.old
 docs/superpowers/
+
+# local-only gstack skill state (security reports, etc.) -- never commit
+.gstack/
