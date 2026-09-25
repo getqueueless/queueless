@@ -1,12 +1,50 @@
+/* Tokens from DESIGN.md -- the source of truth for values. Add more as
+   screens need them, keep both light and dark defined together. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-primary: #1f6f74;
+  --color-primary-hover: #175a5e;
+  --color-primary-press: #124749;
+  --color-primary-soft: #e3f1f1;
+  --color-on-primary: #ffffff;
+  --color-canvas: #ffffff;
+  --color-canvas-soft: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-ink: #14171c;
+  --color-ink-secondary: #4a4f5a;
+  --color-ink-muted: #7a808d;
+  --color-hairline: #e3e6eb;
+  --color-hairline-strong: #cdd2da;
+  --color-danger: #c23b34;
+  --color-danger-soft: #fbe8e6;
+  --color-focus-ring: #1f6f74;
+
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-primary: #4fb8ae;
+    --color-primary-hover: #6cc7bd;
+    --color-primary-press: #3d9a91;
+    --color-primary-soft: #123331;
+    --color-on-primary: #04201e;
+    --color-canvas: #0a0c0f;
+    --color-canvas-soft: #101317;
+    --color-surface: #14171c;
+    --color-ink: #eef0f3;
+    --color-ink-secondary: #b7bcc6;
+    --color-ink-muted: #7d8290;
+    --color-hairline: #24282f;
+    --color-hairline-strong: #343941;
+    --color-danger: #e5766f;
+    --color-danger-soft: #301715;
+    --color-focus-ring: #4fb8ae;
   }
 }
 
@@ -24,9 +62,9 @@ body {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
