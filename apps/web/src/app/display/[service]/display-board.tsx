@@ -317,7 +317,7 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
         </dl>
       </header>
 
-      <section className={styles.counters} aria-labelledby="board-now-serving">
+      <section className={styles.counters} aria-labelledby="board-now-serving" aria-live="polite">
         <h2 id="board-now-serving" className={styles.sectionTitle}>Now serving</h2>
         {sortedCounters.length === 0 && <p className={styles.empty}>No counters open yet.</p>}
         {/* Token first in mono, then the counter in sentence-case Poppins, so

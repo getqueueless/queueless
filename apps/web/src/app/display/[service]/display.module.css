@@ -132,8 +132,16 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.langButton:hover {
+  color: var(--b-ink);
+}
+
 .langButton[aria-pressed="true"] {
   background: var(--b-accent);
+  color: var(--b-on-accent);
+}
+
+.langButton[aria-pressed="true"]:hover {
   color: var(--b-on-accent);
 }
 
