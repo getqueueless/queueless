@@ -205,8 +205,10 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     return [...counters].sort((a, b) => rank(a) - rank(b) || a.counter_name.localeCompare(b.counter_name))
   }, [counters])
 
+  // data-surface="slate": opts the board into the on-slate focus ring once
+  // globals.css carries that rule (the module pins it locally until then).
   return (
-    <main className={styles.page}>
+    <main className={styles.page} data-surface="slate">
       <audio ref={chimeRef} src="/sounds/chime.wav" preload="auto" />
 
       {!soundEnabled && (
@@ -216,49 +218,59 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
       )}
 
       <header className={styles.header}>
-        <p className={styles.brand}>
+        <p className={styles.brand} translate="no">
           <LogoMark className={styles.brandMark} />
           Queueless
         </p>
         <h1 className={styles.title}>{label}</h1>
+        {/* A value not known yet renders empty; the module draws the placeholder bar. */}
         <dl className={styles.stats}>
           <div className={styles.stat}>
             <dt>Waiting</dt>
-            <dd>{board?.waiting_count ?? "—"}</dd>
+            <dd>{board?.waiting_count}</dd>
           </div>
           <div className={styles.stat}>
             <dt>Served today</dt>
-            <dd>{board?.served_count ?? "—"}</dd>
+            <dd>{board?.served_count}</dd>
           </div>
           <div className={styles.stat}>
             <dt>Avg. time</dt>
-            <dd>{board?.avg_service_secs ? `${Math.round(board.avg_service_secs / 60)} min` : "—"}</dd>
+            <dd>{board?.avg_service_secs ? `${Math.round(board.avg_service_secs / 60)} min` : null}</dd>
           </div>
         </dl>
       </header>
 
-      <section className={styles.counters} aria-label="Now serving">
-        <h2 className={styles.sectionTitle}>Now serving</h2>
+      <section className={styles.counters} aria-labelledby="board-now-serving">
+        <h2 id="board-now-serving" className={styles.sectionTitle}>Now serving</h2>
         {sortedCounters.length === 0 && <p className={styles.empty}>No counters open yet.</p>}
+        {/* Token first in mono, then the counter in sentence-case Poppins, so
+            "OPD-014" never reads against a same-shaped "OPD-1" above it. The key
+            carries the token so each new call remounts the tile and replays the
+            call ring. */}
         {sortedCounters.map((c) => (
           <div
-            key={c.counter_id}
+            key={`${c.counter_id}:${c.token_code ?? ""}`}
             className={styles.counterTile}
             data-state={c.state}
             data-status={c.token_status ?? undefined}
           >
-            <p className={styles.counterName}>{c.counter_name}</p>
-            <p className={styles.tokenNumber}>
-              {c.token_code ?? (c.state === "open" ? "—" : c.state)}
+            {/* No token: left empty, the module draws the placeholder bar and a
+                paused or closed counter says so in its status chip. */}
+            <p className={styles.tokenNumber} translate="no">
+              {c.token_code}
+            </p>
+            <p className={styles.counterName}>
+              {/^counter\b/i.test(c.counter_name) ? null : "Counter "}
+              <span translate="no">{c.counter_name}</span>
             </p>
           </div>
         ))}
       </section>
 
       {upcoming.length > 0 && (
-        <section className={styles.nextUp} aria-label="Next up">
-          <h2 className={styles.nextUpTitle}>Next up</h2>
-          <ol className={styles.nextUpList}>
+        <section className={styles.nextUp} aria-labelledby="board-next-up">
+          <h2 id="board-next-up" className={styles.nextUpTitle}>Next up</h2>
+          <ol className={styles.nextUpList} translate="no">
             {upcoming.map((token) => (
               <li key={token}>{token}</li>
             ))}
