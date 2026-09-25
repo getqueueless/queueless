@@ -2,10 +2,10 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
-import { errorInfo } from "@queueless/db"
 
 import { createClient } from "@/lib/supabase/client"
 
+import { cancelErrorText, CancelButton, Toast } from "./CancelButton"
 import { loadAppointments, type Appointment } from "./data"
 import type { Tone } from "./format"
 import styles from "./History.module.css"
@@ -46,29 +46,32 @@ function HoldTimer({ expiresAt, onExpire }: { expiresAt: string; onExpire: () =>
   return <p className={styles.hold}>{left > 0 ? `Pay within ${clock(left)} to keep this slot` : "Hold expired"}</p>
 }
 
-function AppointmentRow({ appt, onChange }: { appt: Appointment; onChange: () => void }) {
+function holdEnds(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+}
+
+// What happens to the money, said before the patient confirms. Refunds follow
+// docs/PAYMENTS.md: automatic only when the doctor goes on leave, otherwise
+// approved by the hospital.
+function outcome(appt: Appointment) {
+  if (appt.state === "paid") {
+    return (
+      <>
+        <p>
+          You paid{appt.feeInr ? ` ₹${appt.feeInr}` : ""} online. Cancelling frees the slot but does not refund you
+          automatically: refunds are approved by the hospital, so ask at reception.
+        </p>
+        <p>If the doctor goes on leave that day, you are refunded automatically.</p>
+      </>
+    )
+  }
+  return <p>Nothing was charged for this booking, so there is nothing to refund.</p>
+}
+
+function AppointmentRow({ appt, onCancelled, onExpire }: { appt: Appointment; onCancelled: () => void; onExpire: () => void }) {
   const [supabase] = useState(() => createClient())
-  const [confirming, setConfirming] = useState(false)
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [day, time] = split(appt.when)
   const chip = CHIP[appt.state]
-  // cancel_appointment (0013) only takes a booked appointment; an unpaid hold
-  // simply lapses after its 10 minutes.
-  const cancellable = appt.state === "paid" || appt.state === "booked"
-
-  async function cancel() {
-    setPending(true)
-    setError(null)
-    const { error: rpcError } = await supabase.rpc("cancel_appointment", { p_appointment: appt.id })
-    setPending(false)
-    if (rpcError) {
-      setError(errorInfo(rpcError.code || rpcError.message).message)
-      return
-    }
-    setConfirming(false)
-    onChange()
-  }
 
   return (
     <li className={styles.row}>
@@ -86,30 +89,31 @@ function AppointmentRow({ appt, onChange }: { appt: Appointment; onChange: () =>
             {chip.label}
           </span>
         </div>
-        {appt.state === "pending" && appt.holdExpiresAt && <HoldTimer expiresAt={appt.holdExpiresAt} onExpire={onChange} />}
-        {error && (
-          <p role="alert" className={styles.error}>
-            {error}
-          </p>
+        {appt.state === "pending" && appt.holdExpiresAt && (
+          <>
+            <HoldTimer expiresAt={appt.holdExpiresAt} onExpire={onExpire} />
+            <p className={styles.secondaryLine}>
+              Nothing charged yet. Don&apos;t want it? Skip paying and the slot is released at{" "}
+              {holdEnds(appt.holdExpiresAt)}.
+            </p>
+          </>
         )}
       </div>
       {appt.state === "pending" ? (
         <Link href={`/pay/${appt.id}`} className={styles.pay}>
           Pay now{appt.feeInr ? ` ₹${appt.feeInr}` : ""}
         </Link>
-      ) : !cancellable ? null : confirming ? (
-        <div className={styles.confirm} role="group" aria-label="Cancel this appointment?">
-          <button type="button" className={styles.danger} onClick={cancel} disabled={pending}>
-            {pending ? "Cancelling…" : "Yes, cancel"}
-          </button>
-          <button type="button" className={styles.quiet} onClick={() => setConfirming(false)} disabled={pending}>
-            Keep it
-          </button>
-        </div>
-      ) : (
-        <button type="button" className={styles.quiet} onClick={() => setConfirming(true)}>
-          Cancel
-        </button>
+      ) : appt.state === "refunded" ? null : (
+        <CancelButton
+          title="Cancel this appointment?"
+          outcome={outcome(appt)}
+          confirmLabel="Cancel appointment"
+          run={async () => {
+            const { error } = await supabase.rpc("cancel_appointment", { p_appointment: appt.id })
+            return cancelErrorText(error)
+          }}
+          onDone={onCancelled}
+        />
       )}
     </li>
   )
@@ -130,6 +134,7 @@ export function Appointments({
 }) {
   const [supabase] = useState(() => createClient())
   const [items, setItems] = useState(initial)
+  const [toast, setToast] = useState<string | null>(null)
 
   const reload = useCallback(() => {
     if (!userId) return
@@ -150,8 +155,21 @@ export function Appointments({
     }
   }, [reload])
 
+  useEffect(() => {
+    if (!toast) return
+    const hide = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(hide)
+  }, [toast])
+
+  function cancelled() {
+    setToast("Appointment cancelled")
+    reload()
+  }
+
   if (items.length === 0) {
     return (
+      <>
+      <Toast message={toast} />
       <div className={styles.empty}>
         <span className={styles.emptyIcon}>
           <CalendarIcon />
@@ -161,13 +179,17 @@ export function Appointments({
           Book a time with a doctor
         </a>
       </div>
+      </>
     )
   }
   return (
-    <ul className={styles.list}>
-      {items.map((a) => (
-        <AppointmentRow key={a.id} appt={a} onChange={reload} />
-      ))}
-    </ul>
+    <>
+      <Toast message={toast} />
+      <ul className={styles.list}>
+        {items.map((a) => (
+          <AppointmentRow key={a.id} appt={a} onCancelled={cancelled} onExpire={reload} />
+        ))}
+      </ul>
+    </>
   )
 }

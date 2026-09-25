@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
 import { countOpenCounters, fetchCounter, type TokenStatus } from "@/app/t/[id]/data"
@@ -12,6 +13,7 @@ import { createClient } from "@/lib/supabase/client"
 
 import { readTokenStatus } from "@/components/tokens/active-token"
 
+import { cancelErrorText, CancelButton, Toast } from "./CancelButton"
 import type { ActiveToken } from "./data"
 import { TOKEN_STATUS } from "./format"
 import { ArrowIcon } from "./icons"
@@ -30,6 +32,8 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
   const [ahead, setAhead] = useState(initial.ahead)
   const [counter, setCounter] = useState(initial.counter)
   const [eta, setEta] = useState<{ minutes: number; rough: boolean } | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const router = useRouter()
   const id = initial.token.id
 
   // token:<id> carries status + counter only (migration 0044), so merge it.
@@ -130,6 +134,34 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
         {pending ? "Finish payment" : "View live status"}
         <ArrowIcon />
       </Link>
+
+      {/* cancel_token (0011) only takes a token that is still waiting. */}
+      {token.status === "waiting" && (
+        <div className={styles.cancel}>
+          <CancelButton
+            label="Cancel token"
+            title={`Cancel token ${token.code}?`}
+            outcome={
+              <p>
+                You leave the queue and your place goes to the next person. A walk-in or unpaid token had nothing
+                charged. If you paid online, the refund is not automatic: the hospital approves it (ask at reception),
+                except when the doctor goes on leave, which refunds automatically.
+              </p>
+            }
+            confirmLabel="Cancel token"
+            run={async () => {
+              const { error } = await supabase.rpc("cancel_token", { p_token: id })
+              return cancelErrorText(error)
+            }}
+            onDone={() => {
+              setToken((prev) => ({ ...prev, status: "cancelled" }))
+              setToast("Token cancelled")
+              setTimeout(() => router.refresh(), 2500)
+            }}
+          />
+        </div>
+      )}
+      <Toast message={toast} />
     </article>
   )
 }

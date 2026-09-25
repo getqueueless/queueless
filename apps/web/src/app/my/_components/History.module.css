@@ -361,3 +361,91 @@
     align-self: stretch;
   }
 }
+
+/* ---------- cancel dialog + toast ---------- */
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.toast {
+  position: fixed;
+  bottom: max(var(--space-lg), env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 40;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-pill);
+  background: var(--color-slate-deep);
+  color: var(--color-on-slate);
+  font-weight: 700;
+  box-shadow: var(--shadow-raised);
+  transform: translate(-50%, 0);
+  pointer-events: none;
+}
+
+.toast:not([data-show]) {
+  visibility: hidden;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 300ms var(--ease-out),
+      visibility 300ms;
+  }
+
+  .toast:not([data-show]) {
+    transform: translate(-50%, 12px);
+  }
+}
+
+/* ---------- refund policy note ---------- */
+
+.policy {
+  position: relative;
+  font-size: 13px;
+}
+
+.policy summary {
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.policy summary::-webkit-details-marker {
+  display: none;
+}
+
+.policy summary:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.policyBody {
+  position: absolute;
+  right: 0;
+  z-index: 30;
+  width: min(340px, 80vw);
+  margin-top: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink-secondary);
+  box-shadow: var(--shadow-raised);
+  line-height: 1.5;
+}
+
+.policyBody ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+}

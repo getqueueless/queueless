@@ -111,6 +111,17 @@ export function Dashboard({ supabase, userId, fullName, org, now }: DashboardPro
         <section className={styles.wide} aria-labelledby="appointments-title">
           <div className={ui.sectionHead}>
             <AnimatedHeading as="h2" id="appointments-title" lead="Upcoming" accent="appointments" />
+            <details className={h.policy}>
+              <summary>Cancellation &amp; refund policy</summary>
+              <div className={h.policyBody}>
+                <ul>
+                  <li>Cancel a booked appointment any time before it starts, from this list.</li>
+                  <li>An unpaid hold costs nothing: skip paying and the slot is released after 10 minutes.</li>
+                  <li>Online payments are refunded automatically if the doctor goes on leave that day.</li>
+                  <li>Any other refund is approved by the hospital. Ask at reception.</li>
+                </ul>
+              </div>
+            </details>
           </div>
           <div className={h.panel}>
             <Suspense fallback={<RowsSkeleton label="Loading your appointments" />}>
