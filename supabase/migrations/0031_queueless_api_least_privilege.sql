@@ -28,6 +28,8 @@ begin
 end;
 $$;
 
+revoke execute on function private.notify_new_notification() from public;
+
 create trigger notifications_notify_new
   after insert on public.notifications
   for each row execute function private.notify_new_notification();

@@ -1,5 +1,5 @@
 begin;
-select plan(24);
+select plan(25);
 
 -- catalog checks run first, before this test grants queueless_api anything of its own below
 select set_eq(
@@ -20,6 +20,13 @@ select set_eq(
      where attrelid = 'public.notifications'::regclass and attnum > 0 and not attisdropped
        and has_column_privilege('queueless_api', attrelid, attnum, 'UPDATE') $$,
   array['pushed_at'], 'pushed_at is the only notifications column queueless_api can update'
+);
+-- 0029's per-schema default-privilege revoke is a no-op in Postgres, so every new function needs its own revoke
+select is_empty(
+  $$ select p.oid::regprocedure::text from pg_proc p
+     where p.pronamespace in ('public'::regnamespace, 'private'::regnamespace)
+       and has_function_privilege('queueless_api', p.oid, 'EXECUTE') $$,
+  'queueless_api can execute no function in public or private'
 );
 select is(has_schema_privilege('queueless_api', 'auth', 'usage'), false, 'queueless_api has no usage on schema auth');
 select trigger_is(
