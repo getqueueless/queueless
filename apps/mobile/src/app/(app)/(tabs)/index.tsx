@@ -105,7 +105,7 @@ function ServiceCard({
         CardShadow,
         { backgroundColor: theme.surface, borderColor: theme.hairline, opacity: pressed ? 0.85 : 1 },
       ]}>
-      <ThemedText type="displayLg" themeColor="primary" style={styles.cardNumber}>
+      <ThemedText type="displayLg" themeColor="primaryDisplay" style={styles.cardNumber}>
         {numberLabel}
       </ThemedText>
       <ThemedText type="headingMd" style={styles.cardHeading}>

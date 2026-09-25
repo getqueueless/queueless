@@ -14,8 +14,11 @@ export const Colors = {
     primary: '#0cb7d6',
     primaryOutline: '#2cc1db',
     primarySoft: '#e3f7fa',
+    // apps/web/brand/BRAND.md: #0cb7d6 is 2.40:1 on white, so cyan words use #0a95ae (large
+    // text only, 3.55:1) and text on cyan fills is ink (6.39:1), never white.
+    primaryDisplay: '#0a95ae',
     dark: '#1a3237',
-    onPrimary: '#ffffff',
+    onPrimary: '#252525',
     canvas: '#ffffff',
     canvasSoft: '#f7fbfc',
     surface: '#ffffff',
@@ -37,6 +40,7 @@ export const Colors = {
     primary: '#3fd6f0',
     primaryOutline: '#5fdcf3',
     primarySoft: '#123338',
+    primaryDisplay: '#3fd6f0',
     dark: '#0d1a1d',
     onPrimary: '#04201e',
     canvas: '#0a0c0f',

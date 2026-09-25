@@ -5,7 +5,8 @@ import { ThemedText, type ThemedTextProps } from '@/components/themed-text';
 /**
  * MedWin's two-tone heading pattern (index.html:127's `Book <span style="color:#0cb7d6">
  * Appointment</span>`) as a reusable component instead of hand-splitting <Text> runs per screen.
- * `accent` matches whole words in `text` case-insensitively and renders just those in `primary`.
+ * `accent` matches whole words in `text` case-insensitively and renders just those in
+ * `primaryDisplay` (AA for large text; plain `primary` is 2.40:1 on white).
  */
 export function TwoToneHeading({
   text,
@@ -25,7 +26,7 @@ export function TwoToneHeading({
       <ThemedText type={type} style={style}>
         {words.map((word, i) =>
           accentWords.has(word.toLowerCase()) ? (
-            <ThemedText key={i} type={type} themeColor="primary">
+            <ThemedText key={i} type={type} themeColor="primaryDisplay">
               {word}
             </ThemedText>
           ) : (
