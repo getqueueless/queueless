@@ -1,0 +1,48 @@
+groups:
+  - name: queueless
+    rules:
+      - alert: APIDown
+        expr: up{job="ql-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "apps/api is unreachable"
+          description: "Prometheus has failed to scrape ql-api for at least 1 minute."
+
+      # Real metric names, verified against the installed prometheus-
+      # fastapi-instrumentator's own source (its `metrics.default()`
+      # docstring), not guessed: http_requests_total{handler,status,method}.
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "apps/api error rate above 5%"
+          description: "5xx responses are more than 5% of all requests over the last 5 minutes."
+
+      # Absolute threshold, not a learned baseline -- this is a hackathon
+      # demo org's expected scale, not a real capacity model. Tune once
+      # real traffic patterns exist.
+      - alert: QueueDepthSpike
+        expr: queue_depth > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unusually high waiting count for {{ $labels.service }}"
+          description: "{{ $labels.service }} has had more than 20 patients waiting for 5+ minutes."
+
+      - alert: NotificationDeliveryLagHigh
+        expr: histogram_quantile(0.95, rate(notification_delivery_lag_seconds_bucket[5m])) > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Push notifications are arriving late"
+          description: "p95 delivery lag (created_at -> pushed_at) has been over 60s for 5+ minutes -- check the poller/LISTEN path in app/notifications.py."

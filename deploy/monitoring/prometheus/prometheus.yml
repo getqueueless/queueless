@@ -1,0 +1,31 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
+scrape_configs:
+  - job_name: ql-api
+    metrics_path: /metrics
+    static_configs:
+      # apps/api's own container/host is not part of this compose project --
+      # point this at wherever it actually runs. host.docker.internal works
+      # for "API runs on the same host, outside this compose network" (the
+      # common case for a single-VPS deploy); override via QL_API_TARGET in
+      # this directory's .env for anything else (a Docker network alias, a
+      # different host, etc).
+      - targets: ["${QL_API_TARGET:-host.docker.internal:8000}"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres_exporter:9187"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -498,3 +498,18 @@ One line per deviation from the plan/spec, with why.
     `payments`/receipts table backs the patient side of this at all yet. Both are fine for a
     demo; a real implementation needs a `payments` table plus whatever `lpu.lol/pay/<tokenId>`'s
     own backend (a separate engineer's page, per the task prompt) actually writes.
+- 2026-09-26 (apps/api, monitoring): `deploy/monitoring/`'s `postgres_exporter` needs a
+  **read-only** Postgres role -- not `queueless_api` (least-privilege, shouldn't also carry
+  monitoring's broader read access) and never `postgres`. Needed:
+  ```sql
+  create role ql_metrics with login password :'ql_metrics_password';
+  grant pg_monitor to ql_metrics;  -- built-in Postgres role: stats views, no table data
+  grant connect on database postgres to ql_metrics;
+  ```
+  `pg_monitor` (built into Postgres since 10) covers everything `postgres_exporter`'s default
+  queries need (`pg_stat_activity`, `pg_stat_database`, replication state, etc.) without
+  granting `SELECT` on any application table -- deliberately not asking for table-level access
+  here, since dashboard/alerting needs come from Postgres's own stats views, not `tokens`/
+  `profiles`/etc. content. `deploy/monitoring/docker-compose.yml`'s `POSTGRES_EXPORTER_DSN` env
+  var takes this role's connection string once it exists; documented as a placeholder until
+  then, not silently assumed.

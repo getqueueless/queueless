@@ -1,0 +1,28 @@
+# SMTP_* values come from the environment (docker-compose.yml passes them
+# through) -- Alertmanager's config file itself supports env var expansion
+# only via a templating step at container start in some setups; this image
+# does NOT expand $VAR in the config file natively, so the deploy session
+# must render this file (envsubst or equivalent) before mounting it, or
+# hardcode the real (non-secret-bearing) host/port/from-address here and
+# keep only the password out of this file via a separate Docker secret /
+# SMTP relay that doesn't need auth. Documented plainly rather than shipping
+# a config that silently doesn't pick up the env vars docker-compose sets.
+global:
+  smtp_smarthost: "smtp.example.invalid:465"   # REPLACE with the real SMTP_HOST:SMTP_PORT
+  smtp_from: "noreply@lpu.lol"
+  smtp_auth_username: "REPLACE_SMTP_USER"
+  smtp_auth_password: "REPLACE_SMTP_PASS"
+  smtp_require_tls: true
+
+route:
+  receiver: email
+  group_by: ["alertname"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+
+receivers:
+  - name: email
+    email_configs:
+      - to: "REPLACE_ALERT_EMAIL_TO"
+        send_resolved: true
