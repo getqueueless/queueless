@@ -8,8 +8,9 @@ import { useResilientChannel } from "@/lib/realtime/useResilientChannel";
 
 // The service's most recently called token, from the anon-readable
 // board_services row the TV board reads (no other patient's row is touched).
-// Realtime on that row, plus the same 10s poll + refocus fallback as the rest
-// of /t/[id] (QA #1: postgres_changes can go quiet on an open anon tab).
+// Refetched on every `token_update` broadcast on `service:<id>` (migration
+// 0044; postgres_changes never fires on this stack), plus the same 10s poll
+// + refocus fallback as the rest of /t/[id].
 export function useNowServing(serviceId: string, serviceDay: string): string | null {
   const [supabase] = useState(() => createClient());
   const [code, setCode] = useState<string | null>(null);
@@ -27,9 +28,8 @@ export function useNowServing(serviceId: string, serviceDay: string): string | n
   );
 
   useResilientChannel({
-    channelName: `tracker-board-${serviceId}`,
-    table: "board_services",
-    filter: `service_id=eq.${serviceId}`,
+    channelName: `service:${serviceId}`,
+    broadcastEvent: "token_update",
     onEvent: load,
   });
 
