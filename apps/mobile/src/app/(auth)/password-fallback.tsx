@@ -35,10 +35,12 @@ export default function PasswordFallback() {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView type="canvasSoft" style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="headingLg">Password sign-in (fallback)</ThemedText>
-        <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
+        <ThemedText type="headingMd" themeColor="inkSecondary">
+          Password sign-in (fallback)
+        </ThemedText>
+        <ThemedText type="bodySm" themeColor="inkMuted" style={styles.subtitle}>
           Only works for accounts that already have a password set.
         </ThemedText>
 
@@ -72,18 +74,18 @@ export default function PasswordFallback() {
         <Pressable
           onPress={handleSignIn}
           disabled={submitting || !email || !password}
-          style={[styles.button, { backgroundColor: theme.primary, opacity: submitting ? 0.6 : 1 }]}>
+          style={[styles.button, { borderColor: theme.primaryOutline, opacity: submitting ? 0.6 : 1 }]}>
           {submitting ? (
-            <ActivityIndicator color={theme.onPrimary} />
+            <ActivityIndicator color={theme.ink} />
           ) : (
-            <ThemedText type="button" themeColor="onPrimary">
+            <ThemedText type="button" themeColor="ink">
               Sign in
             </ThemedText>
           )}
         </Pressable>
 
         <Pressable onPress={() => router.replace('/(auth)')} style={styles.link}>
-          <ThemedText type="bodySm" themeColor="primary">
+          <ThemedText type="bodySm" themeColor="primaryOutline">
             Back to email code sign-in
           </ThemedText>
         </Pressable>
@@ -100,12 +102,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Rounded.md,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.sm,
     fontSize: 14,
     minHeight: 44,
   },
   error: { marginTop: Spacing.xxs },
   button: {
+    borderWidth: 1.5,
     borderRadius: Rounded.md,
     paddingVertical: Spacing.sm,
     alignItems: 'center',
@@ -113,5 +116,5 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     minHeight: 44,
   },
-  link: { marginTop: Spacing.md, alignSelf: 'center' },
+  link: { marginTop: Spacing.md, alignSelf: 'center', minHeight: 44, justifyContent: 'center' },
 });

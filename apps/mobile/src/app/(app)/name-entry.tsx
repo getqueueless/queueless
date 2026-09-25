@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Rounded, Spacing } from '@/constants/theme';
+import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { supabase } from '@/lib/supabase';
 
@@ -48,34 +48,36 @@ export default function NameEntry() {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView type="canvasSoft" style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="displayMd">What should we call you?</ThemedText>
-        <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
-          Just a display name — nothing else to fill in.
-        </ThemedText>
+        <ThemedView type="surface" style={[styles.card, { borderColor: theme.hairline }]}>
+          <ThemedText type="displayMd">What should we call you?</ThemedText>
+          <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
+            Just a display name — nothing else to fill in.
+          </ThemedText>
 
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="Your name"
-          placeholderTextColor={theme.inkMuted}
-          autoCapitalize="words"
-          style={[styles.input, { color: theme.ink, backgroundColor: theme.canvas, borderColor: theme.hairline }]}
-        />
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="Your name"
+            placeholderTextColor={theme.inkMuted}
+            autoCapitalize="words"
+            style={[styles.input, { color: theme.ink, backgroundColor: theme.canvas, borderColor: theme.hairline }]}
+          />
 
-        <Pressable
-          onPress={handleContinue}
-          disabled={submitting || !name.trim()}
-          style={[styles.button, { backgroundColor: theme.primary, opacity: submitting ? 0.6 : 1 }]}>
-          {submitting ? (
-            <ActivityIndicator color={theme.onPrimary} />
-          ) : (
-            <ThemedText type="button" themeColor="onPrimary">
-              Continue
-            </ThemedText>
-          )}
-        </Pressable>
+          <Pressable
+            onPress={handleContinue}
+            disabled={submitting || !name.trim()}
+            style={[styles.button, { backgroundColor: theme.primary, opacity: submitting ? 0.6 : 1 }]}>
+            {submitting ? (
+              <ActivityIndicator color={theme.onPrimary} />
+            ) : (
+              <ThemedText type="button" themeColor="onPrimary">
+                Continue
+              </ThemedText>
+            )}
+          </Pressable>
+        </ThemedView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -83,13 +85,20 @@ export default function NameEntry() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safeArea: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  safeArea: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.lg },
+  card: {
+    borderWidth: 1,
+    borderRadius: Rounded.xl,
+    padding: Spacing.xl,
+    gap: Spacing.sm,
+    ...CardShadow,
+  },
   subtitle: { marginBottom: Spacing.md },
   input: {
     borderWidth: 1,
     borderRadius: Rounded.md,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.sm,
     fontSize: 14,
     minHeight: 44,
   },

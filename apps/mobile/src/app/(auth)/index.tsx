@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Rounded, Spacing } from '@/constants/theme';
+import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapAuthError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
@@ -160,23 +160,92 @@ export default function Otp() {
 
   if (step === 'email') {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView type="canvasSoft" style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
-          <ThemedText type="displayMd">Welcome</ThemedText>
+          <ThemedView type="surface" style={[styles.card, { borderColor: theme.hairline }]}>
+            <ThemedText type="displayMd">Welcome</ThemedText>
+            <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
+              We&apos;ll email you a 6-digit code — no password to remember.
+            </ThemedText>
+
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email"
+              placeholderTextColor={theme.inkMuted}
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              style={[styles.input, { color: theme.ink, backgroundColor: theme.canvas, borderColor: theme.hairline }]}
+            />
+
+            {error ? (
+              <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
+                {error}
+              </ThemedText>
+            ) : null}
+
+            <Pressable
+              onPress={sendCode}
+              disabled={sending || !isPlausibleEmail(email)}
+              style={[styles.button, { backgroundColor: theme.primary, opacity: sending ? 0.6 : 1 }]}>
+              {sending ? (
+                <ActivityIndicator color={theme.onPrimary} />
+              ) : (
+                <ThemedText type="button" themeColor="onPrimary">
+                  Send code
+                </ThemedText>
+              )}
+            </Pressable>
+
+            <Pressable onPress={() => router.push('/(auth)/password-fallback')} style={styles.link}>
+              <ThemedText type="bodySm" themeColor="inkMuted">
+                Having trouble? Use password sign-in instead
+              </ThemedText>
+            </Pressable>
+          </ThemedView>
+        </SafeAreaView>
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView type="canvasSoft" style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <ThemedView type="surface" style={[styles.card, { borderColor: theme.hairline }]}>
+          <ThemedText type="displayMd">Enter your code</ThemedText>
           <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
-            We&apos;ll email you a 6-digit code — no password to remember.
+            We sent a 6-digit code to {email}.
           </ThemedText>
 
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Email"
-            placeholderTextColor={theme.inkMuted}
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            style={[styles.input, { color: theme.ink, backgroundColor: theme.canvas, borderColor: theme.hairline }]}
-          />
+          <ThemedView style={styles.codeRow}>
+            {digits.map((digit, i) => (
+              <TextInput
+                key={i}
+                ref={(el) => {
+                  inputRefs.current[i] = el;
+                }}
+                value={digit}
+                onChangeText={(value) => handleDigitChange(i, value)}
+                onKeyPress={({ nativeEvent }) => handleKeyPress(i, nativeEvent.key)}
+                keyboardType="number-pad"
+                maxLength={i === 0 ? CODE_LENGTH : 1}
+                textContentType="oneTimeCode"
+                editable={!verifying}
+                style={[
+                  styles.codeBox,
+                  {
+                    color: theme.ink,
+                    backgroundColor: digit ? theme.primarySoft : theme.canvas,
+                    borderColor: digit ? theme.primaryOutline : theme.hairline,
+                    borderWidth: digit ? 2 : 1,
+                  },
+                ]}
+              />
+            ))}
+          </ThemedView>
+
+          {verifying ? <ActivityIndicator color={theme.primary} style={styles.verifyingSpinner} /> : null}
 
           {error ? (
             <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
@@ -185,86 +254,26 @@ export default function Otp() {
           ) : null}
 
           <Pressable
-            onPress={sendCode}
-            disabled={sending || !isPlausibleEmail(email)}
-            style={[styles.button, { backgroundColor: theme.primary, opacity: sending ? 0.6 : 1 }]}>
-            {sending ? (
-              <ActivityIndicator color={theme.onPrimary} />
-            ) : (
-              <ThemedText type="button" themeColor="onPrimary">
-                Send code
-              </ThemedText>
-            )}
-          </Pressable>
-
-          <Pressable onPress={() => router.push('/(auth)/password-fallback')} style={styles.link}>
-            <ThemedText type="bodySm" themeColor="inkMuted">
-              Having trouble? Use password sign-in instead
+            onPress={() => verify(digits.join(''))}
+            disabled={verifying || digits.some((d) => !d)}
+            style={[styles.button, { backgroundColor: theme.primary, opacity: verifying ? 0.6 : 1 }]}>
+            <ThemedText type="button" themeColor="onPrimary">
+              Verify
             </ThemedText>
           </Pressable>
-        </SafeAreaView>
-      </ThemedView>
-    );
-  }
 
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="displayMd">Enter your code</ThemedText>
-        <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
-          We sent a 6-digit code to {email}.
-        </ThemedText>
+          <Pressable onPress={resend} disabled={cooldown > 0 || sending} style={styles.link}>
+            <ThemedText type="bodySm" themeColor={cooldown > 0 ? 'inkMuted' : 'primaryOutline'}>
+              {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+            </ThemedText>
+          </Pressable>
 
-        <ThemedView style={styles.codeRow}>
-          {digits.map((digit, i) => (
-            <TextInput
-              key={i}
-              ref={(el) => {
-                inputRefs.current[i] = el;
-              }}
-              value={digit}
-              onChangeText={(value) => handleDigitChange(i, value)}
-              onKeyPress={({ nativeEvent }) => handleKeyPress(i, nativeEvent.key)}
-              keyboardType="number-pad"
-              maxLength={i === 0 ? CODE_LENGTH : 1}
-              textContentType="oneTimeCode"
-              editable={!verifying}
-              style={[
-                styles.codeBox,
-                { color: theme.ink, backgroundColor: theme.canvas, borderColor: theme.hairline },
-              ]}
-            />
-          ))}
+          <Pressable onPress={backToEmail} style={styles.link}>
+            <ThemedText type="bodySm" themeColor="inkMuted">
+              Wrong email?
+            </ThemedText>
+          </Pressable>
         </ThemedView>
-
-        {verifying ? <ActivityIndicator color={theme.primary} style={styles.verifyingSpinner} /> : null}
-
-        {error ? (
-          <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
-            {error}
-          </ThemedText>
-        ) : null}
-
-        <Pressable
-          onPress={() => verify(digits.join(''))}
-          disabled={verifying || digits.some((d) => !d)}
-          style={[styles.button, { backgroundColor: theme.primary, opacity: verifying ? 0.6 : 1 }]}>
-          <ThemedText type="button" themeColor="onPrimary">
-            Verify
-          </ThemedText>
-        </Pressable>
-
-        <Pressable onPress={resend} disabled={cooldown > 0 || sending} style={styles.link}>
-          <ThemedText type="bodySm" themeColor={cooldown > 0 ? 'inkMuted' : 'primary'}>
-            {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
-          </ThemedText>
-        </Pressable>
-
-        <Pressable onPress={backToEmail} style={styles.link}>
-          <ThemedText type="bodySm" themeColor="inkMuted">
-            Wrong email?
-          </ThemedText>
-        </Pressable>
       </SafeAreaView>
     </ThemedView>
   );
@@ -272,13 +281,20 @@ export default function Otp() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safeArea: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  safeArea: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.lg },
+  card: {
+    borderWidth: 1,
+    borderRadius: Rounded.xl,
+    padding: Spacing.xl,
+    gap: Spacing.sm,
+    ...CardShadow,
+  },
   subtitle: { marginBottom: Spacing.md },
   input: {
     borderWidth: 1,
     borderRadius: Rounded.md,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.sm,
     fontSize: 14,
     minHeight: 44,
   },
@@ -286,7 +302,6 @@ const styles = StyleSheet.create({
   codeBox: {
     width: 44,
     height: 52,
-    borderWidth: 1,
     borderRadius: Rounded.md,
     textAlign: 'center',
     fontSize: 22,
