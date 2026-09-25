@@ -27,23 +27,51 @@ export function PlatformCards({ children }: { children: ReactNode }) {
   )
 }
 
-// The latest build's versionName from the Android release workflow; nothing
-// at all until a build exists or when the fetch fails.
-export function AndroidVersion({ url }: { url: string }) {
+// The Android card's download, gated on a published build: until
+// /android/version.json carries a versionCode the APK URL would 404, so the
+// card shows a disabled "publishing" button and no QR, and re-checks every
+// 30s until the first build lands, then swaps in the real link on its own.
+export function AndroidDownload({ apk, versionUrl, qr }: { apk: string; versionUrl: string; qr: string }) {
   const [version, setVersion] = useState<string | null>(null)
   useEffect(() => {
+    if (version) return
     let cancelled = false
-    fetch(url, { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { versionName?: unknown } | null) => {
-        if (!cancelled && typeof data?.versionName === "string") setVersion(data.versionName)
-      })
-      .catch(() => {})
+    const check = () =>
+      fetch(versionUrl, { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { versionCode?: unknown; versionName?: unknown } | null) => {
+          if (!cancelled && typeof data?.versionCode === "number") {
+            setVersion(typeof data.versionName === "string" ? data.versionName : String(data.versionCode))
+          }
+        })
+        .catch(() => {})
+    check()
+    const id = setInterval(check, 30_000)
     return () => {
       cancelled = true
+      clearInterval(id)
     }
-  }, [url])
-  return version ? <p className={styles.appVersion}>Version {version}</p> : null
+  }, [version, versionUrl])
+
+  if (!version) {
+    return (
+      <button type="button" disabled className={`${styles.btn} ${styles.btnAccent} ${styles.appButton}`}>
+        Android build publishing…
+      </button>
+    )
+  }
+  return (
+    <>
+      <figure className={styles.appQr}>
+        <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: qr }} />
+        <figcaption>Scan with your Android phone</figcaption>
+      </figure>
+      <a href={apk} download className={`${styles.btn} ${styles.btnAccent} ${styles.appButton}`}>
+        Download for Android
+      </a>
+      <p className={styles.appVersion}>Version {version}</p>
+    </>
+  )
 }
 
 export function CopyButton({ text }: { text: string }) {

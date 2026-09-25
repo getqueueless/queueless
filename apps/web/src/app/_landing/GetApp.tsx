@@ -2,7 +2,7 @@ import { AnimatedHeading } from "@/components/motion/AnimatedHeading"
 import { tokenQrSvg } from "@/lib/qr"
 
 import styles from "../page.module.css"
-import { AndroidVersion, CopyButton, PlatformCards } from "./AppExtras"
+import { AndroidDownload, CopyButton, PlatformCards } from "./AppExtras"
 
 const APK = "https://lpu.lol/android/queueless.apk"
 const APK_VERSION = "/android/version.json" // same origin as the page
@@ -24,14 +24,7 @@ export async function GetApp() {
           <h3 id="app-android" className={styles.appName}>
             Android
           </h3>
-          <figure className={styles.appQr}>
-            <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: androidQr }} />
-            <figcaption>Scan with your Android phone</figcaption>
-          </figure>
-          <a href={APK} download className={`${styles.btn} ${styles.btnAccent} ${styles.appButton}`}>
-            Download for Android
-          </a>
-          <AndroidVersion url={APK_VERSION} />
+          <AndroidDownload apk={APK} versionUrl={APK_VERSION} qr={androidQr} />
           <p className={styles.appNote2}>Allow “Install unknown apps” when your phone asks.</p>
         </article>
 
