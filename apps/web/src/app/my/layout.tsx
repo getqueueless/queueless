@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { Logo } from "@/components/brand/Logo"
+import { ThemeToggle } from "@/components/theme/ThemeToggle"
 
 import { PatientSignOut } from "./PatientSignOut"
 import styles from "./my.module.css"
@@ -16,9 +17,12 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
         <Link href="/my" className={styles.brand}>
           <Logo size={22} />
         </Link>
-        <PatientSignOut />
+        <div className={styles.headerActions}>
+          <ThemeToggle />
+          <PatientSignOut />
+        </div>
       </header>
-      <main id="main">{children}</main>
+      <main id="main" className={styles.main}>{children}</main>
     </div>
   )
 }

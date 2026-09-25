@@ -1,11 +1,34 @@
-/* Minimal shell for the patient area -- the take-token/book/history screens
-   themselves (the actual /my product surface) restyle or replace this. */
+/* The patient area: a white app bar, then the /my dashboard. Public-screen
+   register (DESIGN.md): Poppins body, MedWin's slate band with the white
+   card pulled over its edge, AnimatedHeading section titles.
+
+   Contrast: hero title white on slate 13.5, accent word #0cb7d6 on slate
+   5.63 (large text); hero meta on-slate-muted on slate 7.62. */
+
+.content {
+  --max: 1240px;
+  --gutter: clamp(16px, 4vw, 40px);
+  --gap: var(--space-lg);
+
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- app bar ---------- */
+
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-sm) max(var(--gutter), (100% - var(--max)) / 2);
   border-bottom: 1px solid var(--color-hairline);
   background: var(--color-surface);
 }
@@ -16,6 +39,18 @@
   gap: var(--space-sm);
   font-family: var(--font-display);
   font-weight: 700;
+  border-radius: var(--radius-sm);
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 4px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
 }
 
 .signOut {
@@ -29,6 +64,7 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  transition: border-color 150ms var(--ease-out);
 }
 
 .signOut:hover {
@@ -40,23 +76,137 @@
   outline-offset: 2px;
 }
 
-.content {
+/* ---------- page ---------- */
+
+.page {
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  padding-bottom: var(--space-section);
+  background: var(--color-canvas-soft);
+  font-family: var(--font-display);
+  color: var(--color-ink);
 }
 
-.placeholder {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-section) var(--space-lg);
-  max-width: 640px;
+/* ---------- hero ----------
+   One 12-column grid. The slate band is the grid's own ::before, placed on
+   rows 1-2 and stretched to the viewport edges, so the card on the right
+   (rows 1-3) always hangs exactly one overhang row past the band's edge,
+   whatever height its content turns out to be. */
+
+.hero {
+  --overhang: 88px;
+
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: auto auto var(--overhang);
+  column-gap: var(--gap);
+  width: min(var(--max), 100% - 2 * var(--gutter));
+  margin-inline: auto;
+  padding-top: var(--space-xxl);
 }
 
-.section {
-  margin-top: var(--space-section);
+.hero::before,
+.hero::after {
+  content: "";
+  grid-column: 1 / -1;
+  grid-row: 1 / 3;
+  z-index: -1;
+  margin: calc(-1 * var(--space-xxl)) calc(50% - 50vw) 0;
 }
+
+.hero::before {
+  background: var(--color-slate);
+}
+
+/* A field of faint medical crosses, strongest at the top left behind the
+   greeting and gone before it reaches the card. */
+.hero::after {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Cpath d='M22 17v10M17 22h10' stroke='%23ffffff' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")
+    0 0 / 44px 44px;
+  opacity: 0.07;
+  mask-image: radial-gradient(ellipse 70% 90% at 20% 0%, #000 30%, transparent 75%);
+}
+
+.greeting {
+  grid-column: 1 / 8;
+  grid-row: 1;
+  align-self: start;
+  padding-top: var(--space-lg);
+}
+
+/* Specificity over AnimatedHeading's own .heading: hero scale, and the
+   brand cyan (5.63:1 on slate) rather than its on-dark teal. */
+.hero .heroTitle {
+  --accent: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
+
+  font-size: clamp(32px, 2.4vw + 18px, 52px);
+  line-height: 1.08;
+}
+
+.heroMeta {
+  margin-top: var(--space-md);
+  color: var(--color-on-slate-muted);
+  font-size: 16px;
+}
+
+.heroCard {
+  grid-column: 8 / -1;
+  grid-row: 1 / 4;
+  align-self: end;
+}
+
+/* ---------- sections below the hero ---------- */
+
+.body {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-section) var(--gap);
+  width: min(var(--max), 100% - 2 * var(--gutter));
+  margin: var(--space-xxl) auto 0;
+}
+
+.body > * {
+  min-width: 0;
+}
+
+.full {
+  grid-column: 1 / -1;
+  scroll-margin-top: var(--space-lg);
+}
+
+@media (max-width: 960px) {
+  .hero {
+    --overhang: 72px;
+
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto var(--overhang) auto;
+    padding-top: var(--space-xl);
+  }
+
+  .hero::before,
+  .hero::after {
+    margin-top: calc(-1 * var(--space-xl));
+  }
+
+  .greeting {
+    grid-column: 1;
+    padding: 0 0 var(--space-xl);
+  }
+
+  .heroCard {
+    grid-column: 1;
+    grid-row: 2 / 4;
+  }
+
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-xxl);
+  }
+}
+
+/* ---------- until the new sections land (removed with them) ---------- */
 
 .sectionTitle {
   margin-bottom: var(--space-md);
@@ -75,7 +225,10 @@
   color: var(--color-ink);
 }
 
-.tokenList,
+.section {
+  margin-top: 0;
+}
+
 .doctorList,
 .slotList {
   display: flex;
@@ -83,97 +236,6 @@
   gap: var(--space-sm);
   list-style: none;
   padding: 0;
-}
-
-.tokenLink {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-md);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-ink);
-  text-decoration: none;
-}
-
-.tokenLink:hover {
-  border-color: var(--color-ink-muted);
-}
-
-.tokenLink:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
-.tokenCode {
-  font-family: var(--font-mono);
-  font-weight: 700;
-}
-
-.editProfileLink {
-  color: var(--color-primary);
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.claimForm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.claimLabel {
-  font-weight: 700;
-  font-size: 13px;
-}
-
-.claimRow {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.claimInput {
-  flex: 1;
-  min-height: 44px;
-  padding: 0 var(--space-md);
-  border: 1px solid var(--color-hairline-strong);
-  border-radius: var(--radius-sm);
-  font: inherit;
-  background: var(--color-surface);
-  color: var(--color-ink);
-}
-
-.claimInput:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
-.claimSubmit {
-  min-height: 44px;
-  padding: 0 var(--space-lg);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.claimSubmit:hover {
-  background: var(--color-accent-hover, var(--color-accent));
-}
-
-.claimSubmit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.claimError {
-  color: var(--color-danger);
-  font-size: 13px;
 }
 
 .doctorCard {
@@ -220,4 +282,64 @@
 .slotButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ---------- claim form (ClaimTicketForm) ---------- */
+
+.claimForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.claimLabel {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.claimRow {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.claimInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.claimInput:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.claimSubmit {
+  min-height: 44px;
+  padding: 0 var(--space-lg);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.claimSubmit:hover {
+  background: var(--color-accent-hover);
+}
+
+.claimSubmit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.claimError {
+  color: var(--color-danger);
+  font-size: 13px;
 }

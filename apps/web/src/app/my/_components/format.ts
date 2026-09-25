@@ -1,7 +1,35 @@
+import type { TokenStatus } from "@/app/t/[id]/data"
 import type { DoctorStatus } from "@/lib/doctors"
 
 // Pure helpers for the patient dashboard. No Supabase, no React, so the
 // branches are checked by format.test.mjs with plain `node --test`.
+
+export type Tone = "neutral" | "primary" | "success" | "warning" | "danger"
+
+export const TOKEN_STATUS: Record<TokenStatus, { label: string; tone: Tone }> = {
+  pending_payment: { label: "Awaiting payment", tone: "warning" },
+  waiting: { label: "Waiting", tone: "neutral" },
+  called: { label: "Called", tone: "primary" },
+  serving: { label: "With the doctor", tone: "primary" },
+  done: { label: "Done", tone: "success" },
+  skipped: { label: "Skipped", tone: "danger" },
+  no_show: { label: "No-show", tone: "danger" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
+}
+
+export const AVAILABILITY_TONE: Record<Availability["kind"], Tone> = {
+  available: "success",
+  late: "warning",
+  break: "warning",
+  leave: "danger",
+  off: "neutral",
+}
+
+/** "Dr. Neha Sharma" -> "NS": the title is not a name. */
+export function initials(name: string): string {
+  const words = name.replace(/^(dr|mr|mrs|ms)\.?\s+/i, "").split(/\s+/).filter(Boolean)
+  return ((words[0]?.[0] ?? "") + (words.length > 1 ? words[words.length - 1][0] : "")).toUpperCase()
+}
 
 export type Availability = {
   kind: "available" | "late" | "break" | "leave" | "off"

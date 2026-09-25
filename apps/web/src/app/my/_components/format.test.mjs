@@ -2,7 +2,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { availability, clockLabel, dayKey, firstName, shiftsLabel, slotLabel } from "./format.ts"
+import { availability, clockLabel, dayKey, firstName, initials, shiftsLabel, slotLabel } from "./format.ts"
 
 const base = { status: "available", lateMinutes: null, leaveReason: undefined, hasShiftToday: true }
 
@@ -62,4 +62,10 @@ test("days and slots read in the hospital's zone, not the server's", () => {
   assert.equal(slotLabel("2026-09-26T11:30:00Z", "Asia/Kolkata", now), "Today, 5:00 PM")
   assert.equal(slotLabel("2026-09-27T03:30:00Z", "Asia/Kolkata", now), "Tomorrow, 9:00 AM")
   assert.equal(slotLabel("2026-09-28T03:30:00Z", "Asia/Kolkata", now), "Mon 28 Sep, 9:00 AM")
+})
+
+test("initials skip the title", () => {
+  assert.equal(initials("Dr. Neha Sharma"), "NS")
+  assert.equal(initials("Dr Arjun Menon"), "AM")
+  assert.equal(initials("Meera"), "M")
 })
