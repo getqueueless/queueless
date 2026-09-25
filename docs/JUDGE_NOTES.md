@@ -177,6 +177,17 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   `call_next` (0020) makes the two calls serialize instead of racing; ran gstack `/qa` before/after
   the RPC fix above. Exact screenshot paths, race-test transcript, and qa scores/findings are in
   the workflow report, not duplicated here.
+- **Predict client aligned with the real `/predict` contract.** The API agent's route dropped
+  its fixed 5-slug `service` enum for a real `service_id` UUID looked up against
+  `board_services` (see `docs/api/model-card.md`) — dental/eye never existed in the real
+  4-service preset either. The admin dashboard chart and the patient status page's ETA both
+  guessed a slug from `services.name`/`.code` and sent `{service: "..."}`; both now send
+  `{service_id: services.id}` directly, so the slug-matching code (and its "doesn't map to a
+  known API demo service" dead end) is gone entirely. Also fixed a real bug found while in
+  there: the status page sent `weekday: now.getDay()` (JS Sunday=0), while the admin dashboard
+  already converted to the API's Monday=0 convention (`docs/API_CONTRACT.md`) — the status page
+  now converts too. `docs/API_CONTRACT.md`'s `/predict` section still documents the old slug
+  body; it's outside this app's scope to fix (shared with mobile), flagged for its owner.
 
 ## Backend
 
