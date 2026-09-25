@@ -26,8 +26,10 @@ export async function fetchAndroidUpdate(): Promise<AndroidUpdate | null> {
   const res = await fetch(VERSION_URL, { cache: 'no-store', signal: AbortSignal.timeout(6000) });
   if (!res.ok) throw new Error(`version.json: HTTP ${res.status}`);
   const { versionCode, versionName, apk, notes } = ((await res.json()) ?? {}) as Record<string, unknown>;
-  if (!Number.isInteger(versionCode) || typeof apk !== 'string' || !apk.startsWith('https://')) {
-    throw new Error('version.json: unexpected shape');
+  // `{}` (nothing published yet) or no versionCode means there's nothing newer: up to date.
+  if (!Number.isInteger(versionCode)) return null;
+  if (typeof apk !== 'string' || !apk.startsWith('https://')) {
+    throw new Error('version.json: unexpected apk');
   }
   const code = versionCode as number;
   if (code <= installed) return null;
