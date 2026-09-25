@@ -32,6 +32,13 @@ still land inside the 60/minute window the check is proving, just not as a
 zero-delay burst), and check 12 (which needs a direct write into
 `profiles`, not something a script should do against a real production
 database) is skipped in favor of the note already covering it.
+
+Section 14 (table access sweep, added 2026-09-27) fires direct PostgREST
+requests -- SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY, none
+of which the plain local dev_db.py fixture provides (bare Postgres, no
+Kong/PostgREST/GoTrue in front of it) -- skipped with a clear note when
+unset, same shape as the pytest-only checks above. See that section's own
+docstring for the finding it exists to catch.
 """
 
 import asyncio
@@ -39,6 +46,7 @@ import os
 import sys
 import time
 import uuid
+from pathlib import Path
 
 import asyncpg
 import httpx
@@ -52,6 +60,12 @@ DATABASE_URL = os.environ.get(
 ROLE_CACHE_TTL_SECONDS = float(os.environ.get("ROLE_CACHE_TTL_SECONDS", "5.0"))
 REQUEST_DELAY_SECONDS = float(os.environ.get("ATTACK_REQUEST_DELAY_SECONDS", "0.05"))
 SKIP_DB_WRITE_CHECKS = os.environ.get("SKIP_DB_WRITE_CHECKS", "0") == "1"
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+TABLE_SWEEP_ENABLED = bool(SUPABASE_URL and SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY)
+QA_ENV_PATH = Path(os.environ.get("QA_ENV_PATH", str(Path.home() / "code/queueless-qa/.env.qa")))
 
 
 def make_jwt(sub: str | None = None) -> str:
@@ -83,6 +97,268 @@ def check(name: str, condition: bool, detail: str = "") -> None:
 def predict(client: httpx.Client, **overrides) -> httpx.Response:
     body = {**VALID_PREDICT_BODY, **overrides}
     return client.post("/predict", json=body)
+
+
+# --- table access sweep (added 2026-09-27) --------------------------------
+# Found live: appointments, audit_log, notifications, and tokens had row-
+# level security DISABLED in prod while still holding real SELECT grants for
+# anon and/or authenticated (confirmed directly against pg_class.
+# relrowsecurity + information_schema.role_table_grants on the live
+# database, not guessed from migrations). RLS-off plus a grant means the
+# grant applies fully unfiltered: `tokens` was readable by anon with NO
+# sign-in at all (patient_id + org_id for every real ticket), and
+# `notifications`/`appointments`/`audit_log` were readable by ANY signed-in
+# user, patient or not. Fixed in supabase/migrations/0046 (Hackathon
+# database team). This section is built to keep catching it: for every
+# public table, both anon and a real-but-unrelated patient identity, prove
+# no other identity's row is readable and no unauthorized write succeeds --
+# using filters that can never match a real row, so a still-broken table is
+# caught without ever mutating real data.
+#
+# Every status-code expectation below was verified live against prod before
+# being hardcoded (not guessed): an empty PATCH body short-circuits before
+# any privilege check (204 even with zero grant -- there's nothing to set),
+# so UPDATE checks set one real column instead; "no grant at all" is 401
+# for anon but 403 for a bearer-JWT credential (PostgREST distinguishes
+# "who are you" from "you can't do that"); a column-restricted grant (e.g.
+# notifications' `read_at`-only UPDATE) 403s on any OTHER column even with
+# the table-level grant present.
+
+NIL_UUID = "00000000-0000-0000-0000-000000000000"
+
+# Real primary key column(s) per public table, confirmed live against
+# pg_constraint on prod (2026-09-27) -- not every table uses "id".
+PK_COLUMNS = {
+    "organizations": ("id",), "services": ("id",), "counters": ("id",),
+    "counter_services": ("counter_id", "service_id"),
+    "board_services": ("service_id", "day"), "board_counters": ("counter_id",),
+    "tokens": ("id",), "profiles": ("id",), "push_tokens": ("id",),
+    "notifications": ("id",), "audit_log": ("id",), "appointments": ("id",),
+    "appointment_slots": ("id",), "doctors": ("id",),
+    "doctor_schedules": ("id",), "doctor_breaks": ("id",),
+    "doctor_leaves": ("id",), "doctor_status": ("doctor_id",),
+    "walkin_patients": ("id",), "cash_receipts": ("id",),
+    "ops_summaries": ("id",), "payments": ("id",),
+}
+ALL_TABLES = sorted(PK_COLUMNS)
+
+# Per-(table, column) sentinel overrides for PK columns that aren't a plain
+# uuid -- audit_log.id is bigint, board_services.day is a date. Found live:
+# the wrong type here 400s at PostgREST's input-parsing layer, before any
+# grant/RLS check even runs, which would silently turn a real check into a
+# no-op. Every other PK column is uuid, default NIL_UUID is correct.
+PK_SENTINEL_OVERRIDES = {("audit_log", "id"): "-1", ("board_services", "day"): "1900-01-01"}
+
+# One safe, real, type-correct (column, value) to PATCH per table --
+# always a non-identity column, since an empty {} body short-circuits
+# before any grant check (nothing to set) and audit_log.id specifically
+# can never be set at all (GENERATED ALWAYS IDENTITY -- found live while
+# building this: it 400s "can only be updated to DEFAULT" regardless of
+# privilege, which would silently turn that one real check into a no-op).
+UPDATE_PROBE_FIELD = {
+    "organizations": ("id", NIL_UUID), "services": ("id", NIL_UUID),
+    "counters": ("id", NIL_UUID), "board_services": ("service_id", NIL_UUID),
+    "board_counters": ("counter_id", NIL_UUID), "counter_services": ("counter_id", NIL_UUID),
+    "push_tokens": ("id", NIL_UUID), "notifications": ("read_at", "2026-01-01T00:00:00Z"),
+    "profiles": ("full_name", "table access sweep probe"),
+    "tokens": ("id", NIL_UUID), "audit_log": ("action", "table access sweep probe"),
+    "appointments": ("id", NIL_UUID), "appointment_slots": ("id", NIL_UUID),
+    "doctors": ("id", NIL_UUID), "doctor_schedules": ("id", NIL_UUID),
+    "doctor_breaks": ("id", NIL_UUID), "doctor_leaves": ("id", NIL_UUID),
+    "doctor_status": ("doctor_id", NIL_UUID), "walkin_patients": ("id", NIL_UUID),
+    "cash_receipts": ("id", NIL_UUID), "ops_summaries": ("id", NIL_UUID),
+    "payments": ("id", NIL_UUID),
+}
+# authenticated genuinely holds an UPDATE grant on these (confirmed live --
+# information_schema.role_table_grants, plus a direct probe for the two
+# column-restricted cases) -- a plain patient's attempt is expected to be
+# authorized-but-empty (200/204, sentinel never matches a real row), not
+# blocked. Every other table should 403.
+AUTH_UPDATE_GRANTED = {
+    "organizations", "services", "counters", "board_services",
+    "board_counters", "push_tokens", "notifications", "profiles",
+}
+AUTH_DELETE_GRANTED = {"push_tokens", "counter_services"}
+
+# organizations/services/counters: authenticated holds a real table-level
+# INSERT/UPDATE grant (supabase/migrations/0030), gated by an admin-only
+# RLS policy -- a nonexistent-row filter can't actually prove that gate
+# holds (Postgres never evaluates the policy's USING clause against a row
+# that was never a candidate, so the response is "0 rows" either way,
+# whether the gate is correctly enforced or RLS is off entirely). These
+# three instead get a real-row round trip: read a real row's `name`
+# anonymously (already public), PATCH that SAME value back with a real,
+# non-admin patient JWT and Prefer: return=representation. An empty `[]`
+# response means the row was correctly invisible to the UPDATE (verified
+# live); a non-empty one means the value round-tripped through a real
+# write the patient should never have been allowed to make.
+ROUND_TRIP_COLUMN = {"organizations": "name", "services": "name", "counters": "name"}
+
+# Tables with a real, direct-identity column -- the read-leak class this
+# whole section exists to catch. profiles is the strongest of these (every
+# signed-up user has exactly one row, guaranteed by migration 0037); the
+# others are only as strong as whatever real rows the QA patient happens to
+# have -- an empty result is safe either way, just not fully conclusive,
+# noted honestly rather than assumed thorough.
+IDENTITY_COLUMN = {
+    "profiles": "id", "tokens": "patient_id",
+    "notifications": "patient_id", "appointments": "patient_id",
+    "push_tokens": "user_id",
+}
+
+
+def _load_qa_env(path: Path) -> dict:
+    env = {}
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        env[key.strip()] = value.strip()
+    return env
+
+
+def _lookup_real_user_id(client: httpx.Client, email: str) -> str | None:
+    """GoTrue admin list -- this self-hosted version ignores the documented
+    ?email= filter (confirmed live, returns everyone regardless), so this
+    fetches the page and matches client-side."""
+    resp = client.get(
+        f"{SUPABASE_URL}/auth/v1/admin/users",
+        headers={"apikey": SUPABASE_SERVICE_ROLE_KEY, "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}"},
+    )
+    resp.raise_for_status()
+    for u in resp.json().get("users", []):
+        if u.get("email", "").lower() == email.lower():
+            return u["id"]
+    return None
+
+
+def run_table_access_sweep() -> None:
+    if not TABLE_SWEEP_ENABLED:
+        check(
+            "table_access_sweep_skipped_no_postgrest_creds",
+            True,
+            "SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY not set -- "
+            "dev_db.py's local fixture has no Kong/PostgREST/GoTrue in front of it "
+            "to sweep; run against a real Supabase stack (local generate-keys.sh or "
+            "prod) to exercise this section",
+        )
+        return
+
+    pg = httpx.Client(timeout=15.0)
+    qa_env = _load_qa_env(QA_ENV_PATH)
+    attacker_jwt = make_jwt()  # a valid signature, no real profiles row at all
+    victim_id = _lookup_real_user_id(pg, qa_env["QA_PATIENT1_EMAIL"])
+    check(
+        "table_sweep_found_real_victim_identity", victim_id is not None,
+        f"looked up {qa_env['QA_PATIENT1_EMAIL']!r}",
+    )
+
+    anon_headers = {"apikey": SUPABASE_ANON_KEY}
+    patient_headers = {"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {attacker_jwt}"}
+    service_headers = {"apikey": SUPABASE_SERVICE_ROLE_KEY, "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}"}
+    creds = [("anon", anon_headers, 401), ("patient", patient_headers, 403)]
+
+    def sentinel_params(table: str) -> dict:
+        return {
+            col: f"eq.{PK_SENTINEL_OVERRIDES.get((table, col), NIL_UUID)}"
+            for col in PK_COLUMNS[table]
+        }
+
+    for table in ALL_TABLES:
+        for label, headers, blocked_status in creds:
+            time.sleep(REQUEST_DELAY_SECONDS)
+            resp = pg.post(
+                f"{SUPABASE_URL}/rest/v1/{table}",
+                headers={**headers, "Prefer": "return=representation"}, json={},
+            )
+            if resp.status_code in (200, 201):
+                rows = resp.json()
+                row = rows[0] if isinstance(rows, list) and rows else (rows if isinstance(rows, dict) else None)
+                if row:
+                    filt = {c: f"eq.{row[c]}" for c in PK_COLUMNS[table] if c in row}
+                    if filt:
+                        pg.delete(f"{SUPABASE_URL}/rest/v1/{table}", headers=service_headers, params=filt)
+            check(
+                f"table_sweep_insert_blocked[{table}/{label}]",
+                resp.status_code not in (200, 201),
+                f"got {resp.status_code}: {resp.text[:200]}",
+            )
+
+            time.sleep(REQUEST_DELAY_SECONDS)
+            granted = label == "patient" and table in AUTH_UPDATE_GRANTED
+            col, value = UPDATE_PROBE_FIELD[table]
+            resp = pg.request(
+                "PATCH", f"{SUPABASE_URL}/rest/v1/{table}", headers=headers,
+                params=sentinel_params(table), json={col: value},
+            )
+            ok = resp.status_code in (200, 204) if granted else resp.status_code == blocked_status
+            check(
+                f"table_sweep_update_{'attempt_authorized' if granted else 'blocked'}[{table}/{label}]",
+                ok, f"got {resp.status_code}: {resp.text[:200]}",
+            )
+
+            time.sleep(REQUEST_DELAY_SECONDS)
+            granted = label == "patient" and table in AUTH_DELETE_GRANTED
+            resp = pg.request(
+                "DELETE", f"{SUPABASE_URL}/rest/v1/{table}", headers=headers, params=sentinel_params(table),
+            )
+            ok = resp.status_code in (200, 204) if granted else resp.status_code == blocked_status
+            check(
+                f"table_sweep_delete_{'attempt_authorized' if granted else 'blocked'}[{table}/{label}]",
+                ok, f"got {resp.status_code}: {resp.text[:200]}",
+            )
+
+    # Cross-identity read leak -- the actual bug class this section exists
+    # to catch.
+    if victim_id:
+        for table, col in IDENTITY_COLUMN.items():
+            for label, headers, _ in creds:
+                time.sleep(REQUEST_DELAY_SECONDS)
+                resp = pg.get(
+                    f"{SUPABASE_URL}/rest/v1/{table}", headers=headers,
+                    params={"select": "id", col: f"eq.{victim_id}", "limit": "1"},
+                )
+                leaked = resp.status_code == 200 and bool(resp.json())
+                check(
+                    f"table_sweep_no_cross_identity_read[{table}/{label}]",
+                    not leaked, f"got {resp.status_code}: {resp.text[:200]}",
+                )
+
+    # audit_log -- must be invisible to anyone but an admin, which neither
+    # credential here is.
+    for label, headers, _ in creds:
+        time.sleep(REQUEST_DELAY_SECONDS)
+        resp = pg.get(f"{SUPABASE_URL}/rest/v1/audit_log", headers=headers, params={"select": "id", "limit": "1"})
+        leaked = resp.status_code == 200 and bool(resp.json())
+        check(f"table_sweep_audit_log_invisible[{label}]", not leaked, f"got {resp.status_code}: {resp.text[:200]}")
+
+    # organizations/services/counters: real-row round trip -- see
+    # ROUND_TRIP_COLUMN's comment for why the generic sweep above can't
+    # prove this on its own.
+    for table, col in ROUND_TRIP_COLUMN.items():
+        time.sleep(REQUEST_DELAY_SECONDS)
+        got = pg.get(
+            f"{SUPABASE_URL}/rest/v1/{table}", headers=anon_headers,
+            params={"select": f"id,{col}", "limit": "1"},
+        )
+        rows = got.json() if got.status_code == 200 else []
+        row = rows[0] if rows else None
+        check(f"table_sweep_round_trip_found_real_row[{table}]", row is not None, f"got {got.status_code}")
+        if row is None:
+            continue
+        time.sleep(REQUEST_DELAY_SECONDS)
+        resp = pg.patch(
+            f"{SUPABASE_URL}/rest/v1/{table}", headers={**patient_headers, "Prefer": "return=representation"},
+            params={"id": f"eq.{row['id']}"}, json={col: row[col]},
+        )
+        wrote_real_row = resp.status_code == 200 and bool(resp.json())
+        check(
+            f"table_sweep_admin_gate_holds[{table}]",
+            not wrote_real_row, f"got {resp.status_code}: {resp.text[:200]}",
+        )
+
+    pg.close()
 
 
 def run() -> int:
@@ -309,6 +585,11 @@ def run() -> int:
         True,
         "see tests/test_rate_limit.py::test_sixth_retrain_request_in_ten_minutes_is_rate_limited",
     )
+
+    # 14. Direct-PostgREST table access sweep -- see that function's own
+    #     docstring for the finding it exists to catch (RLS-off tables
+    #     readable/writable, found live 2026-09-27).
+    run_table_access_sweep()
 
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)
