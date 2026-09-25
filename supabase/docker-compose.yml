@@ -66,10 +66,23 @@ services:
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       GOTRUE_JWT_ISSUER: ${API_EXTERNAL_URL}
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
-      GOTRUE_MAILER_AUTOCONFIRM: "true"          # no SMTP container: false => signup 500s trying to mail
+      # Empty SMTP_HOST -> GoTrue boots a noop mailer (SMTP.Host == "" check at startup): signup
+      # returns 200 but the email is never sent and the patient is stuck unconfirmed with no error
+      # visible anywhere. Worse than a 500. Keep autoconfirm on whenever SMTP is blank (local dev).
+      GOTRUE_MAILER_AUTOCONFIRM: ${MAILER_AUTOCONFIRM:-false}   # prod default: real signups need a real code
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"     # upstream .env default is true + SMS autoconfirm (abuse hole)
       GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
       GOTRUE_RATE_LIMIT_HEADER: ${GOTRUE_RATE_LIMIT_HEADER:-}   # empty = IP limits off (local). VPS: CF-Connecting-IP
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-465}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-}
+      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-Queueless}
+      GOTRUE_MAILER_OTP_EXP: "600"                              # 10 min, not GoTrue's 1-day default
+      GOTRUE_MAILER_OTP_LENGTH: "6"
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: "30/1h"                      # abuse cap; also below Namecheap's own daily send limit
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "{{ .Token }} is your Queueless code"
 
   rest:
     container_name: supabase-rest
