@@ -7,6 +7,13 @@ One line per deviation from the plan/spec, with why.
   but this sibling tenant-seeding variable was missing, leaving the realtime tenant on its
   default 200-connection cap. Added to match the spec's stated invariant and avoid a silent
   connection cap on demo day.
+- 2026-09-25: `check_in`'s priority_at uses `greatest(slot.starts_at, now())`, not the
+  `least(...)` the spec's formula literally names. The spec's own prose in the same sentence
+  says early check-in should count from the booked slot time and late check-in from actual
+  arrival ("no free head start for showing up early", "lateness isn't rewarded either") --
+  that behavior is `greatest()`: early (now < starts_at) picks starts_at, late (now >
+  starts_at) picks now. `least()` would do the opposite of both stated rules. Implemented the
+  described behavior over the literal formula.
 - 2026-09-25 (mobile): wrote `docs/API_CONTRACT.md` before `apps/api` had published any route
   for push/predict — proposed `POST /push/register` and `GET /predict?service_id=` per the
   original brief, guessed dev port 8001 (nothing pins one in `apps/api`). Both calls are
