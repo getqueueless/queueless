@@ -83,6 +83,16 @@ services:
       GOTRUE_MAILER_OTP_LENGTH: "6"
       GOTRUE_RATE_LIMIT_EMAIL_SENT: "30/1h"                      # abuse cap; also below Namecheap's own daily send limit
       GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "{{ .Token }} is your Queueless code"
+      # Google sign-in. Register https://sb.lpu.lol/auth/v1/callback (derived from
+      # SUPABASE_PUBLIC_URL, Kong's public URL -- NOT API_EXTERNAL_URL, which already has
+      # /auth/v1 in it) as an authorized redirect URI on the Google Cloud OAuth client; that's a
+      # manual step in Google Cloud Console, nothing here does it. A new Google sign-in always
+      # gets role='patient' through the existing on_auth_user_created trigger, same as email --
+      # the trigger doesn't look at provider. Staff/admin only ever happens via set_member_role.
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${SUPABASE_PUBLIC_URL}/auth/v1/callback
 
   rest:
     container_name: supabase-rest
