@@ -655,7 +655,7 @@
 
 .serviceCard .btn {
   margin-top: auto;
-  min-height: 44px;
+  min-height: 48px;
   padding: 0 20px;
 }
 
@@ -833,6 +833,14 @@
 @media (max-width: 767px) {
   .main {
     --overlap: 64px;
+  }
+
+  /* 48px tap targets on the shared header and footer, landing only: their
+     links are 44px and 36px in components/site. */
+  .headerOverlay a:not([href="#main"]),
+  .footerTargets li a {
+    min-width: 48px;
+    min-height: 48px;
   }
 
   /* Tucked below the fold until the hero buttons scroll away. */
