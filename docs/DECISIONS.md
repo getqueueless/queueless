@@ -538,3 +538,14 @@ One line per deviation from the plan/spec, with why.
   this app actually talks to (`sb.lpu.lol`, `api.lpu.lol`) -- update it if `apps/web` starts
   calling anything else. `frame-ancestors 'none'`/`object-src 'none'`/`base-uri 'self'`/
   `form-action 'self'` have no such tradeoff and are safe to apply as-is.
+- 2026-09-25 (payments): `apps/mobile/src/lib/paid-tokens.ts` (local-storage-only "did I pay"
+  tracker, its own header comment says it exists only because no `payments` table existed yet
+  "checked through 0042") is now superseded -- `supabase/migrations/0050-0052` landed a real
+  `payments` table plus the whole `start_paid_booking`/`record_order`/`confirm_payment` flow, and
+  `docs/PAYMENTS.md` documents the exact mobile integration contract (open
+  `apps/web`'s `/pay/[tokenId]` in an in-app browser, patient's access token in the URL
+  fragment -- never a query string, returns via `queueless://paid/<tokenId>`). No mobile screen
+  actually calls `markTokenPaid`/`getPaidAt` yet (checked `doctor/[doctorId].tsx` and every other
+  `apps/mobile` screen -- no match), so nothing live breaks by leaving the stub in place, but
+  whoever wires up mobile's own "Book & pay" trigger next should read `docs/PAYMENTS.md` first
+  rather than building against the local-only stub.
