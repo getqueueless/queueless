@@ -32,3 +32,40 @@ def test_client_uses_configured_model_timeout():
     settings = _settings(deepseek_api_key="sk-test-key", deepseek_timeout_seconds=5.0)
     client = get_deepseek_client(settings)
     assert client.timeout == 5.0
+
+
+async def test_timed_completion_returns_response_on_success():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.ai_client import timed_completion
+
+    expected = SimpleNamespace(choices=[])
+    client = SimpleNamespace()
+    client.chat = SimpleNamespace()
+    client.chat.completions = SimpleNamespace()
+    client.chat.completions.create = AsyncMock(return_value=expected)
+
+    result = await timed_completion(client, model="deepseek-chat", messages=[])
+    assert result is expected
+    client.chat.completions.create.assert_awaited_once_with(model="deepseek-chat", messages=[])
+
+
+async def test_timed_completion_reraises_on_failure():
+    from types import SimpleNamespace
+
+    import pytest
+
+    from app.ai_client import timed_completion
+
+    client = SimpleNamespace()
+    client.chat = SimpleNamespace()
+    client.chat.completions = SimpleNamespace()
+
+    async def _boom(**kwargs):
+        raise RuntimeError("boom")
+
+    client.chat.completions.create = _boom
+
+    with pytest.raises(RuntimeError):
+        await timed_completion(client, model="deepseek-chat", messages=[])

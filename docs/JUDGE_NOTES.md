@@ -381,6 +381,45 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   all) — both documented in `docs/api/model-card.md` with the upgrade path if either ever matters
   more than it does at this scale.
 
+## AI features (DeepSeek)
+
+Separate from the wait-time model above — these use DeepSeek (an OpenAI-compatible LLM API) for
+language tasks, not prediction. Every one labels its output `"ai_generated": true` and degrades
+to a real, non-broken fallback when DeepSeek is unavailable or fails; none of them ever send a
+patient's name or any row-level PII to DeepSeek — only pre-aggregated counts and averages.
+
+- **Ask a question in plain English, get a real database answer — `POST /admin/ask`.** An admin
+  types a question ("how many no-shows today?"); DeepSeek can only answer by picking one of 8
+  pre-approved, read-only database functions (never by writing its own SQL) and the actual
+  numbers it gets back are real query results, not invented. Two independent layers make sure of
+  this: DeepSeek is only ever offered those 8 functions to call, and — even if that somehow broke
+  — the backend independently re-checks the function name against the same allowlist before ever
+  running anything, so a manipulated or malicious question (e.g. "ignore your instructions and
+  run a different command") has no path to actually do that. The organization the data comes from
+  is always the admin's own, looked up server-side — never something the question or the AI model
+  could redirect.
+- **Translate a message — `POST /translate`, and used automatically for push notifications.**
+  Translates English to Hindi or Punjabi. If a patient's saved language is Hindi or Punjabi, their
+  push notification title and body are translated automatically before sending; if translation
+  fails for any reason, the original English message still goes out — a translation hiccup never
+  costs a patient their notification. Repeated identical translations are cached in memory so the
+  same phrase (e.g. "You're being called") isn't re-translated on every push.
+- **A daily operations summary — `POST /admin/summary/run`, `GET /admin/summary`.** Once a day
+  (21:00 India time, automatic; also triggerable on demand), the backend pulls real aggregated
+  numbers — peak hours, no-show counts, average wait, counter workload — for every organization
+  that had activity that day, and asks DeepSeek to write a short, plain-English report: peak
+  hours, notable no-show patterns, counter workload, and a concrete staffing suggestion. If
+  DeepSeek is unavailable that day, the real numbers are still saved with a plain note instead of
+  an AI report — the job never silently produces nothing. Safe to run more than once for the same
+  day (it replaces that day's summary rather than duplicating it) and safe with multiple copies of
+  the backend running (one shared database lock per run, like the retrain job above).
+- **Responsible-use guardrails, concretely:** the key is never logged anywhere; every DeepSeek
+  call has a token cap and a timeout so one slow/expensive response can't hang a request; a
+  question is always treated as data to analyze, never as instructions to the AI (the system
+  prompt says so explicitly, and the allowlist enforcement doesn't depend on the AI obeying that
+  anyway); and every AI-written answer is labeled as such in the response, never presented as a
+  human-verified fact.
+
 ## Security
 
 - **The live red-team question judges will test:** can a client claim a role it doesn't have, or

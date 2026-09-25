@@ -15,6 +15,8 @@ from typing import Any
 
 import structlog
 
+from app.ai_client import timed_completion
+
 log = structlog.get_logger()
 
 SUPPORTED_LANGUAGES = {"hi": "Hindi", "pa": "Punjabi"}
@@ -64,7 +66,8 @@ async def translate_text(client, model: str, max_tokens: int, cache_size: int, t
         return text
 
     try:
-        response = await client.chat.completions.create(
+        response = await timed_completion(
+            client,
             model=model,
             max_tokens=max_tokens,
             messages=[

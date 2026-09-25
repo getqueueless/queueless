@@ -20,6 +20,7 @@ import json
 
 import structlog
 
+from app.ai_client import timed_completion
 from app.analytics import ANALYTICS_FUNCTIONS, InvalidAnalyticsParamsError, UnknownAnalyticsFunctionError, call_analytics
 
 log = structlog.get_logger()
@@ -63,7 +64,8 @@ def _tool_schemas() -> list[dict]:
 
 async def answer_question(client, model: str, max_tokens: int, pool, org_id, question: str) -> dict:
     try:
-        first = await client.chat.completions.create(
+        first = await timed_completion(
+            client,
             model=model,
             max_tokens=max_tokens,
             messages=[
@@ -108,7 +110,8 @@ async def answer_question(client, model: str, max_tokens: int, pool, org_id, que
         return {"error": "invalid_tool_arguments"}
 
     try:
-        second = await client.chat.completions.create(
+        second = await timed_completion(
+            client,
             model=model,
             max_tokens=max_tokens,
             messages=[

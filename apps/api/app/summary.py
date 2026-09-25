@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 import asyncpg
 import structlog
 
+from app.ai_client import timed_completion
 from app.analytics import call_analytics
 
 log = structlog.get_logger()
@@ -88,7 +89,8 @@ async def run_daily_summary(pool: asyncpg.Pool, client, model: str, max_tokens: 
     report = "AI summary unavailable. Raw aggregates recorded below."
     if client is not None:
         try:
-            response = await client.chat.completions.create(
+            response = await timed_completion(
+                client,
                 model=model,
                 max_tokens=max_tokens,
                 messages=[

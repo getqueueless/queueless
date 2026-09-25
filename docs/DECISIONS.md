@@ -359,3 +359,33 @@ One line per deviation from the plan/spec, with why.
   no server component, so embedding that key in the app bundle is not an option -- an admin can
   promote/demote whoever already has an account, but inviting someone new by email has to happen
   from the web admin console instead.
+- 2026-09-26 (apps/api, DeepSeek features): three real DB-side asks, none of which exist in
+  `supabase/migrations` as of this writing.
+  1. **`analytics.*` functions** (`no_shows_by_service`, `avg_wait_by_hour`, `busiest_counters`,
+     `tokens_per_day`, `service_time_trend`, `wait_vs_predicted`, `peak_hours`, `lane_mix`) --
+     built against assumed signatures (documented in `app/analytics.py`), every one
+     `(org_id uuid, ...params) returns table(...)`, `org_id` always first and never a
+     client/model-suppliable param. Fixture versions (real SQL, not mocked) live in
+     `scripts/dev_db.py` so `POST /admin/ask` and the daily summary are genuinely exercised
+     locally. Reconcile signatures once the DB agent lands the real functions --
+     `app/analytics.py`'s `ANALYTICS_FUNCTIONS` dict is the one place to update.
+  2. **`ops_summaries` table** for the daily ops report:
+     ```sql
+     create table public.ops_summaries (
+       id uuid primary key default gen_random_uuid(),
+       org_id uuid not null,
+       day date not null,
+       report text not null,
+       ai_generated boolean not null default true,
+       aggregates jsonb not null,
+       created_at timestamptz not null default now(),
+       unique (org_id, day)
+     );
+     grant select, insert, update on public.ops_summaries to queueless_api;
+     ```
+     `app/summary.py` degrades gracefully (logs once, still returns the computed report to the
+     caller) if this is missing -- writes just don't persist yet.
+  3. **`profiles.language` column** for push/report translation -- confirmed independently by
+     the mobile session's entry above (same file, same conclusion, different feature). Needed:
+     `alter table public.profiles add column language text;` (values `'hi'`/`'pa'`/null=English).
+     `app/notifications.py`'s `_patient_language` degrades to "no translation" until it lands.
