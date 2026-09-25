@@ -21,7 +21,17 @@ import { useSession } from '@/lib/use-session';
 type AskResponse = { answer: string; ai_generated: boolean; function: string | null; rows: unknown };
 type SummaryResponse = { org_id: string; day: string; report: string; ai_generated: boolean; aggregates: unknown };
 
-const NOT_AVAILABLE = 'Not available yet — apps/api hasn’t implemented this endpoint.';
+const UNREACHABLE = "Couldn't reach the AI service. Check your connection and try again.";
+
+// apps/api answers errors as {"detail": "<code>"}; turn the ones it actually sends into advice.
+async function aiError(res: Response): Promise<string> {
+  const detail = await res.json().then((b) => b?.detail, () => null);
+  if (res.status === 429) return 'Too many requests. Wait a minute and try again.';
+  if (res.status === 401 || res.status === 403) return 'Only admins can use this.';
+  if (detail === 'ai_unavailable') return 'AI is unavailable right now. Try again later.';
+  if (res.status === 503) return "Couldn't answer that. Try rephrasing the question.";
+  return UNREACHABLE;
+}
 
 function AiBadge() {
   const theme = useTheme();
@@ -102,7 +112,7 @@ export default function AdminAsk() {
           setSummaryError(null);
         } else if (!res.ok) {
           setSummary(null);
-          setSummaryError(NOT_AVAILABLE);
+          setSummaryError(await aiError(res));
         } else {
           const body = (await res.json()) as SummaryResponse | null;
           setSummary(body);
@@ -111,7 +121,7 @@ export default function AdminAsk() {
       } catch {
         if (!cancelled) {
           setSummary(null);
-          setSummaryError(NOT_AVAILABLE);
+          setSummaryError(UNREACHABLE);
         }
       } finally {
         if (!cancelled) setSummaryLoading(false);
@@ -130,7 +140,7 @@ export default function AdminAsk() {
     setAskResult(null);
     if (!apiUrl) {
       setAsking(false);
-      setAskError(NOT_AVAILABLE);
+      setAskError(UNREACHABLE);
       return;
     }
     try {
@@ -146,12 +156,12 @@ export default function AdminAsk() {
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) {
-        setAskError(NOT_AVAILABLE);
+        setAskError(await aiError(res));
         return;
       }
       setAskResult((await res.json()) as AskResponse);
     } catch {
-      setAskError(NOT_AVAILABLE);
+      setAskError(UNREACHABLE);
     } finally {
       setAsking(false);
     }
@@ -163,7 +173,7 @@ export default function AdminAsk() {
     setGenerateMessage(null);
     if (!apiUrl) {
       setGenerating(false);
-      setGenerateMessage(NOT_AVAILABLE);
+      setGenerateMessage(UNREACHABLE);
       return;
     }
     try {
@@ -180,7 +190,7 @@ export default function AdminAsk() {
         signal: AbortSignal.timeout(20000),
       });
       if (!res.ok) {
-        setGenerateMessage(NOT_AVAILABLE);
+        setGenerateMessage(await aiError(res));
         return;
       }
       const body = (await res.json()) as SummaryResponse;
@@ -188,7 +198,7 @@ export default function AdminAsk() {
       setSummaryError(null);
       setGenerateMessage(body.ai_generated ? 'Generated.' : 'Generated (AI was unavailable — plain aggregates only).');
     } catch {
-      setGenerateMessage(NOT_AVAILABLE);
+      setGenerateMessage(UNREACHABLE);
     } finally {
       setGenerating(false);
     }
@@ -272,7 +282,7 @@ export default function AdminAsk() {
             )}
 
             {generateMessage ? (
-              <ThemedText type="bodySm" themeColor={generateMessage === NOT_AVAILABLE ? 'danger' : 'success'} style={styles.error}>
+              <ThemedText type="bodySm" themeColor={generateMessage.startsWith('Generated') ? 'success' : 'danger'} style={styles.error}>
                 {generateMessage}
               </ThemedText>
             ) : null}
