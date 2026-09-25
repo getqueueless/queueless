@@ -72,8 +72,10 @@ export default function TokenScreen() {
   const theme = useTheme();
 
   const [status, setStatus] = useState<QueueStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Derived straight from the route param at first render, not via an effect + setState, so
+  // there's no missing-id case to synchronize after mount.
+  const [loading, setLoading] = useState(!!id);
+  const [errorMsg, setErrorMsg] = useState<string | null>(id ? null : "We couldn't find that ticket.");
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
@@ -89,11 +91,10 @@ export default function TokenScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (!id) {
-      setLoading(false);
-      setErrorMsg("We couldn't find that ticket.");
-      return;
-    }
+    if (!id) return;
+    // Standard fetch-on-param-change pattern: re-show the loading state when navigating from
+    // one token id to another without unmounting this screen. Not a synchronization bug.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     refetch().finally(() => setLoading(false));
   }, [id, refetch]);

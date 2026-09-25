@@ -102,7 +102,7 @@ export default function AppLayout() {
           markNotificationRead(banner.id);
           const tokenId = banner.token_id;
           setBanner(null);
-          if (tokenId) router.push(`/(app)/token/${tokenId}`);
+          if (tokenId) router.push({ pathname: '/(app)/token/[id]', params: { id: tokenId } });
         }}
         onDismiss={() => setBanner(null)}
       />

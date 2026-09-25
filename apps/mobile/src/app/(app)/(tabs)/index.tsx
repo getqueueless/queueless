@@ -239,8 +239,7 @@ export default function Home() {
       const serviceId = selected.id;
       setSubmitting(false);
       setSelected(null);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- token/[id] route doesn't exist yet, built by a parallel agent
-      router.push(`/(app)/token/${ticket.id}?serviceId=${serviceId}` as any);
+      router.push({ pathname: '/(app)/token/[id]', params: { id: ticket.id, serviceId } });
       return;
     }
 
@@ -255,8 +254,7 @@ export default function Home() {
           const serviceId = selected.id;
           setSubmitting(false);
           setSelected(null);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- token/[id] route doesn't exist yet, built by a parallel agent
-          router.push(`/(app)/token/${details.id}?serviceId=${serviceId}` as any);
+          router.push({ pathname: '/(app)/token/[id]', params: { id: details.id, serviceId } });
           return;
         }
       } catch {

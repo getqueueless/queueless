@@ -8,6 +8,9 @@ export function useColorScheme() {
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
+    // Intentional: this is the standard hydration-detection pattern (flips once after mount so
+    // web SSR and the client render the same thing on first paint), not a synchronization bug.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasHydrated(true);
   }, []);
 

@@ -69,7 +69,6 @@ const STATUS_BADGE: Record<string, { bg: ThemeColor; text: ThemeColor; label: st
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const theme = useTheme();
   const info = STATUS_BADGE[status] ?? { bg: 'surfaceSunken', text: 'inkSecondary', label: status };
 
   return (
