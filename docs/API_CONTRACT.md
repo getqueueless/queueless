@@ -37,6 +37,35 @@ Returns a predicted wait in minutes for one real service. No auth.
   directly from `board_services` (`waiting_count * avg_service_secs / max(open_counters, 1)`),
   labeled "estimate" instead of "predicted".
 
+## `POST /admin/ask` (proposed — not yet implemented)
+
+Checked `apps/api/app/routes/admin.py` on `origin/main` just now: it only has `/admin/model` and
+`/admin/retrain`, so `apps/mobile/src/app/(app)/(tabs)/admin/ai.tsx` ("Ask your data") calls this
+route against the contract below, written by the mobile session. Every call 404s until
+`apps/api` implements it; the screen treats that as an honest "Not available yet" empty state.
+
+- Header: `Authorization: Bearer <supabase access token>`.
+- Body: `{"org_id": "<uuid>", "question": "<free text>"}`.
+- Response: `{"answer": "<text>", "chart": {"labels": string[], "values": number[]} | null}` —
+  `chart` is optional and only for simple bar-chart-shaped answers.
+
+## `GET /admin/summary` (proposed — not yet implemented)
+
+Returns the latest generated daily summary for an org.
+
+- Query: `?org_id=<uuid>`.
+- Response: `{"generated_at": "<iso timestamp>", "summary": "<text>"}`, or `null`/`404` if none
+  has been generated yet.
+
+## `POST /admin/summary/run` (proposed — not yet implemented)
+
+Triggers generation of a new daily summary. Mirrors `/admin/retrain`'s existing shape (fire an
+async job, return immediately) since it's the closest precedent already in `admin.py`.
+
+- Header: `Authorization: Bearer <supabase access token>`.
+- Body: `{"org_id": "<uuid>"}`.
+- Response: `202` `{"status": "started"}`.
+
 ## Local dev
 
 Mobile assumes `apps/api` is reachable at `http://<laptop LAN IP>:8001` in dev
