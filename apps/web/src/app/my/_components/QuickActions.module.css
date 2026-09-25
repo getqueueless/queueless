@@ -172,6 +172,10 @@
   line-height: 1.6;
 }
 
+.sheetText p + p {
+  margin-top: var(--space-xs);
+}
+
 .close {
   flex: none;
   display: grid;

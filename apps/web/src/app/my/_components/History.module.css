@@ -339,8 +339,16 @@
     padding: var(--space-md);
   }
 
+  /* Date tile beside the text; the action drops under the text, not into it. */
   .row {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .row > :nth-child(3) {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .when {
