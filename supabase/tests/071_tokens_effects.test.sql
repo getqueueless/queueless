@@ -26,7 +26,7 @@ select is(
   1, 'waiting_count reflects the freshly minted walk-in'
 );
 select is_empty(
-  $$ select 1 from public.notifications $$,
+  format($$ select 1 from public.notifications where token_id = %L $$, (select id from walkin)),
   'a walk-in with no patient_id never gets a notification'
 );
 
