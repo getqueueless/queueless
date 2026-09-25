@@ -1,7 +1,7 @@
 /* Landing page. MedWin composition: photo hero under a slate overlay, a white
-   card pulled up over it, numbered service cards, and a slate section with
-   big rounded top corners that runs into the footer. Public screen, so the
-   body copy is Poppins too (DESIGN.md, Typography). */
+   card pulled up over it, numbered service cards, and a slate "stadium" with
+   all four corners rounded, sitting on white before the footer. Public
+   screen, so the body copy is Poppins too (DESIGN.md, Typography). */
 
 .main {
   --overlap: 120px;
@@ -10,6 +10,7 @@
   background: var(--color-canvas);
 }
 
+/* 1140 wide with the gutter inside, so content runs 1092 (174-1266 at 1440). */
 .container {
   max-width: 1140px;
   margin: 0 auto;
@@ -35,7 +36,17 @@
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 /* Ink on cyan (6.39:1). White on cyan is 2.40:1, never. */
@@ -64,9 +75,8 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-/* On slate the primary focus ring is too dark; use white there. */
-.hero .btn:focus-visible,
-.how .btn:focus-visible {
+/* The primary focus ring is 2.52:1 on slate; white is 13.5:1. */
+.hero .btn:focus-visible {
   outline-color: var(--color-on-slate);
 }
 
@@ -95,7 +105,7 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  padding: calc(80px + clamp(56px, 9vw, 112px)) var(--space-lg) calc(var(--overlap) + clamp(64px, 8vw, 96px));
+  padding: calc(80px + clamp(48px, 7vw, 96px)) var(--space-lg) calc(var(--overlap) + clamp(64px, 8vw, 96px));
   background: var(--color-slate);
   color: var(--color-on-slate);
   text-align: center;
@@ -107,16 +117,30 @@
   object-position: 50% 40%;
 }
 
-/* Token overlay plus a 40% slate wash on top: at least 90.4% slate over any
-   pixel, so white is >= 10.0:1, on-slate-muted >= 5.66:1 and the cyan
-   headline line >= 4.19:1 even over the photo's pure-white tiles. */
+/* The documented overlay (0.84 slate) everywhere, plus a soft pool of slate
+   behind the text column only, so the edges keep the photo. Worst case, over
+   a pure-white pixel: white >= 8.15:1; the cyan headline line >= 3.39:1 with
+   no pool (390px edges) and >= 4.41:1 at the pool's centre. It is 34-64px
+   bold, so 3:1 is the bar. */
 .heroShade {
   position: absolute;
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(180deg, rgba(26, 50, 55, 0.55) 0%, rgba(26, 50, 55, 0.4) 45%, rgba(26, 50, 55, 0.7) 100%),
+    radial-gradient(ellipse 46% 56% at 50% 42%, rgba(26, 50, 55, 0.5), rgba(26, 50, 55, 0) 100%),
     var(--color-slate-overlay);
+}
+
+/* Brand board panel 08, slate / halftone: a cyan dot screen that fades in
+   below the headline (a dot under the cyan line would drop it to 2.78:1).
+   Behind the white lead and buttons it is still >= 6.66:1. */
+.heroShade::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(12, 183, 214, 0.16) 1px, transparent 1.3px);
+  background-size: 6px 6px;
+  mask-image: linear-gradient(to bottom, transparent 48%, #000 92%);
 }
 
 .heroInner {
@@ -125,26 +149,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-}
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: var(--space-lg);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-on-slate-muted);
-}
-
-.eyebrow::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-accent);
 }
 
 /* display-hero */
@@ -166,11 +170,12 @@
 }
 
 .heroLead {
-  max-width: 54ch;
+  max-width: 50ch;
   margin-top: var(--space-lg);
   font-size: clamp(16px, 1.6vw, 18px);
   line-height: 1.65;
   color: var(--color-on-slate);
+  text-wrap: pretty;
 }
 
 .heroCtas {
@@ -187,34 +192,24 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: center;
   gap: var(--space-xxl);
   margin-top: calc(-1 * var(--overlap));
-  padding: 40px;
+  padding: var(--space-xxl);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-raised);
   scroll-margin-top: var(--space-lg);
 }
 
-/* Cyan rule along the top edge, like a torn-off slip's leading edge. */
-.lookupCard::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 40px;
-  width: 72px;
-  height: 4px;
-  border-radius: 0 0 2px 2px;
-  background: var(--color-accent);
-}
-
 .lookupIntro {
-  max-width: 56ch;
+  max-width: 52ch;
   margin: var(--space-sm) 0 var(--space-lg);
   font-size: 15px;
   line-height: 1.65;
   color: var(--color-ink-secondary);
+  text-wrap: pretty;
 }
 
 .lookup {
@@ -245,6 +240,7 @@
   color: var(--color-ink);
   font: inherit;
   font-size: 16px; /* 16px stops iOS zooming the page on focus */
+  transition: border-color 150ms ease;
 }
 
 .input::placeholder {
@@ -276,52 +272,189 @@
   color: var(--color-danger);
 }
 
-.app {
+/* ---------- The example slip: the product's one ownable artifact ---------- */
+
+/* Tilted like a slip dropped on the desk. The right padding is the room the
+   callouts hang into, so slip + callouts centre as one piece. */
+.slipFigure {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  padding-left: var(--space-xxl);
-  border-left: 1px solid var(--color-hairline);
+  justify-content: center;
+  padding: var(--space-md) 128px var(--space-xs) 0;
 }
 
-/* The app icon: the mark on the slate tile, same as icon.svg. */
+/* Paper and thermal ink are the same in both themes, like the printed slip
+   (kiosk.module.css). #252525 on the paper is 15.3:1, #4a4a4a is 8.86:1.
+   Nothing on it is under 11px. 214px = a 186px column: the link's two
+   lines of 27 characters at 11px mono are 178px, plus clearance for the
+   callout dot. */
+.slip {
+  --paper: #ffffff;
+  --paper-ink: #252525;
+  --paper-ink-secondary: #4a4a4a;
+
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 214px;
+  padding: 18px 14px 16px;
+  color: var(--paper-ink);
+  text-align: center;
+  transform: rotate(-3deg);
+}
+
+/* The paper is its own layer behind the print, so its drop-shadow can follow
+   the saw-tooth top edge (torn off the roll, brand board panel 07) without
+   shadowing the callout text. */
+.slip::before {
+  content: "";
+  position: absolute;
+  inset: -6px 0 0;
+  z-index: -1;
+  background:
+    conic-gradient(from 148deg at 50% 0, var(--paper) 64deg, transparent 0) 0 0 / 9px 6px repeat-x,
+    linear-gradient(var(--paper), var(--paper)) 0 6px / 100% calc(100% - 6px) no-repeat;
+  filter: drop-shadow(0 1px 1px rgba(26, 50, 55, 0.18)) drop-shadow(0 12px 14px rgba(26, 50, 55, 0.2));
+}
+
+.slipService {
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-ink-secondary);
+}
+
+.slipNumber {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.slipMeta {
+  font-size: 12px;
+  color: var(--paper-ink-secondary);
+}
+
+/* The dashed tear rule, same dash as the How-it-works line. */
+.slipCut {
+  align-self: stretch;
+  margin: 6px 0;
+  border-top: 1.5px dashed rgba(37, 37, 37, 0.45);
+}
+
+.slipQrWrap {
+  position: relative;
+  display: block;
+  width: 104px;
+  margin-bottom: 4px;
+}
+
+.slipQr,
+.slipQr :global(svg) {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.slipHint {
+  font-size: 11px;
+  color: var(--paper-ink-secondary);
+}
+
+.slipUrl {
+  position: relative;
+  align-self: stretch;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.slipUrl > span:not(.callout) {
+  display: block;
+  white-space: nowrap;
+}
+
+/* Annotations in the slip's own (tilted) frame: a dot on the target, a line
+   out past the paper's edge, then the label. Both labels start 23px right of
+   the slip: QR edge (55px in) + 6 + 64 + 8, and column edge (14px in) +
+   4 + 25 + 8. */
+.callout {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  translate: 0 -50%;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-primary);
+}
+
+.callout::before {
+  content: "";
+  flex: none;
+  width: var(--line);
+  height: 6px;
+  background:
+    radial-gradient(circle 3px at 3px 50%, currentColor 98%, transparent) 0 0 / 6px 6px no-repeat,
+    linear-gradient(currentColor, currentColor) 3px 50% / calc(100% - 3px) 1.5px no-repeat;
+}
+
+.calloutQr {
+  --line: 64px;
+  margin-left: 6px;
+}
+
+.calloutUrl {
+  --line: 25px;
+  margin-left: 4px;
+}
+
+.appNote {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: 52ch;
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-hairline);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink-secondary);
+}
+
+.appNote strong {
+  color: var(--color-ink);
+}
+
+/* The app icon: the mark on the slate tile, radius in icon.svg's proportion. */
 .appIcon {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
   background: var(--color-slate);
   color: var(--color-on-slate);
 }
 
-.appTitle {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.soon {
-  display: inline-block;
-  margin-top: 6px;
-  padding: 2px 10px;
-  border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.appText {
-  font-size: 14px;
-  line-height: 1.65;
-  color: var(--color-ink-secondary);
-}
-
-/* ---------- Live stats strip ---------- */
+/* ---------- Live stats: unboxed, a hairline and four numbers ---------- */
 
 .now {
   display: grid;
@@ -329,10 +462,8 @@
   align-items: center;
   gap: var(--space-xl);
   margin-top: var(--space-xxl);
-  padding: var(--space-lg) var(--space-xl);
-  border-radius: var(--radius-lg);
-  background: var(--color-canvas-soft);
-  border: 1px solid var(--color-hairline);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-hairline);
 }
 
 .nowTitle {
@@ -346,7 +477,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  margin-top: 4px;
+  margin-top: var(--space-xxs);
   font-size: 13px;
   color: var(--color-primary);
 }
@@ -358,7 +489,17 @@
   border-radius: 50%;
   background: var(--color-accent);
   box-shadow: 0 0 0 0 rgba(12, 183, 214, 0.5);
-  animation: pulse 2s ease-out infinite;
+  animation: pulse 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) 2;
+}
+
+/* No feed: a still grey dot, not a pulse that says "live". */
+.liveOff {
+  color: var(--color-ink-muted);
+}
+
+.liveOff .liveDot {
+  background: var(--color-ink-muted);
+  animation: none;
 }
 
 @keyframes pulse {
@@ -380,10 +521,11 @@
   border-left: 1px solid var(--color-hairline);
 }
 
+/* display-md */
 .statValue {
-  font-size: clamp(28px, 3vw, 36px);
+  font-size: 30px;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
   color: var(--color-ink);
 }
@@ -392,6 +534,13 @@
   font-size: 15px;
   font-weight: 400;
   color: var(--color-ink-secondary);
+}
+
+/* "No one" / "None yet" / "Not yet" in place of a bare 0 or a blank:
+   heading-md on the number's line box. */
+.statWord {
+  font-size: 18px;
+  line-height: 36px;
 }
 
 .statLabel {
@@ -414,6 +563,7 @@
   font-size: 15px;
   line-height: 1.65;
   color: var(--color-ink-secondary);
+  text-wrap: pretty;
 }
 
 .serviceGrid {
@@ -434,7 +584,9 @@
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease;
 }
 
 .serviceCard:hover {
@@ -454,18 +606,21 @@
 .numeral::after {
   content: "";
   display: block;
-  width: 32px;
+  width: 56px;
   height: 3px;
   margin-top: var(--space-sm);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--color-accent);
-  transition: width 0.2s ease;
+  transform: scaleX(0.58); /* 32px at rest, the full 56px on hover */
+  transform-origin: left;
+  transition: transform 200ms ease;
 }
 
 .serviceCard:hover .numeral::after {
-  width: 56px;
+  transform: scaleX(1);
 }
 
+/* heading-lg */
 .serviceName {
   margin-top: var(--space-xs);
   font-size: 22px;
@@ -480,6 +635,16 @@
   gap: var(--space-xs);
   font-size: 14px;
   color: var(--color-ink-secondary);
+}
+
+.serviceWaiting {
+  font-size: 14px;
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.serviceWaiting strong {
+  color: var(--color-ink);
 }
 
 .code {
@@ -498,6 +663,7 @@
   padding: 0 20px;
 }
 
+.serviceWaiting + .btn,
 .serviceMeta + .btn {
   margin-top: var(--space-md);
 }
@@ -519,31 +685,34 @@
   text-underline-offset: 2px;
 }
 
-/* ---------- How it works: slate, big rounded top corners ---------- */
+/* ---------- How it works: MedWin's slate stadium, then white, then footer ---------- */
 
 .how {
   position: relative;
   overflow: hidden;
-  padding: clamp(64px, 8vw, 104px) var(--space-lg) clamp(48px, 6vw, 72px);
-  border-radius: var(--radius-section) var(--radius-section) 0 0;
+  margin-bottom: clamp(48px, 7vw, 96px);
+  padding: clamp(64px, 8vw, 104px) var(--space-lg) clamp(72px, 9vw, 120px);
+  border-radius: var(--radius-section);
   background: var(--color-slate);
   color: var(--color-on-slate);
+  scroll-margin-top: var(--space-lg);
 }
 
-/* The mark as a quiet pattern: one colour, 5% white (BRAND.md one-colour rule). */
-/* Ring cropped off the left edge, slip sliding out along the floor. */
+/* The mark as a quiet pattern: one colour, 3.5% white (BRAND.md one-colour
+   rule). Ring cropped off the left edge, slip sliding out along the floor. */
 .howMark {
   position: absolute;
   left: -150px;
-  bottom: 28px;
+  bottom: 40px;
   color: rgba(255, 255, 255, 0.035);
   --brand-accent: currentColor;
   pointer-events: none;
 }
 
+/* Same 1092 content width as .container, so the steps line up with the cards. */
 .howInner {
   position: relative;
-  max-width: 1140px;
+  max-width: calc(1140px - 2 * var(--space-lg));
   margin: 0 auto;
 }
 
@@ -607,10 +776,12 @@
   color: var(--color-on-accent);
 }
 
+/* heading-md */
 .stepTitle {
   margin-top: var(--space-lg);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
+  line-height: 1.3;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -623,22 +794,14 @@
   color: var(--color-on-slate-muted);
 }
 
-.staffRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md) var(--space-xl);
-  margin-top: clamp(56px, 7vw, 88px);
-  padding-top: var(--space-xl);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--color-on-slate-muted);
+/* ---------- Dark theme: shadows vanish on #0b1517, so cards get an edge ---------- */
+
+:global(:root[data-theme="dark"]) .lookupCard {
+  border: 1px solid var(--color-hairline-strong);
 }
 
-.staffRow strong {
-  color: var(--color-on-slate);
+:global(:root[data-theme="dark"]) .serviceCard {
+  border: 1px solid var(--color-hairline);
 }
 
 /* ---------- Responsive ---------- */
@@ -647,19 +810,6 @@
   .lookupCard {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-xl);
-  }
-
-  .app {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    padding: var(--space-xl) 0 0;
-    border-left: 0;
-    border-top: 1px solid var(--color-hairline);
-  }
-
-  .appText {
-    grid-column: 1 / -1;
   }
 
   .now {
@@ -699,16 +849,22 @@
     padding: var(--space-xl) var(--space-lg) var(--space-lg);
   }
 
-  .lookupCard::before {
-    left: var(--space-lg);
-  }
-
   .lookupRow {
     flex-direction: column;
   }
 
-  .now {
-    padding: var(--space-lg);
+  /* Shorter lines put the labels 11px off the slip: 214 + 96 fits the
+     310px card column at 390, the label's tail sits in the card padding. */
+  .slipFigure {
+    padding-right: 96px;
+  }
+
+  .calloutQr {
+    --line: 52px;
+  }
+
+  .calloutUrl {
+    --line: 13px;
   }
 
   .stats {
@@ -730,8 +886,43 @@
     gap: var(--space-md);
   }
 
+  /* Numeral in its own column, everything else stacked beside it: half the
+     height of the stacked card. */
+  .serviceCard {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr); /* fixed, so every card's text starts on one line */
+    column-gap: var(--space-lg);
+    row-gap: var(--space-xs);
+    align-items: start;
+    padding: var(--space-lg);
+  }
+
+  .serviceCard > :not(.numeral) {
+    grid-column: 2;
+  }
+
+  .numeral {
+    grid-row: 1 / span 4;
+    font-size: 36px;
+  }
+
+  .numeral::after {
+    width: 40px;
+  }
+
+  .serviceName {
+    margin-top: 0;
+  }
+
+  .serviceCard .btn,
+  .serviceWaiting + .btn,
+  .serviceMeta + .btn {
+    justify-self: start;
+    margin-top: var(--space-xs);
+  }
+
   .how {
-    padding: var(--space-section) var(--space-md) var(--space-xxl);
+    padding: var(--space-section) var(--space-md) var(--space-section);
   }
 
   .steps {
@@ -778,11 +969,27 @@
   }
 }
 
+/* Narrow Android widths: the slip + callouts (310px) outgrow a 280px column
+   at 360 and 240px at 320, so the figure scales down as one piece. */
+@media (max-width: 379px) {
+  .slipFigure {
+    zoom: 0.9;
+  }
+}
+
+@media (max-width: 339px) {
+  .slipFigure {
+    zoom: 0.78;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .liveDot {
     animation: none;
   }
 
+  .btn,
+  .btn:active:not(:disabled),
   .serviceCard,
   .serviceCard:hover {
     transition: none;

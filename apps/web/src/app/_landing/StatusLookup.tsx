@@ -16,7 +16,7 @@ export function StatusLookup() {
     event.preventDefault()
     const id = extractTokenId(String(new FormData(event.currentTarget).get("token") ?? ""))
     if (!id) {
-      setError("That isn't a token link. Paste the whole link from your slip, or the long ID at the end of it.")
+      setError("That isn’t a slip link. Type the whole link printed under the QR code, or scan the code with your phone camera.")
       inputRef.current?.focus()
       return
     }
@@ -27,7 +27,7 @@ export function StatusLookup() {
   return (
     <form onSubmit={onSubmit} noValidate className={styles.lookup}>
       <label htmlFor="status-token" className={styles.fieldLabel}>
-        Token link or ID
+        Link from your slip
       </label>
       <div className={styles.lookupRow}>
         <input
@@ -39,17 +39,19 @@ export function StatusLookup() {
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
-          placeholder="https://…/t/…"
+          inputMode="url"
+          enterKeyHint="go"
+          placeholder="lpu.lol/t/…"
           aria-invalid={error ? "true" : undefined}
           aria-describedby={error ? "status-hint status-error" : "status-hint"}
           className={styles.input}
         />
         <button type="submit" disabled={pending} className={`${styles.btn} ${styles.btnAccent}`}>
-          {pending ? "Opening…" : "Track my token"}
+          {pending ? "Opening…" : "Check status"}
         </button>
       </div>
       <p id="status-hint" className={styles.hint}>
-        It&apos;s printed under the QR code on your slip.
+        It’s printed under the QR code. You can leave out the https:// part.
       </p>
       {error && (
         <p id="status-error" role="alert" className={styles.fieldError}>

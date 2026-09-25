@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server"
 
 import corridor from "../../public/images/opd-corridor.jpg"
 import { loadBoard } from "./_landing/board"
+import { ExampleSlip } from "./_landing/ExampleSlip"
 import { LiveStats } from "./_landing/LiveStats"
 import { StatusLookup } from "./_landing/StatusLookup"
 import styles from "./page.module.css"
@@ -16,7 +17,7 @@ import styles from "./page.module.css"
 const STEPS = [
   {
     title: "Take a token",
-    text: "Get a slip at the front desk or the kiosk. It carries your number and a QR code.",
+    text: "Get a slip at the reception desk. It carries your number and a QR code.",
     icon: (
       <>
         <path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4Z" />
@@ -76,20 +77,21 @@ export default async function Home() {
           />
           <div className={styles.heroShade} aria-hidden="true" />
           <div className={styles.heroInner}>
-            <p className={styles.eyebrow}>Hospital OPD · Walk-in queue</p>
             <h1 id="hero-title" className={styles.heroTitle}>
               <span>Take a token.</span> <span className={styles.heroAccent}>Leave the line.</span>
             </h1>
             <p className={styles.heroLead}>
-              Your place in the queue is held for you. Wait wherever you like, and your phone
-              shows when the counter is ready.
+              Your place in the queue is held. Wait wherever you like, and your phone shows when
+              the counter is ready.
             </p>
+            {/* Tokens come from the reception desk or its kiosk (a staff-signed-in
+                device), so the patient CTA is the status lookup, not /kiosk. */}
             <div className={styles.heroCtas}>
-              <Link href="/kiosk" className={`${styles.btn} ${styles.btnAccent}`}>
-                Get a token
-              </Link>
-              <a href="#status" className={`${styles.btn} ${styles.btnGhost}`}>
-                Check your status
+              <a href="#status" className={`${styles.btn} ${styles.btnAccent}`}>
+                Check status
+              </a>
+              <a href="#how" className={`${styles.btn} ${styles.btnGhost}`}>
+                How to get a token
               </a>
             </div>
           </div>
@@ -100,25 +102,22 @@ export default async function Home() {
             <div className={styles.lookupMain}>
               <TwoToneHeading id="status-title" lead="Check your" accent="status" />
               <p className={styles.lookupIntro}>
-                Paste the link from your token slip to see how many people are ahead of you and
-                roughly how long you&apos;ll wait.
+                Scan the QR on your slip with your phone camera. Can’t scan it? Type the link
+                printed under it to see how many people are ahead of you.
               </p>
               <StatusLookup />
-            </div>
-
-            <div className={styles.app}>
-              <span className={styles.appIcon}>
-                <LogoMark size={26} />
-              </span>
-              <div>
-                <h3 className={styles.appTitle}>Queueless for Android</h3>
-                <p className={styles.soon}>Coming soon</p>
-              </div>
-              <p className={styles.appText}>
-                The patient app isn&apos;t out yet. Until it is, the QR on your slip opens your live
-                status in any phone browser, with nothing to install.
+              <p className={styles.appNote}>
+                <span className={styles.appIcon} aria-hidden="true">
+                  <LogoMark size={16} />
+                </span>
+                <span>
+                  <strong>Queueless for Android</strong> is coming soon. Until then, your slip’s
+                  link opens in any phone browser, with nothing to install.
+                </span>
               </p>
             </div>
+
+            <ExampleSlip />
           </section>
 
           <LiveStats initial={board?.stats ?? null} />
@@ -141,6 +140,7 @@ export default async function Home() {
               <ol className={styles.serviceGrid}>
                 {services.map((service, i) => {
                   const avgSecs = board?.avgSecsByService[service.id]
+                  const waiting = board ? (board.waitingByService[service.id] ?? 0) : null
                   return (
                     <li key={service.id} className={styles.serviceCard}>
                       <span className={styles.numeral} aria-hidden="true">
@@ -148,9 +148,22 @@ export default async function Home() {
                       </span>
                       <h3 className={styles.serviceName}>{service.name}</h3>
                       <p className={styles.serviceMeta}>
-                        <span className={styles.code}>{service.code}</span>
+                        <span className={styles.code} translate="no">
+                          {service.code}
+                        </span>
                         {avgSecs ? <>About {Math.max(1, Math.round(avgSecs / 60))} min a visit</> : "Tokens open"}
                       </p>
+                      {waiting !== null && (
+                        <p className={styles.serviceWaiting}>
+                          {waiting > 0 ? (
+                            <>
+                              <strong>{waiting}</strong> waiting now
+                            </>
+                          ) : (
+                            "No one waiting"
+                          )}
+                        </p>
+                      )}
                       <Link
                         href={`/display/${service.id}`}
                         aria-label={`Live board for ${service.name}`}
@@ -166,7 +179,7 @@ export default async function Home() {
           </section>
         </div>
 
-        <section aria-labelledby="how-title" className={styles.how}>
+        <section id="how" aria-labelledby="how-title" className={styles.how}>
           <span className={styles.howMark} aria-hidden="true">
             <LogoMark size={360} />
           </span>
@@ -186,15 +199,6 @@ export default async function Home() {
                 </li>
               ))}
             </ol>
-            <div className={styles.staffRow}>
-              <p>
-                <strong>Front desk?</strong> Call, serve, skip and recall tokens from the counter
-                console in any browser.
-              </p>
-              <Link href="/login" className={`${styles.btn} ${styles.btnGhost}`}>
-                Staff login
-              </Link>
-            </div>
           </div>
         </section>
       </main>

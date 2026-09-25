@@ -16,6 +16,8 @@ export type Board = {
   stats: BoardStats
   /** Latest rolling average per service, for the service cards. */
   avgSecsByService: Record<string, number>
+  /** Today's waiting count per service; a service with no row today has nobody waiting. */
+  waitingByService: Record<string, number>
 }
 
 type BoardServiceRow = {
@@ -47,12 +49,14 @@ export async function loadBoard(supabase: SupabaseClient): Promise<Board | null>
 
     const rows = (services.data ?? []) as BoardServiceRow[]
     const avgSecsByService: Record<string, number> = {}
+    const waitingByService: Record<string, number> = {}
     let waiting = 0
     let servedToday = 0
     for (const row of rows) {
       if (row.day === today) {
         waiting += row.waiting_count
         servedToday += row.served_count
+        waitingByService[row.service_id] = row.waiting_count
       }
       // Rows come newest day first, so the first one seen per service is its latest.
       if (row.avg_service_secs != null && !(row.service_id in avgSecsByService)) {
@@ -68,7 +72,11 @@ export async function loadBoard(supabase: SupabaseClient): Promise<Board | null>
       (c) => c.state === "open",
     ).length
 
-    return { stats: { waiting, servedToday, countersOpen, avgServiceMins }, avgSecsByService }
+    return {
+      stats: { waiting, servedToday, countersOpen, avgServiceMins },
+      avgSecsByService,
+      waitingByService,
+    }
   } catch {
     return null
   }
