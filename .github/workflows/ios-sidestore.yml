@@ -83,17 +83,7 @@ jobs:
           CI: "1"
         run: npx expo prebuild --platform ios --clean
 
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: apps/mobile/ios/Pods
-          key: pods-${{ runner.os }}-${{ hashFiles('apps/mobile/ios/Podfile.lock') }}
-          restore-keys: |
-            pods-${{ runner.os }}-
-
-      - name: pod install
-        working-directory: apps/mobile/ios
-        run: pod install --repo-update
+      # No separate pod install: expo prebuild already runs it on macOS.
 
       - name: Discover workspace + scheme
         id: xc
@@ -127,6 +117,11 @@ jobs:
             exit 1
           fi
           SCHEME="$PROJECT"
+          # Prebuild writes a literal CFBundleVersion "1" (not $(CURRENT_PROJECT_VERSION)), so the
+          # xcodebuild override alone never reaches the binary. SideStore rejects an install whose
+          # CFBundleVersion differs from the source's buildVersion -- stamp it here.
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ steps.ver.outputs.build }}" "$PROJECT/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.ver.outputs.version }}" "$PROJECT/Info.plist"
           echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
           echo "Workspace: $WORKSPACE / Scheme: $SCHEME (from .xcodeproj name, not parsed from -list)"
@@ -172,6 +167,14 @@ jobs:
             find "$RUNNER_TEMP/build/Build/Products" -maxdepth 2 >&2 || true
             exit 1
           fi
+          PLIST="$APP_PATH/Info.plist"
+          BUILT_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")
+          if [ "$BUILT_BUILD" != "${{ steps.ver.outputs.build }}" ]; then
+            echo "::error::Built CFBundleVersion is $BUILT_BUILD, expected ${{ steps.ver.outputs.build }}" >&2
+            exit 1
+          fi
+          # Source minOSVersion comes from the binary, never a hardcoded guess.
+          echo "min_os=$(/usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$PLIST")" >> "$GITHUB_OUTPUT"
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
           (cd "$RUNNER_TEMP" && zip -qr "$GITHUB_WORKSPACE/$IPA_NAME" Payload)
@@ -187,6 +190,7 @@ jobs:
           BUILD: ${{ steps.ver.outputs.build }}
           IPA_NAME: ${{ steps.ipa.outputs.ipa_name }}
           IPA_SIZE: ${{ steps.ipa.outputs.ipa_size }}
+          MIN_OS: ${{ steps.ipa.outputs.min_os }}
           RUN_ID: ${{ github.run_id }}
           # Configurable so distribution can move to a custom domain (e.g. lpu.lol/ios/) later
           # by setting this one repo variable -- no workflow change needed. Defaults to the
@@ -210,7 +214,7 @@ jobs:
           # stray "//: is a directory" from bash trying to run part of a comment as a command).
           node -e '
             const fs = require("fs");
-            const [, baseUrl, version, build, ipaName, ipaSize, date] = process.argv;
+            const [, baseUrl, version, build, ipaName, ipaSize, date, minOS] = process.argv;
             const source = {
               name: "Queueless",
               identifier: "xyz.lpu.queueless.source",
@@ -231,14 +235,14 @@ jobs:
                       date,
                       size: Number(ipaSize),
                       downloadURL: `${baseUrl}/${ipaName}`,
-                      minOSVersion: "15.1",
+                      minOSVersion: minOS,
                     },
                   ],
                 },
               ],
             };
             fs.writeFileSync("sidestore-source.json", JSON.stringify(source, null, 2) + "\n");
-          ' "$BASE_URL" "$VERSION" "$BUILD" "$IPA_NAME" "$IPA_SIZE" "$DATE"
+          ' "$BASE_URL" "$VERSION" "$BUILD" "$IPA_NAME" "$IPA_SIZE" "$DATE" "$MIN_OS"
 
           cat sidestore-source.json
 
