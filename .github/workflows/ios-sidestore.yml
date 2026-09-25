@@ -36,22 +36,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          set -euo pipefail
-          while true; do
-            OLDER=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ios-sidestore.yml --limit 50 \
+          set -uo pipefail   # no -e: one failed gh call (rate limit, blip) must not kill the wait
+          # 60 s polls keep several waiting runs well under GITHUB_TOKEN's 1000 requests/hour.
+          count_runs() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow ios-sidestore.yml --limit 50 \
               --json databaseId,status \
-              --jq "[.[] | select(.databaseId < $RUN_ID and .status != \"completed\")] | length")
+              --jq "[.[] | select(.databaseId $1 $RUN_ID and .status != \"completed\")] | length"
+          }
+          while true; do
+            OLDER=$(count_runs "<") || OLDER=""
             if [ "$OLDER" = "0" ]; then
               break
             fi
-            echo "$OLDER earlier iOS build(s) still running; waiting"
-            sleep 30
+            echo "${OLDER:-unknown (gh failed)} earlier iOS build(s) still running; waiting"
+            sleep 60
           done
           # A newer run already queued will build newer code, so this one skips its build (job
           # skipped, run still green) instead of spending ~13 min on a superseded commit.
-          NEWER=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ios-sidestore.yml --limit 50 \
-            --json databaseId,status \
-            --jq "[.[] | select(.databaseId > $RUN_ID and .status != \"completed\")] | length")
+          # If this check itself fails, build anyway: an extra build beats a lost one.
+          NEWER=$(count_runs ">") || NEWER="0"
           if [ "$NEWER" = "0" ]; then
             echo "newest=true" >> "$GITHUB_OUTPUT"
           else
