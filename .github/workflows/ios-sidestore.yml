@@ -132,32 +132,45 @@ jobs:
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
           echo "Workspace: $WORKSPACE / Scheme: $SCHEME"
 
-      - name: Archive (unsigned)
+      - name: Build (unsigned)
         working-directory: apps/mobile/ios
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          # `archive` (not `build`) leaves Products/Applications empty for a fully unsigned build
+          # -- the archive post-processing that embeds the .app relies on codesign-related build
+          # phases that don't run with signing off. `build` + -derivedDataPath is the standard
+          # pattern for an unsigned .app (what AltStore/SideStore-distributed projects use).
+          LOG="$RUNNER_TEMP/xcodebuild.log"
           xcodebuild \
             -workspace "${{ steps.xc.outputs.workspace }}" \
             -scheme "${{ steps.xc.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath "$RUNNER_TEMP/Queueless.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/build" \
             -destination "generic/platform=iOS" \
             MARKETING_VERSION="${{ steps.ver.outputs.version }}" \
             CURRENT_PROJECT_VERSION="${{ steps.ver.outputs.build }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            archive
+            ONLY_ACTIVE_ARCH=NO \
+            build 2>&1 | tee "$LOG"
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::xcodebuild build failed (exit $STATUS) -- last 80 lines:" >&2
+            tail -80 "$LOG" >&2
+            exit "$STATUS"
+          fi
 
       - name: Package IPA
         id: ipa
         run: |
           set -euo pipefail
           IPA_NAME="Queueless-${{ steps.ver.outputs.version }}-${{ steps.ver.outputs.build }}.ipa"
-          APP_PATH=$(find "$RUNNER_TEMP/Queueless.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -1)
+          APP_PATH=$(find "$RUNNER_TEMP/build/Build/Products/Release-iphoneos" -maxdepth 1 -name "*.app" | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "::error::No .app found in the archive's Products/Applications" >&2
+            echo "::error::No .app found under Release-iphoneos -- full products dir:" >&2
+            find "$RUNNER_TEMP/build/Build/Products" -maxdepth 2 >&2 || true
             exit 1
           fi
           mkdir -p "$RUNNER_TEMP/Payload"
