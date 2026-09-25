@@ -1,13 +1,54 @@
 # Judge notes
 
-## Web app
+Plain-English notes per feature: what was built, how it actually works, and why.
 
-**Scaffold.** `apps/web` is a Next.js 16.3.6 app (App Router, TypeScript, `src/` layout, ESLint, no Tailwind), created with `create-next-app`. Next 16 deprecates `middleware.ts` in favor of a root `proxy.ts` (`export async function proxy(request)`); auth session-refresh logic will live in a shared `lib/supabase/middleware.ts` helper with a thin `proxy.ts` wrapper on top, added once the Supabase client work starts. At scaffold time, `supabase/migrations` and `apps/api` did not exist yet on `origin/main` (the DB and API agents hadn't landed anything) — expected this early, so the schema below is a placeholder, not a guess made in ignorance.
+## Mobile
 
-**Dependencies.** `@supabase/supabase-js` + `@supabase/ssr` (browser/server Supabase clients — not the deprecated `auth-helpers-nextjs`), `recharts` (wait-time charts on the admin dashboard), `qrcode` + `@types/qrcode` (QR codes for token pickup on the patient status page).
-
-**Design system.** `apps/web/DESIGN.md` — a calm, clinical token set (color, type scale, spacing, radii) derived from Linear's single-accent restraint and Stripe's tabular-figure precision, without reusing either brand's palette or wordmark. Dark and light modes are both first-class from the start (every color token has both values), because this ships on a projector during the live demo. Queue/token numbers get a dedicated monospace, tabular-figure style since they're the most-read element on a counter/TV display — the same instinct as Stripe using `tnum` for money, applied to token numbers instead.
-
-**Database types.** `apps/web/types/database.types.ts` is hand-written against the ASSUMED SCHEMA (`services`, `counters`, `staff`, `tokens`, `priority_rules`) plus the 6 queue RPCs (`issue_token`, `call_next`, `mark_done`, `mark_no_show`, `recall_token`, `transfer_token`). **Dependency on the DB agent:** this is a placeholder — regenerate it for real with `npx supabase gen types typescript` the moment `supabase/migrations` lands, and reconcile the RPC names/args/return shapes against the DB agent's actual Postgres functions before wiring any real `supabase.rpc(...)` call. Every queue-state mutation from the web app goes through these RPCs — no queue ordering, priority, or state-transition logic is reimplemented in the browser.
-
-**Env vars.** `apps/web/.env.example` lists the 4 required vars as placeholders: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server-only, never `NEXT_PUBLIC_`), `NEXT_PUBLIC_API_BASE_URL` (the FastAPI service, for `/predict` and `/metrics`). Real values go in untracked `apps/web/.env.local`. `apps/web/.gitignore`'s blanket `.env*` rule needed a `!.env.example` exception (matching the root `.gitignore`'s existing exception) so the example file itself stays trackable.
+- **Auth.** Email + password against Supabase Auth (`signUp`/`signInWithPassword`), autoconfirmed
+  server-side so sign-up drops straight into a session — no phone OTP, no guest flow, every
+  screen past sign-in requires a real session. Root routing is split into `(auth)`/`(app)` route
+  groups, each gated by its own `onAuthStateChange`-driven redirect, so the app can never show an
+  authenticated screen without a session or vice versa.
+- **Home.** Lists open services (`services where is_open = true`) with a live waiting count from
+  `board_services`, kept current over Supabase Realtime (`postgres_changes` on `board_services`,
+  no polling) and refetched on every reconnect since Realtime never replays missed events. Each
+  card best-effort calls the optional `/predict` API (1.5s timeout) for a smarter wait estimate,
+  labeled "predicted"; if that's slow, down, or not built yet, it falls back to a local
+  `waiting_count × avg_service_secs ÷ open_counters` estimate, labeled "estimate" — the queue
+  data itself is always real, the ML number is a pure enhancement, never a blocker.
+- **Take token.** Two taps: pick a service, confirm on a sheet. Calls the real `issue_token` RPC.
+  The RPC is idempotent by design — a double-tap or retry returns an `already_active` error with
+  the existing ticket attached rather than a fresh one, and the app treats that identically to a
+  success (navigates to the same ticket) instead of showing an error.
+- **Token detail — live position.** The token code renders large and high-contrast; this is also
+  what staff scan or type to verify a priority status, so legibility is a correctness requirement,
+  not styling. Position/ETA/status come from the `my_queue_status` RPC, kept live by subscribing
+  to Realtime changes on the caller's own `tokens` row (RLS-restricted) and on that service's
+  `board_services` row (covers other patients' tickets advancing your position without touching
+  your own row), refetching on reconnect and on app foreground. A cancel button appears while
+  waiting and calls `cancel_token`.
+- **Priority.** No self-report control exists anywhere in the app — deliberately. Only staff can
+  mark someone senior/pregnant, via a staff-only RPC (`verify_priority`) by scanning/typing the
+  code on the token screen. The token screen's priority card is a static explainer with zero
+  props and zero writable state, so there's no abuse vector a patient could exploit.
+- **Appointments.** Browse open services, pick an upcoming 15-minute slot, book/cancel via the
+  `book_appointment`/`cancel_appointment` RPCs. "Check in" only appears once the slot is inside
+  its window (30 min before to 15 min after `starts_at`) and calls `check_in`, which mints a real
+  token and hands off to the same live token-detail screen as a walk-in. Any RPC error triggers a
+  full refetch of the slot list so a stale "Book" button on a slot that just filled never lingers.
+- **History.** Past tokens and appointments (done/no-show/cancelled/skipped), newest first — a
+  plain RLS-scoped `select`, no manual user-id filtering needed since the backend already scopes
+  every row to the caller.
+- **Settings.** Language row (English active, Hindi shown but disabled — no i18n system for one
+  placeholder string) and sign-out, which defers to the app's existing session-watcher redirect
+  instead of navigating manually.
+- **Notifications — reliable path first.** Expo Go cannot receive remote push on Android since
+  SDK 53, so the app doesn't treat push as the primary mechanism. The real path is a Supabase
+  Realtime subscription on the signed-in patient's own `notifications` rows — the instant a
+  `called`/`almost_turn` row lands, it shows an in-app banner and fires a local notification
+  (works even backgrounded), with zero push setup required. Remote Expo push registration is
+  layered on top as a best-effort enhancement: `getExpoPushTokenAsync()` is wrapped so the known
+  Expo-Go/Android gap degrades to "no token" instead of crashing, and registering the token with
+  the API is fire-and-forget, never blocking.
+- **Offline.** A slim banner (`@react-native-community/netinfo`) appears when connectivity drops
+  and disappears on reconnect.
