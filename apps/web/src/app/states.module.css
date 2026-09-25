@@ -1,0 +1,224 @@
+/* Shared by not-found.tsx, error.tsx and loading.tsx. Same public-screen
+   treatment as /t/[id] (status.module.css): slate band, white card pulled
+   up over it, Poppins copy. Buttons copy the landing .btn look. */
+
+.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-canvas-soft);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+}
+
+.band {
+  padding: var(--space-xxl) var(--space-lg) 128px;
+  background: var(--color-slate);
+  color: var(--color-on-slate);
+}
+
+.card {
+  width: min(560px, 100% - 2 * var(--space-lg));
+  margin: 0 auto;
+  padding: var(--space-xxl) var(--space-xl);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+  text-align: center;
+}
+
+:global(:root[data-theme="dark"]) .card {
+  border: 1px solid var(--color-hairline);
+}
+
+:is(.band, .hero) + .card {
+  margin: -96px auto var(--space-section);
+}
+
+.text {
+  color: var(--color-ink-secondary);
+  font-size: 16px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color 150ms var(--ease-out),
+    border-color 150ms var(--ease-out),
+    color 150ms var(--ease-out);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+/* Ink on cyan (6.39:1). White on cyan is 2.40:1, never. */
+.btnAccent {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.btnAccent:hover {
+  background: var(--color-accent-hover);
+}
+
+.btnOutline {
+  background: transparent;
+  border-color: var(--color-hairline-strong);
+  color: var(--color-ink);
+}
+
+.btnOutline:hover {
+  border-color: var(--color-accent);
+  color: var(--color-primary);
+}
+
+/* error.tsx: no header or band, one card centred in the viewport. */
+.center {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-lg);
+  background: var(--color-canvas-soft);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+}
+
+.center .card {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-lg);
+  width: min(560px, 100%);
+}
+
+.center .actions {
+  margin-top: 0;
+}
+
+/* loading.tsx skeleton */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  padding: 0 var(--space-lg);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.hero {
+  height: clamp(220px, 30vw, 320px);
+}
+
+.block {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+}
+
+.hero.block {
+  border-radius: 0;
+}
+
+.line {
+  height: 14px;
+  margin: 0 auto var(--space-sm);
+}
+
+.line:nth-of-type(1) {
+  width: 90%;
+}
+
+.line:nth-of-type(2) {
+  width: 75%;
+}
+
+.line:nth-of-type(3) {
+  width: 55%;
+}
+
+.btnBlock {
+  width: 180px;
+  height: 48px;
+  margin: var(--space-lg) auto 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .block {
+    background: linear-gradient(
+      90deg,
+      var(--color-surface-sunken) 40%,
+      var(--color-surface) 50%,
+      var(--color-surface-sunken) 60%
+    );
+    background-size: 300% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .band {
+    padding: var(--space-xl) var(--space-md) 104px;
+  }
+
+  .card {
+    width: calc(100% - 2 * var(--space-md));
+    padding: 40px var(--space-md);
+  }
+
+  :is(.band, .hero) + .card {
+    margin: -80px auto var(--space-xxl);
+  }
+
+  .center {
+    padding: var(--space-md);
+  }
+
+  .center .card {
+    width: 100%;
+  }
+}
