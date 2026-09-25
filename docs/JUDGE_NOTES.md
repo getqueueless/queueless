@@ -774,3 +774,13 @@ under "Web app" above.
   hands control back via a `queueless://paid/<tokenId>` deep link once payment is confirmed.
 - Full technical detail (schema, API contract, the exact idempotency/amount-check behavior,
   webhook event handling): `docs/PAYMENTS.md`.
+
+## QA pass, 2026-09-25: kiosk slip design review
+
+- `apps/web/src/app/kiosk/kiosk.module.css:483` (`.issued::before`, a 6px cyan strip along the
+  top edge of the printed-slip card) was flagged by `impeccable detect` as the generic "thick
+  colored accent stripe" anti-pattern. Checked it against the rest of the app before touching
+  anything: the identical treatment, with the identical "this card IS the token" comment, is
+  already shipped on `t/[id]/status.module.css`'s `.card::before` (6px) and a 4px variant on
+  `counter/counter.module.css`'s `.tokenCard::before`. It's a deliberate, repeated motif across
+  three token-card surfaces, not an isolated accident — confirmed fine, left as-is.
