@@ -21,9 +21,8 @@ export type GoogleSignInResult =
  * browser tab via expo-web-browser so Google's own cookies/2FA/passkey flows work exactly as
  * they would in any browser, then exchange the code GoTrue redirects back with for a session.
  *
- * The server side of this (a Google Cloud OAuth client, and GOTRUE_EXTERNAL_GOOGLE_* env vars
- * on the deployed stack) is not configured yet as of this build — see docs/DECISIONS.md. Until
- * it is, GoTrue rejects the request and this surfaces as a normal mapped error, not a crash.
+ * REDIRECT_TO is queueless://auth/callback in a native build and exp://…/--/auth/callback in
+ * Expo Go — both covered by GoTrue's allow-list (queueless://**, exp://**).
  */
 export async function signInWithGoogle(): Promise<GoogleSignInResult> {
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -41,7 +40,16 @@ export async function signInWithGoogle(): Promise<GoogleSignInResult> {
     return { ok: false, cancelled: true };
   }
 
-  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+  // exchangeCodeForSession takes the bare `code`, not the callback URL. supabase-js may also
+  // append its own `sb_flow_id` to redirectTo; pass it back so the right PKCE verifier is used.
+  const params = Linking.parse(result.url).queryParams ?? {};
+  const code = typeof params.code === 'string' ? params.code : null;
+  if (!code) {
+    const reason = typeof params.error_description === 'string' ? params.error_description : null;
+    return { ok: false, cancelled: false, message: reason || "Couldn't complete Google sign-in." };
+  }
+  const flowId = typeof params.sb_flow_id === 'string' ? params.sb_flow_id : undefined;
+  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined);
   if (exchangeError) {
     return { ok: false, cancelled: false, message: exchangeError.message || "Couldn't complete Google sign-in." };
   }
