@@ -32,7 +32,7 @@ export default async function SettingsPage() {
     <div>
       <div className={styles.pageHeader}>
         <div>
-          <div className={styles.pageTitle}>Priority settings</div>
+          <h1 className={styles.pageTitle}>Priority settings</h1>
           <div className={styles.pageSubtitle}>
             Queue priority lanes are fixed by the platform (no <code>priority_rules</code> table exists in the real
             schema) -- the only tunable is how much of a head start priority lanes get.

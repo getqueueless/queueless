@@ -34,7 +34,7 @@ export function DashboardClient({ services }: { services: ServiceRow[] }) {
     <div>
       <div className={styles.pageHeader}>
         <div>
-          <div className={styles.pageTitle}>Dashboard</div>
+          <h1 className={styles.pageTitle}>Dashboard</h1>
           <div className={styles.pageSubtitle}>Live queue stats, refreshed automatically.</div>
         </div>
         <ServiceSelect services={services} value={serviceId} onChange={setServiceId} />

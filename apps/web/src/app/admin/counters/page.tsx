@@ -30,7 +30,7 @@ export default async function CountersPage() {
     <div>
       <div className={styles.pageHeader}>
         <div>
-          <div className={styles.pageTitle}>Counters</div>
+          <h1 className={styles.pageTitle}>Counters</h1>
           <div className={styles.pageSubtitle}>Desks staff serve from, and which services each one handles.</div>
         </div>
       </div>

@@ -23,7 +23,7 @@ export default async function ServicesPage() {
     <div>
       <div className={styles.pageHeader}>
         <div>
-          <div className={styles.pageTitle}>Services</div>
+          <h1 className={styles.pageTitle}>Services</h1>
           <div className={styles.pageSubtitle}>Departments patients take a token for.</div>
         </div>
       </div>
