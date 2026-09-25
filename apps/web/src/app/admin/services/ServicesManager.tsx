@@ -121,13 +121,15 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Status</th>
-              <th>Default service</th>
-              <th>No-show after</th>
-              <th>Daily cap</th>
-              <th />
+              <th scope="col">Code</th>
+              <th scope="col">Name</th>
+              <th scope="col">Status</th>
+              <th scope="col">Default service</th>
+              <th scope="col">No-show after</th>
+              <th scope="col">Daily cap</th>
+              <th scope="col">
+                <span className={styles.srOnly}>Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>

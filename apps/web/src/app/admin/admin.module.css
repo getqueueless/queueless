@@ -333,3 +333,17 @@
   background: var(--color-surface-sunken, var(--color-canvas-soft));
   color: var(--color-ink-secondary);
 }
+
+/* Visually hidden but still reachable by screen readers -- for table headers
+   (an actions column) and other labels that would be redundant on-screen. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -143,11 +143,13 @@ export function CountersManager({
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>State</th>
-              <th>Staff</th>
-              <th>Services</th>
-              <th />
+              <th scope="col">Name</th>
+              <th scope="col">State</th>
+              <th scope="col">Staff</th>
+              <th scope="col">Services</th>
+              <th scope="col">
+                <span className={styles.srOnly}>Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -220,15 +222,17 @@ export function CountersManager({
               ))}
             </select>
           </div>
-          <div className={styles.field}>
-            <label>Handles services</label>
+          <fieldset className={styles.field} style={{ border: "none", padding: 0, margin: 0 }}>
+            <legend className={styles.label} style={{ padding: 0 }}>
+              Handles services
+            </legend>
             {services.map((s) => (
               <label key={s.id} className={styles.checkboxRow}>
                 <input type="checkbox" checked={form.serviceIds.includes(s.id)} onChange={() => toggleService(s.id)} />
                 {s.name}
               </label>
             ))}
-          </div>
+          </fieldset>
           <div className={styles.buttonRow}>
             <button type="submit" className={styles.buttonPrimary} disabled={busy}>
               {editingId ? "Save changes" : "Create counter"}

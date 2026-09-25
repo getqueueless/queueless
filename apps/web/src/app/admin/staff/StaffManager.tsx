@@ -108,10 +108,12 @@ export function StaffManager() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Role</th>
-              <th>Joined</th>
-              <th />
+              <th scope="col">Name</th>
+              <th scope="col">Role</th>
+              <th scope="col">Joined</th>
+              <th scope="col">
+                <span className={styles.srOnly}>Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
