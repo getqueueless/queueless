@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { loadBoard } from "@/app/_landing/board"
 import { fetchCounter, type CounterRow, type TokenRow, type TokenStatus } from "@/app/t/[id]/data"
+import { ACTIVE_STATUSES, readTokenStatus } from "@/components/tokens/active-token"
 import type { DoctorStatus } from "@/lib/doctors"
 
 import { availability, dayKey, paidStatusOverride, shiftsLabel, slotLabel, type Availability, type Tone } from "./format"
@@ -43,22 +44,6 @@ export async function loadOrg(supabase: SupabaseClient, orgId: string | null): P
 }
 
 // ---------- the patient's live token ----------
-
-// tokens has RLS since 0047: a patient sees only their own rows, so counting
-// the line with a direct query would always say nobody is ahead.
-// get_token_status (0048) counts server-side. It is RETURNS TABLE, so the
-// response is an array: .single() unwraps it.
-export async function readTokenStatus(
-  supabase: SupabaseClient,
-  id: string,
-): Promise<{ token: TokenRow; ahead: number | null } | null> {
-  const { data, error } = await supabase.rpc("get_token_status", { p_id: id }).single()
-  if (error || !data) return null
-  const { people_ahead, ...token } = data as TokenRow & { people_ahead: number | null }
-  return { token, ahead: token.status === "waiting" ? people_ahead : null }
-}
-
-const ACTIVE_STATUSES: TokenStatus[] = ["pending_payment", "waiting", "called", "serving"]
 
 export type ActiveToken = {
   token: TokenRow

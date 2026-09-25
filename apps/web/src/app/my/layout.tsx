@@ -1,7 +1,11 @@
 import Link from "next/link"
+import { Suspense } from "react"
 
 import { Logo } from "@/components/brand/Logo"
 import { ThemeToggle } from "@/components/theme/ThemeToggle"
+import { loadLiveToken } from "@/components/tokens/active-token"
+import { ActiveTokenBar } from "@/components/tokens/ActiveTokenBar"
+import { createClient } from "@/lib/supabase/server"
 
 import { PatientSignOut } from "./PatientSignOut"
 import styles from "./my.module.css"
@@ -22,7 +26,16 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
           <PatientSignOut />
         </div>
       </header>
+      <Suspense fallback={null}>
+        <LiveTokenBar />
+      </Suspense>
       <main id="main" className={styles.main}>{children}</main>
     </div>
   )
+}
+
+// Streams in after the chrome; renders nothing when there is no active token.
+async function LiveTokenBar() {
+  const live = await loadLiveToken(await createClient())
+  return <ActiveTokenBar key={live?.token.id ?? "none"} initial={live} />
 }

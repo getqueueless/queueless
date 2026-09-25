@@ -10,7 +10,9 @@ import { useEtaAtJoin, useNowServing } from "@/components/motion/useQueueExtras"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import { createClient } from "@/lib/supabase/client"
 
-import { readTokenStatus, type ActiveToken } from "./data"
+import { readTokenStatus } from "@/components/tokens/active-token"
+
+import type { ActiveToken } from "./data"
 import { TOKEN_STATUS } from "./format"
 import { ArrowIcon } from "./icons"
 import styles from "./TokenCard.module.css"

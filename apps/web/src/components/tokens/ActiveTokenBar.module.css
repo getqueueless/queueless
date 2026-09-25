@@ -1,0 +1,161 @@
+/* The live-token strip under the app bar. Slate deep, so it reads as the
+   top of the patient's own status wherever it sits, light or dark theme.
+
+   Contrast on slate-deep #112427: code and timer white 15.9; stage
+   on-slate-muted 9.0; "Go to Counter" brand cyan 7.0 (text, 14px bold). */
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-lg);
+  min-height: 52px;
+  padding: var(--space-xs) max(var(--gutter, 16px), (100% - var(--max, 1240px)) / 2);
+  background: var(--color-slate-deep);
+  color: var(--color-on-slate);
+  font-family: var(--font-display);
+  font-size: 14px;
+  text-decoration: none;
+  box-shadow: 0 6px 18px -12px rgba(0, 0, 0, 0.6);
+}
+
+.bar:focus-visible {
+  outline: 2px solid var(--color-focus-ring-on-slate);
+  outline-offset: -3px;
+}
+
+.id {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage {
+  overflow: hidden;
+  color: var(--color-on-slate-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- progress line ---------- */
+
+.track {
+  position: relative;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transform: scaleX(var(--p, 0));
+  transform-origin: left;
+}
+
+.right {
+  justify-self: end;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.timer {
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--color-on-slate-muted);
+  font-weight: 400;
+}
+
+.go {
+  color: var(--color-accent);
+}
+
+.bar[data-status="called"] .fill {
+  background: var(--color-accent-hover);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fill {
+    transition: transform 900ms var(--ease-out);
+  }
+
+  /* While waiting, a soft light runs along the filled part: the line is live. */
+  .bar[data-status="waiting"] .fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent) 0 0 / 40% 100% no-repeat;
+    animation: run 2.2s linear infinite;
+  }
+
+  .go {
+    animation: beckon 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes run {
+  from {
+    background-position: -40% 0;
+  }
+  to {
+    background-position: 140% 0;
+  }
+}
+
+@keyframes beckon {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* A phone: code and timer share the first line, the progress line runs
+   full width beneath them. */
+@media (max-width: 640px) {
+  .bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "id right"
+      "track track";
+    gap: 6px var(--space-md);
+    padding-block: var(--space-xs) 10px;
+  }
+
+  .id {
+    grid-area: id;
+  }
+
+  .right {
+    grid-area: right;
+  }
+
+  .track {
+    grid-area: track;
+    height: 4px;
+  }
+
+  .code {
+    font-size: 16px;
+  }
+
+  .stage {
+    font-size: 13px;
+  }
+}
