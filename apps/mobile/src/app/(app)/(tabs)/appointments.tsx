@@ -58,7 +58,11 @@ export default function AppointmentsScreen() {
     setSlotsLoading(true);
     setSlotsError(null);
     const { data: auth } = await supabase.auth.getSession();
-    const patientId = auth.session?.user.id ?? '';
+    const patientId = auth.session?.user.id;
+    if (!patientId) {
+      setSlotsLoading(false);
+      return;
+    }
     const [slotsRes, apptRes] = await Promise.all([
       supabase
         .from('appointment_slots')
@@ -67,8 +71,8 @@ export default function AppointmentsScreen() {
         .gt('starts_at', new Date().toISOString())
         .order('starts_at', { ascending: true }),
       // Filter on patient_id here: appointments has no RLS on prod yet (docs/DECISIONS.md), so an
-      // unfiltered select returned every patient's bookings as "mine".
-      supabase.from('appointments').select('*').eq('patient_id', patientId),
+      // unfiltered select returned every patient's bookings as "mine". Only live bookings matter.
+      supabase.from('appointments').select('*').eq('patient_id', patientId).eq('status', 'booked'),
     ]);
     setSlotsLoading(false);
 
@@ -79,7 +83,7 @@ export default function AppointmentsScreen() {
     }
     setSlots(slotsRes.data ?? []);
     if (!apptRes.error) {
-      setMyAppointments((apptRes.data ?? []).filter((a: Appointment) => a.status === 'booked'));
+      setMyAppointments(apptRes.data ?? []);
     }
   }
 
