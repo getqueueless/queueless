@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { signOut } from '@/lib/sign-out';
@@ -14,7 +15,12 @@ import {
   setLanguagePreference,
   type LanguagePreference,
 } from '@/lib/language-preference';
-import { getThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme-preference';
+import {
+  getThemePreference,
+  setThemePreference,
+  subscribeThemePreference,
+  type ThemePreference,
+} from '@/lib/theme-preference';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'system', label: 'System' },
@@ -28,7 +34,8 @@ export default function Settings() {
   const theme = useTheme();
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [themePref, setThemePref] = useState(getThemePreference);
+  // Read from the store, not local state, so the ThemeToggle here and in headers stays in sync.
+  const themePref = useSyncExternalStore(subscribeThemePreference, getThemePreference, getThemePreference);
   const [languagePref, setLanguagePref] = useState(getLanguagePreference);
 
   async function handleSignOut() {
@@ -44,7 +51,6 @@ export default function Settings() {
 
   function handleThemePress(pref: ThemePreference) {
     setThemePreference(pref);
-    setThemePref(pref);
   }
 
   function handleLanguagePress(pref: LanguagePreference) {
@@ -105,6 +111,10 @@ export default function Settings() {
         <ThemedView
           type="surface"
           style={[styles.card, styles.appearanceCard, CardShadow, { borderColor: theme.hairline }]}>
+          <View style={styles.toggleRow}>
+            <ThemedText type="body">Dark mode</ThemedText>
+            <ThemeToggle />
+          </View>
           <View style={styles.segmentedRow}>
             {THEME_OPTIONS.map((option) => {
               const selected = themePref === option.value;
@@ -170,6 +180,14 @@ const styles = StyleSheet.create({
   },
   appearanceCard: {
     padding: Spacing.sm,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+    paddingHorizontal: Spacing.xs,
+    marginBottom: Spacing.xs,
   },
   segmentedRow: {
     flexDirection: 'row',
