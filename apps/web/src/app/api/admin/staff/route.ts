@@ -34,6 +34,13 @@ function serviceRoleClient() {
   return createServiceRoleClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
+// Never echo a raw Postgres/config error to the browser -- log it here for
+// the server operator and send the caller a generic message instead.
+function serverError(action: string, detail: string) {
+  console.error(`[api/admin/staff] ${action}:`, detail)
+  return NextResponse.json({ error: `Couldn't ${action}. Try again.` }, { status: 500 })
+}
+
 const createSchema = z.object({
   email: z.email(),
   full_name: z.string().trim().min(1).max(80),
@@ -53,7 +60,7 @@ export async function GET() {
   if (!admin.ok) return NextResponse.json({ error: admin.message }, { status: admin.status })
 
   const db = serviceRoleClient()
-  if (!db) return NextResponse.json({ error: "Server is missing SUPABASE_SERVICE_ROLE_KEY." }, { status: 500 })
+  if (!db) return serverError("load staff", "SUPABASE_SERVICE_ROLE_KEY is not set")
 
   const { data, error } = await db
     .from("profiles")
@@ -62,7 +69,7 @@ export async function GET() {
     .in("role", ["staff", "admin"])
     .order("created_at")
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError("load staff", error.message)
   return NextResponse.json({ staff: data })
 }
 
@@ -74,7 +81,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid input", issues: parsed.error.issues }, { status: 400 })
 
   const db = serviceRoleClient()
-  if (!db) return NextResponse.json({ error: "Server is missing SUPABASE_SERVICE_ROLE_KEY." }, { status: 500 })
+  if (!db) return serverError("create staff account", "SUPABASE_SERVICE_ROLE_KEY is not set")
 
   const { email, full_name, role, counter_id } = parsed.data
 
@@ -84,6 +91,9 @@ export async function POST(request: Request) {
     user_metadata: { full_name },
   })
   if (createError || !created.user) {
+    // createError.message here is Supabase Auth's own validation feedback
+    // (e.g. "already registered") -- safe and useful to show, unlike a raw
+    // Postgres/config error.
     return NextResponse.json({ error: createError?.message ?? "Couldn't create the user." }, { status: 400 })
   }
 
@@ -96,7 +106,7 @@ export async function POST(request: Request) {
     .eq("id", created.user.id)
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 })
+    return serverError("create staff account", updateError.message)
   }
 
   if (counter_id) {
@@ -114,7 +124,7 @@ export async function PATCH(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid input", issues: parsed.error.issues }, { status: 400 })
 
   const db = serviceRoleClient()
-  if (!db) return NextResponse.json({ error: "Server is missing SUPABASE_SERVICE_ROLE_KEY." }, { status: 500 })
+  if (!db) return serverError("update role", "SUPABASE_SERVICE_ROLE_KEY is not set")
 
   const { id, role } = parsed.data
 
@@ -124,7 +134,7 @@ export async function PATCH(request: Request) {
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   const { error } = await db.from("profiles").update({ role }).eq("id", id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError("update role", error.message)
 
   return NextResponse.json({ ok: true })
 }
@@ -138,7 +148,7 @@ export async function DELETE(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 })
 
   const db = serviceRoleClient()
-  if (!db) return NextResponse.json({ error: "Server is missing SUPABASE_SERVICE_ROLE_KEY." }, { status: 500 })
+  if (!db) return serverError("remove staff account", "SUPABASE_SERVICE_ROLE_KEY is not set")
 
   const { data: target } = await db.from("profiles").select("id").eq("id", parsed.data.id).eq("org_id", admin.orgId).maybeSingle()
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -148,7 +158,7 @@ export async function DELETE(request: Request) {
   // they issued as staff, which is destructive for an audit trail. Removing
   // admin/staff access is what "delete" means for this list.
   const { error } = await db.from("profiles").update({ role: "patient" }).eq("id", parsed.data.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError("remove staff account", error.message)
 
   return NextResponse.json({ ok: true })
 }
