@@ -1,23 +1,30 @@
-/* Local to the admin section -- extends the global DESIGN.md tokens
-   (apps/web/src/app/globals.css) with the success/warning pair the admin
-   dashboard needs for stat deltas and badges, without touching the shared
-   globals.css file another agent may be editing concurrently. */
+/* Admin console: the MedWin palette on a dense staff screen (DESIGN.md,
+   "Staff screens"). Flat hairline cards, Inter UI text, Poppins titles and
+   numerals, and one slate sidebar that carries the brand mark in both themes.
+   Every colour comes from globals.css; the locals below only pick tokens
+   per theme (chart series) or tint the slate sidebar. */
 .root {
-  --color-success: #197c53;
-  --color-success-soft: #e3f4ea;
-  --color-warning: #9e5f0b;
-  --color-warning-soft: #faf0dd;
-  --color-canvas-soft: #f6f7f9;
+  --chart-actual: var(--color-accent-display);
+  --chart-predicted: var(--color-slate);
+  /* Faint tints over slate for the sidebar's hover and active rows. */
+  --rail-hover: rgba(255, 255, 255, 0.07);
+  --rail-active: rgba(12, 183, 214, 0.16);
+  --rail-rule: rgba(255, 255, 255, 0.1);
+  --scroll-shade: rgba(26, 50, 55, 0.18);
   min-height: 100vh;
   background: var(--color-canvas-soft);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 :global(:root[data-theme="dark"]) .root {
-  --color-success: #4cbf8b;
-  --color-success-soft: #0f2b21;
-  --color-warning: #dba24d;
-  --color-warning-soft: #2e2211;
-  --color-canvas-soft: #101317;
+  /* Bright cyan bars vs. a light line is only 1.35:1 where the line crosses
+     a bar; a 70% cyan bar (3.99:1 on surface) under a pale slate-ink line
+     (3.59:1 over the bar, 14.31:1 on surface) keeps all three apart. */
+  --chart-actual: color-mix(in srgb, var(--color-accent) 70%, var(--color-surface));
+  --chart-predicted: var(--color-ink);
+  --scroll-shade: rgba(0, 0, 0, 0.55);
 }
 
 .shell {
@@ -25,169 +32,307 @@
   min-height: 100vh;
 }
 
-/* Lets a keyboard user jump past the five sidebar links straight to the
-   page content. Off-screen until it receives focus (Tab from the page's
-   first focusable element), same pattern as any standard skip link. */
+/* Lets a keyboard user jump past the sidebar straight to the page content.
+   Off-screen until it receives focus (the first Tab on the page). */
+/* It lands over the slate sidebar, so it takes the cyan fill (5.6:1 against
+   slate) with ink text and an inset ink ring that shows on any backdrop. */
 .skipLink {
   position: absolute;
   top: -100%;
   left: var(--space-sm);
   z-index: 100;
-  padding: var(--space-xs) var(--space-md);
+  padding: 10px var(--space-md);
   border-radius: var(--radius-md);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: var(--shadow-raised);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .skipLink:focus-visible {
   top: var(--space-sm);
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
+  outline: 2px solid var(--color-on-accent);
+  outline-offset: -4px;
 }
 
+/* ---------- Sidebar: slate in both themes, like the public footer ---------- */
+
 .sidebar {
-  width: 200px;
+  width: 224px;
   flex-shrink: 0;
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-hairline);
-  padding: var(--space-lg) var(--space-sm);
+  background: var(--color-slate);
+  color: var(--color-on-slate);
+}
+
+/* The slate column runs the full page height; its contents stay pinned. */
+.sidebarInner {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  padding: var(--space-lg) var(--space-sm) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+}
+
+:global(:root[data-theme="dark"]) .sidebar {
+  background: var(--color-slate-deep);
+  box-shadow: inset -1px 0 0 var(--rail-rule);
+}
+
+/* The global primary focus ring is too dark on slate; cyan is 5.6:1 there. */
+.sidebar :focus-visible {
+  outline-color: var(--color-accent);
+}
+
+.brand {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  padding: 0 var(--space-sm) var(--space-lg);
+  margin-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--rail-rule);
 }
 
-.navShort {
+.brandMark {
   display: none;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  font-size: 12px;
-  font-weight: 600;
-  flex-shrink: 0;
 }
 
+.brandOrg {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--color-on-slate-muted);
+}
+
+.navLink,
+.signOut {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding: 10px var(--space-sm);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-on-slate-muted);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.navLink:hover,
+.signOut:hover {
+  background: var(--rail-hover);
+  color: var(--color-on-slate);
+}
+
+.navLinkActive,
+.navLinkActive:hover {
+  background: var(--rail-active);
+  color: var(--color-on-slate);
+}
+
+/* Cyan bar flush with the sidebar's left edge marks the current page. */
+.navLinkActive::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--space-sm));
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--color-accent);
+}
+
+.navIcon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.navLinkActive .navIcon {
+  color: var(--color-accent);
+}
+
+.sidebarFoot {
+  margin-top: auto;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--rail-rule);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.signOut {
+  flex: 1;
+  background: none;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Tablet and below: the sidebar collapses to a 64px icon rail. */
 @media (max-width: 1023px) {
   .sidebar {
     width: 64px;
-    align-items: center;
   }
+  .sidebarInner {
+    align-items: center;
+    padding-inline: var(--space-xs);
+  }
+  .brand {
+    padding: 0 0 var(--space-md);
+    align-items: center;
+    align-self: stretch;
+  }
+  .brandFull,
+  .brandOrg,
   .navLabel {
     display: none;
+  }
+  .brandMark {
+    display: block;
   }
   .navLink,
   .signOut {
     justify-content: center;
+    align-self: stretch;
     padding: 10px;
   }
-  .navShort {
-    display: inline-flex;
+  .navLinkActive::before {
+    left: calc(-1 * var(--space-xs));
   }
-  .navLinkActive .navShort {
-    background: var(--color-primary-soft);
+  .sidebarFoot {
+    flex-direction: column-reverse;
+    align-self: stretch;
+  }
+  .signOut {
+    flex: none;
   }
 }
 
-.brand {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.1px;
-  color: var(--color-ink);
-  padding: 0 var(--space-xs) var(--space-md);
-}
-
-.navLink {
-  display: block;
-  padding: 10px var(--space-xs);
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  color: var(--color-ink-secondary);
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-
-.navLink:hover {
-  background: var(--color-canvas-soft);
-}
-
-.navLinkActive {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-weight: 500;
-}
-
-.signOut {
-  margin-top: auto;
-  background: none;
-  border: none;
-  text-align: left;
-  padding: 10px var(--space-xs);
-  font-size: 14px;
-  color: var(--color-ink-muted);
-  cursor: pointer;
-  min-height: 44px;
-}
-
-.signOut:hover {
-  color: var(--color-danger);
-}
+/* ---------- Content ---------- */
 
 .content {
   flex: 1;
+  min-width: 0;
   padding: var(--space-xl);
-  max-width: 960px;
+  max-width: 1024px;
   margin: 0 auto;
   width: 100%;
 }
 
+@media (max-width: 767px) {
+  .content {
+    padding: var(--space-lg) var(--space-md);
+  }
+}
+
 .pageHeader {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-md);
   margin-bottom: var(--space-lg);
   flex-wrap: wrap;
 }
 
+.pageHeader > div:first-child {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+/* display-md, with a short cyan rule above it -- the one brand flourish
+   the staff screens get in place of the public two-tone headings. */
 .pageTitle {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
   color: var(--color-ink);
 }
 
+.pageTitle::before {
+  content: "";
+  display: block;
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  margin-bottom: var(--space-sm);
+}
+
 .pageSubtitle {
-  font-size: 13px;
+  margin-top: var(--space-xxs);
+  font-size: 14px;
   color: var(--color-ink-muted);
+  max-width: 68ch;
+}
+
+.pageSubtitle code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--color-surface-sunken);
 }
 
 .card {
+  min-width: 0; /* lets a card shrink inside the managers' grid wrappers */
   background: var(--color-surface);
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
 }
 
+/* A card's own title reuses .pageSubtitle in the markup; inside a card it
+   reads as heading-md with a cyan dot, MedWin's footer-heading motif. */
+.card > .pageSubtitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-ink);
+}
+
+.card > .pageSubtitle::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+/* ---------- Dashboard ---------- */
+
 .statGrid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-md);
   margin-bottom: var(--space-lg);
 }
 
 @media (max-width: 1023px) {
   .statGrid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 767px) {
   .statGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-sm);
   }
 }
 
@@ -195,63 +340,105 @@
   background: var(--color-surface);
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-lg);
-  padding: var(--space-md);
+  padding: 20px;
 }
 
 .statLabel {
   font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.1px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.06em;
   color: var(--color-ink-muted);
   text-transform: uppercase;
 }
 
 .statValue {
+  font-family: var(--font-display);
   font-size: 30px;
-  font-weight: 600;
-  letter-spacing: -0.4px;
+  font-weight: 700;
+  line-height: 1.2;
   color: var(--color-ink);
-  margin-top: 4px;
+  margin-top: var(--space-xs);
   font-variant-numeric: tabular-nums;
 }
 
 .statValueMuted {
   color: var(--color-ink-muted);
-  font-size: 18px; /* heading-md -- was an off-ramp 20px */
 }
+
+@media (max-width: 767px) {
+  .statTile {
+    padding: var(--space-md);
+  }
+  .statTile:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .statValue {
+    font-size: 24px;
+  }
+  .card > .pageSubtitle {
+    font-size: 16px;
+  }
+}
+
+/* Priority lanes: a read-only ordered list. */
+.card > ol li {
+  text-transform: capitalize;
+}
+
+.card > ol li::marker {
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+/* Recharts' default hover band is light grey; keep it on-token. */
+.card :global(.recharts-tooltip-cursor) {
+  fill: var(--color-surface-sunken);
+}
+
+/* ---------- Banners ---------- */
 
 .banner {
   border: 1px solid var(--color-hairline);
-  background: var(--color-surface-sunken, var(--color-canvas-soft));
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-surface-sunken);
   color: var(--color-ink-secondary);
   border-radius: var(--radius-md);
   padding: var(--space-sm) var(--space-md);
   font-size: 13px;
+  line-height: 1.5;
   margin-bottom: var(--space-md);
 }
 
 .bannerDanger {
   border-color: var(--color-danger-soft);
+  border-left-color: var(--color-danger);
   background: var(--color-danger-soft);
   color: var(--color-danger);
 }
 
-.select {
-  background: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-md);
-  padding: 8px 12px;
-  font-size: 14px;
-  color: var(--color-ink);
-}
+/* ---------- Tables ---------- */
 
-.select:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 1px;
+/* A card holding a table goes edge to edge and scrolls sideways on its own
+   when the columns outgrow a phone, instead of widening the page. */
+.card:has(> .table) {
+  position: relative; /* contains the absolutely placed .srOnly header too */
+  padding: 0;
+  overflow-x: auto;
+  /* Scroll shadows: the edge that still has hidden columns gets a soft
+     shade; the "local" covers slide over it once that edge is reached. */
+  background:
+    linear-gradient(to right, var(--color-surface) 40%, transparent) left / 32px 100% no-repeat local,
+    linear-gradient(to left, var(--color-surface) 40%, transparent) right / 32px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shade), transparent) left / 12px 100% no-repeat,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shade), transparent) right / 12px 100% no-repeat,
+    var(--color-surface);
 }
 
 .table {
   width: 100%;
+  min-width: 560px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -259,108 +446,215 @@
 .table th {
   text-align: left;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
   color: var(--color-ink-muted);
-  border-bottom: 1px solid var(--color-hairline-strong);
-  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-surface-sunken);
+  border-bottom: 1px solid var(--color-hairline);
+  padding: 10px var(--space-md);
 }
 
 .table td {
   border-bottom: 1px solid var(--color-hairline);
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
   color: var(--color-ink);
   vertical-align: middle;
 }
 
+.table td:first-child {
+  font-weight: 600;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover td {
+  background: var(--color-canvas-soft);
+}
+
+.table .buttonRow {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
+/* ---------- Forms ---------- */
+
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  max-width: 420px;
+  gap: var(--space-md);
+  max-width: 440px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.field label {
+.field label,
+.label {
   font-size: 13px;
+  font-weight: 500;
   color: var(--color-ink-secondary);
 }
 
-.input {
-  background: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-md);
-  padding: 8px 12px;
-  font-size: 14px;
-  color: var(--color-ink);
+fieldset.field {
+  gap: var(--space-xxs);
 }
 
-.input:focus-visible {
+.input,
+.select {
+  min-width: 0; /* a staff <option> can be a raw UUID; don't let it widen the page */
+  min-height: 44px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-ink);
+  transition: border-color 0.15s ease;
+}
+
+.input:hover,
+.select:hover:not(:disabled) {
+  border-color: var(--color-ink-muted);
+}
+
+.input:focus-visible,
+.select:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
   border-color: var(--color-primary);
+}
+
+.select {
+  padding-block: 8px;
+  cursor: pointer;
+}
+
+.select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* The role picker inside a staff row stays compact. */
+.table .select {
+  min-height: 36px;
+  padding: 6px 10px;
 }
 
 .checkboxRow {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
+  min-height: 32px;
   font-size: 14px;
   color: var(--color-ink);
+  cursor: pointer;
 }
+
+.checkboxRow input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* ---------- Buttons ---------- */
 
 .buttonRow {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-xs);
-  margin-top: 4px;
+  margin-top: var(--space-xxs);
+}
+
+.buttonPrimary,
+.buttonSecondary {
+  min-height: 44px;
+  padding: 8px 18px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .buttonPrimary {
   background: var(--color-primary);
   color: var(--color-on-primary);
-  border: none;
-  border-radius: var(--radius-md);
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  min-height: 44px;
+  border: 1px solid transparent;
 }
 
-.buttonPrimary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.buttonPrimary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
 }
 
+.buttonPrimary:active:not(:disabled) {
+  background: var(--color-primary-press);
+}
+
+/* MedWin's outline button: the border turns cyan and the text AA cyan. */
 .buttonSecondary {
   background: var(--color-surface);
   color: var(--color-ink);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-md);
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  min-height: 44px;
+  border: 1px solid var(--color-hairline-strong);
+}
+
+.buttonSecondary:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-primary);
 }
 
 .buttonDanger {
   composes: buttonSecondary;
   color: var(--color-danger);
-  border-color: var(--color-danger-soft);
 }
+
+.buttonDanger:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.buttonPrimary:disabled,
+.buttonSecondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------- Badges ---------- */
 
 .badge {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   padding: 2px 10px;
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .badgeSuccess {
@@ -374,7 +668,7 @@
 }
 
 .badgeMuted {
-  background: var(--color-surface-sunken, var(--color-canvas-soft));
+  background: var(--color-surface-sunken);
   color: var(--color-ink-secondary);
 }
 
