@@ -227,7 +227,7 @@ function ActiveTab() {
     const hoursLeft = startsAt ? new Date(startsAt).getTime() - new Date().getTime() : 0;
     const message =
       startsAt && hoursLeft >= 2 * 60 * 60 * 1000
-        ? `You paid ₹${appt.fee_inr} online. Cancelling 2+ hours before your appointment refunds you automatically.`
+        ? `You paid ₹${appt.fee_inr} online. Cancelling 2+ hours before your appointment refunds you automatically, to your original payment method.`
         : `You paid ₹${appt.fee_inr} online. Cancelling under 2 hours before your appointment does not refund you automatically -- ask at reception if you'd like one reviewed.`;
     setCancelTarget({ rpc: 'cancel_appointment', id: appt.id, message });
   }
