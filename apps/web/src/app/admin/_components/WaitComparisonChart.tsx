@@ -5,7 +5,7 @@ import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 export function WaitComparisonChart({ data }: { data: { hour: string; predicted: number; actual: number }[] }) {
   return (
     <ResponsiveContainer width="100%" height={320}>
-      <ComposedChart data={data}>
+      <ComposedChart data={data} accessibilityLayer>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-hairline)" />
         <XAxis dataKey="hour" stroke="var(--color-ink-muted)" fontSize={12} />
         <YAxis unit="m" stroke="var(--color-ink-muted)" fontSize={12} />
