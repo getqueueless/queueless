@@ -163,17 +163,98 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   `supabase/README.md`, not left for the next person to rediscover the same way.
 - **What this pass found but did not fix, stated plainly rather than left implicit:** row-level
   security now covers `organizations`, `services`, `counters`, `board_services`,
-  `board_counters`, `push_tokens`, `notifications` and, as of this pass, `ops_summaries`. It is
-  **still off** on `profiles`, `tokens`, `appointments`, `appointment_slots` and `audit_log` — and
-  on those tables, `anon` and `authenticated` currently hold Postgres's original default grant of
-  full `INSERT/SELECT/UPDATE/DELETE/TRUNCATE`, unrevoked. Concretely: today, a raw signed request
-  with nothing more than the public `anon` key can write directly to `profiles` — including
-  setting its own `role` to `admin` — or to `tokens`, bypassing every RPC's numbering, rate limit
-  and state-machine check entirely. The RPCs remain the only path the real apps ever take, and
-  nothing in this pass depends on that hole being open, but it is real, it is live, and it is not
-  hidden from this document. Closing it is a separate, deliberately-scoped migration (it has to
-  be checked against what `apps/web`'s own direct table reads actually need before it can safely
-  restrict them) — flagged as its own piece of work rather than rushed in alongside this one.
+  `board_counters`, `push_tokens`, `notifications`, `ops_summaries` and — closed in the doctors
+  pass below, since it turned out to have carried zero RLS/revokes since its very first
+  migration — `appointment_slots`. It is **still off** on `profiles`, `tokens`, `appointments`
+  and `audit_log` — and on those tables, `anon` and `authenticated` currently hold Postgres's
+  original default grant of full `INSERT/SELECT/UPDATE/DELETE/TRUNCATE`, unrevoked. Concretely:
+  today, a raw signed request with nothing more than the public `anon` key can write directly to
+  `profiles` — including setting its own `role` to `admin` — or to `tokens`, bypassing every
+  RPC's numbering, rate limit and state-machine check entirely. The RPCs remain the only path the
+  real apps ever take, and nothing in this pass depends on that hole being open, but it is real,
+  it is live, and it is not hidden from this document. Closing it is a separate,
+  deliberately-scoped migration (it has to be checked against what `apps/web`'s own direct table
+  reads actually need before it can safely restrict them) — flagged as its own piece of work
+  rather than rushed in alongside this one.
+
+## Mandatory patient profile
+
+- **Every patient needs a real identity before touching a queue, regardless of how they signed
+  in.** Google, email-code, staff-entered walk-in — none of it used to require a name, phone or
+  date of birth, so a patient could hold a ticket the desk could never actually call out by name
+  or reach if something went wrong. `complete_my_profile` is now a hard gate: `issue_token`,
+  `book_appointment`, `check_in` and the offline-ticket claim below all refuse with
+  `profile_incomplete` until it's been called once. The phone is validated as a real Indian
+  mobile number (`+91` + 10 digits, starting 6-9) and is unique across patient accounts in the
+  same organization — closing the same "make another account to dodge the daily limit" hole the
+  email-OTP work closed for email, this time for phone.
+
+## Doctors & schedules
+
+- **A doctor, not just a desk, is now a first-class thing a patient can see.** Each service can
+  list its own doctors with a name, specialty, qualification, consultation fee and a **live
+  status** — available, running late (with the number of minutes), on a break, or off — visible
+  to patients before they commit to waiting. A doctor's week is built from recurring shifts (a
+  morning and an evening shift on the same day is normal, not a special case), with breaks and
+  leave days that slot generation actually respects: no appointment slot is ever created inside
+  a break or a leave, so a patient can never book a time the doctor was never going to be there
+  for. This is enforced once, in the function that generates the slots, not re-checked
+  separately by every screen that shows a booking calendar.
+- **"Any available doctor" is a real, deliberate third state, not a missing value.** A ticket or
+  appointment can be tied to a specific doctor, or left doctor-less on purpose, meaning "whoever
+  at this desk is free" — exactly how a real walk-in queue works when a patient doesn't have (or
+  care about) a preference. A counter assigned to one doctor pulls that doctor's own tickets plus
+  the any-doctor pool; it never reaches into a different doctor's queue. This is the same
+  priority-lane, oldest-first ordering the queue already used, just filtered by doctor first.
+- **A live status view with no midnight job.** A doctor marked "running late" at 2pm shouldn't
+  still read that way at 9am the next day. Rather than a scheduled job resetting every doctor's
+  status overnight (one more thing that can silently stop running), the status patients actually
+  see is computed at read time: a status row not stamped for *today* reads back as available,
+  automatically, forever, with nothing to schedule or forget.
+
+## Cash desk (append-only ledger)
+
+- **A cash receipt, once written, cannot be edited or deleted by anyone — not even the database
+  owner.** The same principle this system already applied to `audit_log` now applies to money:
+  correcting a mistake means writing a new **refund** row with the exact opposite amount and a
+  reason, never touching the original. This is enforced by a trigger that rejects every
+  update/delete attempt outright, so it holds even for a direct database connection, not just
+  through the normal API — a genuinely tamper-evident ledger, not just an application convention
+  a bug could quietly bypass.
+- **A walk-in patient doesn't need an account to hold a ticket.** The desk records just enough to
+  identify them (name, phone, date of birth) and to let them claim their ticket online later if
+  they choose to (see below) — no password, no signup flow, no account for someone who's already
+  standing at the counter. One phone number can only hold one *active* ticket per service at a
+  time, the same abuse boundary the rest of this system already enforces for signed-in patients,
+  now extended to people who never signed in at all.
+- **Receipt numbers can't have gaps or collide, even under concurrent staff at the same desk.**
+  Each organization's receipts for a given day are numbered by the same atomic-counter pattern
+  the queue already uses for ticket numbers — two staff members hitting "cash received" at the
+  same instant still get two different, sequential receipt numbers, never a collision and never
+  a skipped number that would later look like a missing receipt during an audit.
+
+## Offline ticket claim (anti-abuse)
+
+- **An elderly walk-in patient shouldn't need to remember a code to bring their paper ticket
+  online.** Claiming a ticket needs only the ticket's own printed number — the system checks it
+  against the phone number already on the patient's own signed-in, verified account, not a
+  second secret the patient has to copy correctly. This is also what makes the abuse story work:
+  the phone number is something the patient already proved they control by completing their
+  profile, not something typed into a claim form where it could be someone else's.
+- **A rejected claim never tells you why.** A ticket that doesn't exist, one that's already been
+  claimed, and one that belongs to a different phone number all come back as the exact same
+  generic failure. If a wrong code and a right-code-wrong-phone attempt looked different, someone
+  could use that difference to hunt for valid, unclaimed ticket numbers one guess at a time. Five
+  failed attempts in an hour locks the account out of trying again for the rest of that hour.
+- **The lockout had to be redesigned around a real database constraint, not around convenience.**
+  The natural way to build a rate limiter — log the failed attempt, then reject the request —
+  quietly does not work here: a single web request is one database transaction, and rejecting a
+  request rolls back everything that request did, including the very log entry meant to survive
+  it. The fix was to stop treating "this claim didn't work" as an error at all: the function
+  always completes normally and reports success or failure as a plain value in its response,
+  which is the one change that lets the failed-attempt count actually persist. It's the only RPC
+  in this whole system built this way, and it's built this way for a specific, provable reason,
+  not by accident.
 
 ## Web app
 

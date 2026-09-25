@@ -149,6 +149,20 @@ their table's columns unless noted.
   `illegal_transition`, never a second ticket.
 - `set_my_language(p_language text) returns profiles` — `p_language` must be `en`, `hi` or
   `pa`. Errors: `not_signed_in`, `invalid_language`.
+- `complete_my_profile(p_full_name text, p_phone text, p_date_of_birth date, p_gender
+  public.gender, p_city text, p_address_line text default null) returns profiles` — stamps
+  `profile_completed_at`. `p_phone` must be `+91` + a 10-digit number starting 6-9
+  (`^\+91[6-9][0-9]{9}$`), and unique among **patient** profiles (one phone can't back
+  several patient accounts). `p_gender` is `'female' | 'male' | 'other' | 'prefer_not'`.
+  Errors: `not_signed_in`, `invalid_phone`, `phone_taken`, `invalid_date_of_birth`.
+- `claim_offline_token(p_token_code text) returns claim_result` — see **Offline ticket
+  claim** below; this one does **not** follow the raise-on-error convention every other RPC
+  in this file uses.
+
+Every patient-facing write RPC that touches a real queue slot now also implicitly returns
+`profile_incomplete` (calls `private.require_complete_profile` right after the sign-in
+check) until `complete_my_profile` has been called once: `issue_token`, `book_appointment`,
+`check_in`, `claim_offline_token`.
 
 ### Staff
 
@@ -173,14 +187,161 @@ their table's columns unless noted.
 - `recall_token(p_token uuid) returns tokens` — re-calls a `no_show`/`skipped` ticket back to
   the same desk, or bumps `recall_count` on a `called` ticket (max 2). Errors: `forbidden`,
   `illegal_transition`, `not_found`.
+- `staff_register_walkin(p_full_name text, p_phone text, p_date_of_birth date, p_gender
+  public.gender, p_city text, p_service_id uuid, p_doctor_id uuid default null, p_lane
+  public.lane default 'normal', p_cash_received boolean default false, p_amount_override int
+  default null) returns tokens` — the cash desk's one call: find-or-creates a
+  `walkin_patients` row by `(org, phone)`, mints the ticket, and writes a `cash_receipts` row
+  if `p_cash_received`. Errors: `forbidden`, `service_closed`, `already_active` (this phone
+  already has a live ticket for this service), `queue_full`, `busy`.
+- `set_doctor_status(p_doctor uuid, p_status text, p_late_minutes int default null) returns
+  doctor_status` — staff or admin, own org only. `p_status` is `'available' |
+  'running_late' | 'on_break' | 'off'`; `p_late_minutes` required (and `> 0`) only for
+  `running_late`. Errors: `forbidden`, `not_found`, `invalid_status`.
+- `my_cash_today() returns table(id uuid, token_id uuid, doctor_id uuid, amount_inr int,
+  receipt_no text, refund_of uuid, reason text, created_at timestamptz)` — the calling
+  staff member's own receipts for the current service day, refunds included (negative
+  `amount_inr`).
 
 ### Admin
 
 - `set_member_role(p_user uuid, p_role user_role, p_org uuid) returns profiles` — Errors:
   `forbidden`, `illegal_transition` (can't demote the org's last admin).
+- `admin_upsert_doctor(p_id uuid, p_service_id uuid, p_name text, p_specialty text,
+  p_qualification text default null, p_room text default null, p_photo_url text default
+  null, p_fee_inr int default 0, p_active boolean default true) returns doctors` — `p_id
+  null` creates; any other value updates that doctor **iff** it belongs to the caller's own
+  org. Errors: `forbidden`, `not_found`.
+- `admin_upsert_doctor_schedule(p_id uuid, p_doctor_id uuid, p_weekday smallint, p_start_time
+  time, p_end_time time, p_max_patients int, p_slot_minutes int default 15) returns
+  doctor_schedules` / `admin_delete_doctor_schedule(p_id uuid) returns void` — a doctor can
+  hold multiple rows per weekday (multiple shifts a day); nothing dedupes overlapping shifts,
+  that's on the admin filling the form. Errors: `forbidden`, `not_found`.
+- `admin_upsert_doctor_break(p_id uuid, p_doctor_id uuid, p_weekday smallint, p_start_time
+  time, p_end_time time) returns doctor_breaks` / `admin_delete_doctor_break(p_id uuid)
+  returns void` — Errors: `forbidden`, `not_found`.
+- `admin_upsert_doctor_leave(p_id uuid, p_doctor_id uuid, p_from_date date, p_to_date date,
+  p_reason text default null) returns doctor_leaves` / `admin_delete_doctor_leave(p_id uuid)
+  returns void` — Errors: `forbidden`, `not_found`.
+- `admin_generate_doctor_slots(p_doctor_id uuid, p_from date, p_to date) returns int` —
+  (re)generates that doctor's `appointment_slots` for `[p_from, p_to]` from their current
+  schedule minus breaks/leaves; idempotent (`ON CONFLICT (doctor_id, starts_at) DO NOTHING`,
+  return value is the count of rows actually inserted this call, not the total). Call again
+  after any schedule/break/leave edit — it does not run itself. Errors: `forbidden`,
+  `not_found`.
+- `admin_refund_cash_receipt(p_receipt_id uuid, p_reason text) returns cash_receipts` —
+  inserts a new row with the exact negative of the original `amount_inr` and
+  `refund_of = p_receipt_id`; the original row is never touched (`cash_receipts` is
+  append-only, enforced by trigger, not just by grant). Refunding a refund is rejected.
+  Errors: `forbidden`, `not_found`, `already_refunded`.
+- `cash_report_by_staff(p_from date, p_to date) returns table(collected_by uuid, staff_name
+  text, receipt_count bigint, total_inr bigint)` / `cash_report_by_doctor(p_from date, p_to
+  date) returns table(doctor_id uuid, doctor_name text, receipt_count bigint, total_inr
+  bigint)` — own org only, `total_inr` nets refunds against their originals (a fully
+  refunded receipt contributes 0, not 2 rows). Errors: `forbidden`.
 
 Every RPC also implicitly returns `not_signed_in` (401) if called without a valid JWT, and
 `busy` (429, `Retry-After: 1`) if a second write for the same patient is already in flight.
+
+## Doctors & schedules
+
+`doctors` belongs to a `service_id`; `null` doctor on a token/appointment/slot means "any
+available doctor in this department", not "no doctor" — every RPC that threads `doctor_id`
+through treats those two states differently on purpose (`call_next` pulls a doctor-bound
+counter's own tickets **and** any-doctor tickets for its services; a doctor-bound counter
+never pulls a *different* doctor's ticket).
+
+A doctor can have several `doctor_schedules` rows for the same weekday (e.g. 09:00-13:00 and
+17:00-20:00) — there's deliberately no unique constraint stopping that. `appointment_slots`
+are generated from a doctor's schedule **minus** any `doctor_breaks`/`doctor_leaves`
+overlap, at `admin_generate_doctor_slots(doctor, from, to)`; this does not run itself on a
+timer or trigger off a schedule edit, so re-run it after changing a doctor's shifts.
+Capacity per slot is that shift's `max_patients`, not a fixed number.
+
+`doctor_status` (today's `available | running_late | on_break | off`) and `doctor_leaves` (a
+date range) are two separate mechanisms that don't derive from each other: a leave blocks
+slot generation for those days, but doesn't by itself flip `doctor_status_today` to `off` —
+an admin/staff member (or a seed script) sets both if a leave should also show as "off" on
+the patient-facing status view. `doctor_status_today` is a `security_invoker = on` view that
+reads back `available` for any row whose `day` isn't today's service day, so nothing needs a
+midnight reset job to clear yesterday's `running_late`.
+
+`private.generate_doctor_slots`/`admin_generate_doctor_slots` walk each schedule day with a
+`while` loop in `slot_minutes` steps, skip a slot start that overlaps any break, and skip the
+whole day if it falls inside a leave range — see `0039_doctor_aware_slots_and_tokens.sql` for
+the exact interval-overlap logic if extending it (e.g. per-slot leave ranges instead of
+whole-day).
+
+## Cash walk-in desk
+
+`staff_register_walkin` is the one call the desk needs: it finds-or-creates a
+`walkin_patients` row (no auth account — walk-ins don't sign in), mints the ticket, and
+writes a `cash_receipts` row when cash was actually collected. `walkin_patients` and
+`cash_receipts` have **no direct grant at all**, not even `select` to `authenticated` —
+every read goes through a `SECURITY DEFINER` function (`my_cash_today`,
+`cash_report_by_staff`, `cash_report_by_doctor`), same reasoning as `audit_log`.
+
+`cash_receipts` is **append-only**: `BEFORE UPDATE/DELETE/TRUNCATE` triggers reject every
+attempt unconditionally, even as `postgres` — this is enforced by the trigger, not by a
+grant, so it holds regardless of who's connected. A correction is a new row:
+`admin_refund_cash_receipt` inserts one with the exact negative amount and `refund_of` set,
+and refunding a refund is rejected (`cash_receipts_refund_shape` check constraint also blocks
+a raw negative-amount insert with no `refund_of`, belt and suspenders). Receipt numbers
+(`R-YYYYMMDD-0001`) are gapless per org per day via the same atomic-counter pattern as ticket
+numbers (`private.cash_receipt_days`, `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`).
+
+One phone can only hold one *active* walk-in ticket per service at a time
+(`tokens_one_active_walkin`, a partial unique index on `(walkin_patient_id, service_id)`) —
+`staff_register_walkin` surfaces that as `already_active` rather than minting a second
+ticket for someone who wandered back to the desk. The same phone can still get a walk-in
+ticket for a *different* service (the `walkin_patients` row is reused, per-org, not
+per-service).
+
+## Offline ticket claim
+
+`claim_offline_token(p_token_code text)` lets a patient who's now signed in link a paper
+walk-in ticket to their account — no secret code, elderly-friendly by design: it matches on
+the ticket's own `code` **and** the walk-in phone recorded when staff registered it against
+the caller's own verified profile phone. A wrong code and a right code with the wrong
+caller's phone come back as the exact same `error_code = 'claim_failed'` — deliberately: an
+attacker probing codes can't learn "that code doesn't exist" vs "that code exists but isn't
+yours" from the response.
+
+**This is the one RPC in the whole schema that does not raise for its own failure
+outcomes**, and that's load-bearing, not a style choice. PostgREST runs one HTTP request as
+one Postgres transaction; any `RAISE` that reaches the top rolls back *everything* in that
+transaction, including rows inserted earlier in the same function call. The 5-per-hour
+lockout needs its failed-attempt log (`private.claim_attempts`) to survive the very failure
+it's counting — a `RAISE`-based version genuinely cannot do that (proved empirically while
+building this: a first draft raised after logging, and the log rows never persisted; every
+`pnpm db:test` run showed 0 where 2-5 were expected). Autonomous transactions (`dblink`)
+were considered and rejected — a non-superuser `dblink` connection needs a live password in
+its connection string, and baking one into `CREATE FUNCTION`'s source would sit forever,
+in plaintext, in the queryable `pg_proc.prosrc` catalog.
+
+So `claim_offline_token` always returns normally, as a `claim_result` row:
+
+```sql
+create type public.claim_result as (
+  token public.tokens,       -- the claimed ticket, null on any failure
+  error_code text,           -- null on success, else one of the codes below
+  retry_after int            -- seconds, only set for too_many_attempts
+);
+```
+
+`error_code` values: `claim_failed` (no match, ambiguous match, or a right-code/wrong-phone
+match — all indistinguishable on purpose), `already_active` (caller already holds an active
+ticket for that same service — the normal per-service active-ticket limit, still enforced),
+`too_many_attempts` (5 failures from this account in the trailing hour; the rate-limit bounce
+itself is *not* logged as another attempt, or the lockout would never expire). Only the two
+true preconditions still use the normal `private.fail(...)` raise, since there's nothing to
+lose by rolling those back: `not_signed_in` (401) and `profile_incomplete`. Every attempt,
+success or failure, gets its own `audit_log` row regardless of which path it took.
+
+Client code: treat this RPC differently from every other one in this file — a non-2xx/error
+response means something actually broke (network, auth, a bug), while a normal 200 response
+with `error_code` set is the expected shape for "that didn't work," not an exception to
+catch.
 
 ## Analytics ("ask your data")
 
@@ -271,6 +432,12 @@ display). `tokens`, `appointments`, `notifications` are scoped to the caller's o
 staff/admin only. Admin/staff console views: `admin_service_today`, `admin_counter_today`,
 `admin_hourly`, `staff_queue_today`.
 
+`doctors`, `doctor_schedules`, `doctor_breaks`, `doctor_leaves`, `doctor_status_today` and
+`appointment_slots` are public `select` (`anon` + `authenticated`) — same pattern as
+`services`/`counters` — with all writes RPC-only (no insert/update/delete policy exists at
+all). `walkin_patients` and `cash_receipts` are the opposite: RLS on, **zero** grants to any
+role including `authenticated`, reachable only through the cash-desk RPCs above.
+
 ## Realtime subscriptions
 
 Subscribe to `postgres_changes`, `INSERT`/`UPDATE` only (queue tables are never deleted from
@@ -321,6 +488,12 @@ What it creates:
 - **Org/services/counters/appointment slots**: City Hospital (Demo), the four services
   (OPD/PED/ORT/PHA), six counters, their service links, staff-to-counter assignments, and
   15-minute appointment slots for today and tomorrow.
+- **Doctors**: 2-3 per service, realistic names/specialties, a 09:00-13:00 and a 17:00-20:00
+  shift each (Mon-Sat) plus a short mid-morning break, with their own `appointment_slots`
+  generated from those shifts. Dr. Neha Sharma (OPD) is seeded `running_late` by 20 minutes;
+  Dr. Kavita Reddy (ORT) is seeded on leave (`doctor_leaves` + `doctor_status = 'off'`) —
+  both restamped to the current service day by `demo-reset.sh` too, so either script can be
+  rerun on a later calendar day without going stale.
 - **14 days of synthetic history**: thousands of realistic completed/no-show tickets across
   the four services, walked through the real state machine (`waiting`→`called`→`serving`→
   `done`, or `→no_show`) with realistic timestamps — this is what gives `avg_service_secs`
