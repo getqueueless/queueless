@@ -93,3 +93,81 @@ passed on prod, same as it does locally:
   against prod (LLM output isn't deterministic; the real guarantee is
   `app/analytics.py::call_analytics`'s independent whitelist check, which
   doesn't depend on what DeepSeek says).
+
+## Addendum, 2026-09-27 — the real hole this run missed
+
+The 2026-09-26 run above only exercised `apps/api`'s own HTTP surface. It
+never fired a single request straight at PostgREST (Kong → PostgREST,
+`{SUPABASE_URL}/rest/v1/<table>`), which is reachable with just the anon
+key or any signed JWT — apps/api's own routes were never the only way in.
+That gap is what missed this.
+
+### The finding
+
+Checked directly against the live database (`pg_class.relrowsecurity` +
+`information_schema.role_table_grants` on prod, not guessed from
+migrations): **`appointments`, `audit_log`, `notifications`, and `tokens`
+had row-level security *disabled* while still holding real `SELECT`
+grants** for `anon` and/or `authenticated`. RLS-off plus a grant means the
+grant applies fully unfiltered:
+
+| Table | Grant holder | Real impact |
+|---|---|---|
+| `tokens` | `anon` **and** `authenticated` | Every patient's queue ticket (`patient_id`, `org_id`, status, timestamps) readable by anyone at all — **no sign-in required** |
+| `notifications` | `authenticated` | Any signed-in user (any real or self-minted JWT, patient role or not) could read every other patient's notification bodies |
+| `appointments` | `authenticated` | Any signed-in user could read every other patient's appointment bookings |
+| `audit_log` | `authenticated` | Any signed-in user could read the entire admin audit log across every org |
+
+Verified live, minimal-field, single throttled call per table (not a full
+row dump):
+
+```
+GET /rest/v1/tokens?select=id,patient_id,org_id&limit=1   (apikey: anon, no Authorization)
+→ 200 [{"id":"8e62ae28-...","patient_id":"a0d0331a-...","org_id":"94c8a0e1-..."}]
+```
+
+`organizations`, `services`, `counters`, `board_services`, `board_counters`,
+`push_tokens`, `profiles`, and `counter_services` — the other tables that
+also hold a real write grant for `authenticated` — were all confirmed to
+still have RLS **enabled**, with policies gating writes to the admin role
+or the row's own owner (`private.my_role() = 'admin'`, `id = auth.uid()`,
+etc). Not part of this hole.
+
+### The fix
+
+`supabase/migrations/0046` (Hackathon database team) — re-enables RLS on
+the four tables above. *(This line updates once 0046 actually lands and
+is re-verified; not yet applied as of this addendum.)*
+
+### What now catches it permanently
+
+`apps/api/scripts/attack_test.py` gained a direct-PostgREST table access
+sweep (section 14): every public table × (anon key, a real-but-unrelated
+patient JWT) × select/insert/update/delete, built around filters that can
+never match a real row so a still-broken table is caught without
+mutating production data. Confirmed live against prod *before* the fix —
+it correctly reproduces exactly the five broken checks matching the table
+above (`tokens` for both anon and patient, `notifications`/`appointments`/
+`audit_log` for patient) and nothing else:
+
+```
+[FAIL] table_sweep_no_cross_identity_read[tokens/anon] -- got 200: [{"id":"0b1b204c-..."}]
+[FAIL] table_sweep_no_cross_identity_read[tokens/patient] -- got 200: [{"id":"0b1b204c-..."}]
+[FAIL] table_sweep_no_cross_identity_read[notifications/patient] -- got 200: [{"id":"79c60015-..."}]
+[FAIL] table_sweep_no_cross_identity_read[appointments/patient] -- got 200: [{"id":"573d3738-..."}]
+[FAIL] table_sweep_audit_log_invisible[patient] -- got 200: [{"id":1}]
+
+176/182 passed
+```
+
+(A 6th failure this run, `no_auth_header_401[/admin/retrain] -- got 429`,
+is self-inflicted test interference, not a finding — `/admin/retrain` is
+limited to 1 request per 10 minutes per IP, and this script was run
+against prod three times in under 20 minutes while building the sweep,
+each run touching that route twice. Resolves on its own once 10 minutes
+pass between runs.)
+
+### Re-test after 0046 — pending
+
+*(To fill in once `supabase/migrations/0046` lands on `origin/main` and
+this session re-runs the sweep against prod.)*
