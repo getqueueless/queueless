@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { isCheckInWindow } from '@/lib/appointmentWindow';
 import { doctorStatusLabel, fetchDoctor, formatFee, type DoctorWithStatus } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
+import { startPaidBooking } from '@/lib/paid-booking';
 import { supabase } from '@/lib/supabase';
 import { useRequireCompleteProfile } from '@/lib/use-require-complete-profile';
 
@@ -36,6 +37,7 @@ export default function DoctorDetail() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
 
   async function load() {
     if (!doctorId) return;
@@ -85,6 +87,24 @@ export default function DoctorDetail() {
     if (error) setActionError(mapSupabaseError({ code: error.code, message: error.message }));
     await load();
     setPendingId(null);
+  }
+
+  // Book & pay: skips the slot list entirely -- a token minted right now, paid online, no
+  // appointment slot involved (a separate flow from Book/Check-in/Cancel above, same split the
+  // web app's /my page uses between "Take a token" and appointment booking).
+  async function handlePayBooking() {
+    if (!doctorId) return;
+    setActionError(null);
+    setPayBusy(true);
+    const result = await startPaidBooking(doctorId);
+    setPayBusy(false);
+    if (!result.ok) {
+      setActionError(result.error);
+      return;
+    }
+    if (result.paid) {
+      router.push({ pathname: '/(app)/token/[id]', params: { id: result.tokenId } });
+    }
   }
 
   async function handleCancel(appt: Appointment) {
@@ -152,6 +172,18 @@ export default function DoctorDetail() {
               <ThemedText type="caption" themeColor="inkMuted">
                 {doctor.todayShifts.length > 0 ? `Today: ${doctor.todayShifts.join(', ')}` : 'No shifts scheduled today'}
               </ThemedText>
+              <Pressable
+                disabled={payBusy}
+                onPress={handlePayBooking}
+                style={[styles.button, styles.payButton, { backgroundColor: theme.primary, opacity: payBusy ? 0.6 : 1 }]}>
+                {payBusy ? (
+                  <ActivityIndicator color={theme.onPrimary} />
+                ) : (
+                  <ThemedText type="button" themeColor="onPrimary">
+                    Book & pay
+                  </ThemedText>
+                )}
+              </Pressable>
             </ThemedView>
 
             <ThemedText type="headingSm" style={styles.sectionLabel}>
@@ -240,6 +272,7 @@ const styles = StyleSheet.create({
   list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
   profileCard: { borderWidth: 1, borderRadius: Rounded.xl, padding: Spacing.lg, gap: Spacing.xxs },
   profileMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.xs },
+  payButton: { marginTop: Spacing.sm, alignSelf: 'flex-start' },
   sectionLabel: { marginTop: Spacing.sm },
   slotCard: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.lg, gap: Spacing.sm },
   actions: { flexDirection: 'row', gap: Spacing.xs },
