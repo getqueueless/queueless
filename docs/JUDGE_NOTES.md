@@ -1029,3 +1029,19 @@ under "Web app" above.
   come from the symbol set the app already ships. A hidden gallery screen shows every piece in
   both themes, which is how the team checks new screens against the kit.
 
+
+## Landing, round 2: phone-first actions, three steps, live numbers
+
+- **One job per button.** The hero leads with "Take a token" (signs you in, then lands on your
+  page where you take one) and "Check status". On phones, once those scroll away, the same two
+  buttons ride in a bar at the bottom of the screen; it stays hidden and unfocusable until then.
+  Every control on the page is at least 48x48 px at a 390 px phone width (measured, not assumed),
+  apart from links inside sentences.
+- **How it works** is three steps: take a token, wait anywhere, get called.
+- **"Right now" strip.** Tokens seen today and counters open come straight from the public board
+  tables the TV screen reads. The middle number is an estimate and is labelled "Est. wait now":
+  no public table records how long people actually waited, so it is computed from real numbers,
+  per service with a queue: people waiting x that service's rolling average visit length / its
+  open counters, averaged across services. If nobody is waiting it says "No wait"; if no queue
+  can be estimated it says "Not yet" instead of guessing. The strip refreshes every 10 seconds.
+  A real measured average wait would need a new column on the board table (a database change).
