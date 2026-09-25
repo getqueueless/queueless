@@ -1,0 +1,219 @@
+name: iOS SideStore build
+
+# Unsigned iOS IPA for SideStore/AltStore sideloading. No Apple Developer account or signing
+# credentials are used anywhere here — CODE_SIGNING_ALLOWED=NO produces an unsigned .app;
+# SideStore does its own on-device signing with the user's Apple ID at install time.
+#
+# Public repo -> free macOS runners (github.com/pricing, "GitHub-hosted runners").
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/ios-sidestore.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+# One build at a time per ref -- a second push while one is archiving would otherwise race it
+# for the same release tag (build number = run_number, so two concurrent runs would each think
+# they own a different one, but the release-create step below is not safe to run twice at once
+# regardless). Never cancel a build already producing a release asset mid-upload.
+concurrency:
+  group: ios-sidestore-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select a recent Xcode
+        run: |
+          set -euo pipefail
+          echo "Installed Xcode versions:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then
+            LATEST=/Applications/Xcode.app
+          fi
+          sudo xcode-select -s "$LATEST/Contents/Developer"
+          xcodebuild -version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@12.6.0 --activate
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve version + build number
+        id: ver
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./app.json').expo.version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Building Queueless $VERSION (build ${{ github.run_number }})"
+
+      - name: Expo prebuild (iOS)
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+          CI: "1"
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: apps/mobile/ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('apps/mobile/ios/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      - name: pod install
+        working-directory: apps/mobile/ios
+        run: pod install --repo-update
+
+      - name: Discover workspace + scheme
+        id: xc
+        working-directory: apps/mobile/ios
+        run: |
+          set -euo pipefail
+          WORKSPACE=$(ls *.xcworkspace | head -1)
+          # First scheme xcodebuild reports for a fresh Expo prebuild is the app itself (Pods has
+          # no scheme of its own) -- don't hardcode "Queueless", the app.json `name` this is
+          # derived from could change without this workflow being touched.
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list 2>/dev/null | awk '/Schemes:/{flag=1;next} flag && NF {print; exit}' | xargs)
+          if [ -z "$WORKSPACE" ] || [ -z "$SCHEME" ]; then
+            echo "::error::Could not determine workspace/scheme from 'xcodebuild -list'" >&2
+            exit 1
+          fi
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "Workspace: $WORKSPACE / Scheme: $SCHEME"
+
+      - name: Archive (unsigned)
+        working-directory: apps/mobile/ios
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace "${{ steps.xc.outputs.workspace }}" \
+            -scheme "${{ steps.xc.outputs.scheme }}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/Queueless.xcarchive" \
+            -destination "generic/platform=iOS" \
+            MARKETING_VERSION="${{ steps.ver.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.ver.outputs.build }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
+
+      - name: Package IPA
+        id: ipa
+        run: |
+          set -euo pipefail
+          IPA_NAME="Queueless-${{ steps.ver.outputs.version }}-${{ steps.ver.outputs.build }}.ipa"
+          APP_PATH=$(find "$RUNNER_TEMP/Queueless.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::No .app found in the archive's Products/Applications" >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
+          (cd "$RUNNER_TEMP" && zip -qr "$GITHUB_WORKSPACE/$IPA_NAME" Payload)
+          SIZE=$(stat -f%z "$IPA_NAME")
+          echo "ipa_name=$IPA_NAME" >> "$GITHUB_OUTPUT"
+          echo "ipa_size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "IPA: $IPA_NAME ($SIZE bytes)"
+
+      - name: Build sidestore-source.json + icon
+        id: source
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          BUILD: ${{ steps.ver.outputs.build }}
+          IPA_NAME: ${{ steps.ipa.outputs.ipa_name }}
+          IPA_SIZE: ${{ steps.ipa.outputs.ipa_size }}
+          RUN_ID: ${{ github.run_id }}
+          # Configurable so distribution can move to a custom domain (e.g. lpu.lol/ios/) later
+          # by setting this one repo variable -- no workflow change needed. Defaults to the
+          # GitHub Release asset URL, which works today with zero extra infrastructure.
+          BASE_URL: ${{ vars.IOS_PUBLIC_BASE_URL }}
+        run: |
+          set -euo pipefail
+          cp apps/mobile/assets/images/icon.png icon.png
+
+          if [ -z "$BASE_URL" ]; then
+            BASE_URL="https://github.com/${{ github.repository }}/releases/download/ios-${BUILD}"
+          fi
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          node -e '
+            const fs = require("fs");
+            const [, , baseUrl, version, build, ipaName, ipaSize, date] = process.argv;
+            const source = {
+              name: "Queueless",
+              identifier: "xyz.lpu.queueless.source",
+              apps: [
+                {
+                  name: "Queueless",
+                  bundleIdentifier: "com.queueless.mobile",
+                  developerName: "Queueless team",
+                  subtitle: "Take a token. Leave the line.",
+                  localizedDescription:
+                    "Queueless: a smart public-service queue app. Take a token, watch your live position, get called when it is your turn.",
+                  iconURL: `${baseUrl}/icon.png`,
+                  tintColor: "0cb7d6",
+                  versions: [
+                    {
+                      version,
+                      buildVersion: build,
+                      date,
+                      size: Number(ipaSize),
+                      downloadURL: `${baseUrl}/${ipaName}`,
+                      minOSVersion: "15.1",
+                    },
+                  ],
+                },
+              ],
+            };
+            fs.writeFileSync("sidestore-source.json", JSON.stringify(source, null, 2) + "\n");
+          ' "$BASE_URL" "$VERSION" "$BUILD" "$IPA_NAME" "$IPA_SIZE" "$DATE"
+
+          cat sidestore-source.json
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="ios-${{ steps.ver.outputs.build }}"
+          gh release create "$TAG" \
+            "${{ steps.ipa.outputs.ipa_name }}" \
+            sidestore-source.json \
+            icon.png \
+            --repo "${{ github.repository }}" \
+            --title "iOS build ${{ steps.ver.outputs.version }} (${{ steps.ver.outputs.build }})" \
+            --notes "Unsigned IPA for SideStore/AltStore. Add \`sidestore-source.json\`'s raw URL as a source in SideStore, or install this release's .ipa directly via SideStore's \"Import from Files\"/AirDrop flow. Built from ${{ github.sha }}."
