@@ -1,5 +1,5 @@
 begin;
-select plan(24);
+select plan(28);
 
 insert into public.organizations (id, slug, name, timezone) values
   ('a0000000-0000-0000-0000-000000000180', 't-180-a', 'Payments Org A', 'Asia/Kolkata'),
@@ -39,8 +39,15 @@ select is_empty(
 select is(relrowsecurity, true, 'payments has RLS on') from pg_class where oid = 'public.payments'::regclass;
 select is_empty(
   $$ select grantee::text from information_schema.role_table_grants
-     where table_schema = 'public' and table_name = 'payments' and grantee in ('anon', 'authenticated') $$,
-  'payments has no direct table grant to anon or authenticated'
+     where table_schema = 'public' and table_name = 'payments' and grantee = 'anon' $$,
+  'payments has no direct table grant to anon'
+);
+-- authenticated DOES get select (0053) -- gated by the payments_admin_read RLS policy tested
+-- further down, not by the grant alone.
+select is(
+  (select count(*)::int from information_schema.role_table_grants
+     where table_schema = 'public' and table_name = 'payments' and grantee = 'authenticated' and privilege_type = 'SELECT'),
+  1, 'authenticated has exactly a select grant on payments, RLS-gated'
 );
 
 set local role authenticated;
@@ -163,6 +170,32 @@ select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-
 select ok(
   exists(select 1 from public.payments_ledger_report(current_date - 1, current_date + 1) where reference = 'pay_180' and status = 'refunded'),
   'org A''s own admin sees the (now refunded) online payment in the unified ledger'
+);
+reset role;
+
+-- 0053: an admin can now read their own org's payments directly (RLS), not just through
+-- payments_ledger_report -- same org isolation, checked against the raw table this time.
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000181', 'role', 'authenticated')::text, true);
+select ok(
+  exists(select 1 from public.payments where razorpay_order_id = 'order_180'),
+  'org A''s own admin can read the payments row directly'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000182', 'role', 'authenticated')::text, true);
+select is(
+  (select count(*)::int from public.payments where razorpay_order_id = 'order_180'),
+  0, 'org B''s admin cannot read org A''s payments row directly'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000180', 'role', 'authenticated')::text, true);
+select is(
+  (select count(*)::int from public.payments where razorpay_order_id = 'order_180'),
+  0, 'the patient who paid cannot read the payments row directly -- admin-only, not owner-read'
 );
 reset role;
 
