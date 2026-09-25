@@ -21,17 +21,21 @@ Registers an Expo push token for the signed-in user. `204` on success.
 
 ## `POST /predict`
 
-Returns a predicted wait in minutes for the fixed 5-service Hospital OPD demo preset. No auth.
+Returns a predicted wait in minutes for one real service. No auth.
 
-- Body: `{"service": "general_opd"|"pediatrics"|"ortho"|"dental"|"eye", "hour": 0-23, "weekday": 0-6 (0=Monday, matches apps/api/scripts/generate_training_data.py — NOT JS Date#getDay()'s 0=Sunday), "queue_len_ahead": 0-500, "counters_open": 1-50}`
+- Body: `{"service_id": "<real services.id UUID>", "hour": 0-23, "weekday": 0-6 (0=Monday, matches apps/api/scripts/generate_training_data.py — NOT JS Date#getDay()'s 0=Sunday), "queue_len_ahead": 0-500, "counters_open": 1-50}`
 - Response: `{"predicted_wait_minutes": <float>, "fallback": <bool>, "reason": <string|null>}`
-- Mobile maps `services.name` → one of the 5 slugs with a best-effort substring match
-  (`matchServiceSlug` in `index.tsx`) since there's no confirmed slug column on `services` yet
-  (migrations hadn't landed while this was written). If a service's name doesn't match any known
-  slug, mobile skips the call entirely and uses its local estimate — never sends a guessed value.
-- Any non-2xx, timeout, or unmatched service name → the client falls back to computing an
-  estimate directly from `board_services` (`waiting_count * avg_service_secs / max(open_counters,
-  1)`), labeled "estimate" instead of "predicted".
+- `service_id` must exist in `board_services` for today (`queueless_api`'s DB role has no grant
+  on `services` itself) — a 404 (`unknown service_id for today`) is expected and harmless for a
+  service with no board row yet, same as any other non-2xx below.
+- **Superseded contract, noted for history:** an earlier version of this route took a fixed
+  5-slug `service` string (`general_opd`/`pediatrics`/`ortho`/`dental`/`eye`) instead of a real
+  `service_id` — mobile originally guessed a slug from `services.name`. That's gone; both mobile
+  (`(app)/(tabs)/index.tsx`) and web (`apps/web/src/app/admin/_lib/predict.ts`,
+  `apps/web/src/app/t/[id]/predict.ts`) now send `service_id` directly.
+- Any non-2xx, timeout, or missing API URL → the client falls back to computing an estimate
+  directly from `board_services` (`waiting_count * avg_service_secs / max(open_counters, 1)`),
+  labeled "estimate" instead of "predicted".
 
 ## Local dev
 

@@ -28,27 +28,6 @@ function todayDateString(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// apps/api's /predict only knows this fixed 5-service Hospital OPD demo preset (see
-// apps/api/app/routes/predict.py's Service Literal) — it takes a slug, not services.id, and
-// there's no confirmed slug column on `services` yet, so match by name as a best effort.
-const SERVICE_SLUGS: Record<string, string> = {
-  general: 'general_opd',
-  opd: 'general_opd',
-  pediatric: 'pediatrics',
-  paediatric: 'pediatrics',
-  ortho: 'ortho',
-  dental: 'dental',
-  eye: 'eye',
-};
-
-function matchServiceSlug(name: string): string | null {
-  const lower = name.toLowerCase();
-  for (const [needle, slug] of Object.entries(SERVICE_SLUGS)) {
-    if (lower.includes(needle)) return slug;
-  }
-  return null;
-}
-
 function formatWait(seconds: number): string {
   if (seconds <= 0) return 'No wait';
   if (seconds < 60) return '< 1 min';
@@ -71,8 +50,7 @@ function ServiceCard({
   // Best-effort prediction upgrade — never blocks first paint, which already shows localEstimate.
   useEffect(() => {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-    const slug = matchServiceSlug(service.name);
-    if (!apiUrl || !slug) return;
+    if (!apiUrl) return;
     let cancelled = false;
 
     const now = new Date();
@@ -83,7 +61,7 @@ function ServiceCard({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        service: slug,
+        service_id: service.id,
         hour: now.getHours(),
         weekday,
         queue_len_ahead: boardRow.waiting_count,
@@ -98,7 +76,7 @@ function ServiceCard({
         }
       })
       .catch(() => {
-        // Any failure/timeout/missing URL/unrecognized service name — the local estimate
+        // Any failure/timeout/missing URL/unknown-for-today service — the local estimate
         // already on screen is enough.
       });
 
