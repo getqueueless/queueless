@@ -1,15 +1,17 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, AppState, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QueueTracker } from '@/components/motion/QueueTracker';
 import { useEtaAtJoin, useNowServing } from '@/components/motion/use-queue-extras';
 import { PriorityInfoCard } from '@/components/PriorityInfoCard';
+import { Button, EmptyState, Skeleton, Tones, UIText, gradient, toneFor } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { CardShadow, Spacing } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFee } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
@@ -69,6 +71,7 @@ export default function TokenScreen() {
   const serviceId = Array.isArray(params.serviceId) ? params.serviceId[0] : params.serviceId;
   const router = useRouter();
   const theme = useTheme();
+  const dark = useColorScheme() === 'dark';
 
   const [status, setStatus] = useState<QueueStatus | null>(null);
   // Derived straight from the route param at first render, not via an effect + setState, so
@@ -219,8 +222,10 @@ export default function TokenScreen() {
   if (loading) {
     return (
       <ThemedView type="canvasSoft" style={styles.container}>
-        <SafeAreaView style={styles.center} edges={['bottom', 'left', 'right']}>
-          <ActivityIndicator size="large" color={theme.primary} />
+        <SafeAreaView style={styles.content} edges={['bottom', 'left', 'right']} accessibilityLabel="Loading your ticket">
+          <Skeleton height={132} radius={20} />
+          <Skeleton width={144} height={144} radius={72} style={styles.centerSelf} />
+          <Skeleton height={56} radius={16} />
         </SafeAreaView>
       </ThemedView>
     );
@@ -230,36 +235,35 @@ export default function TokenScreen() {
     return (
       <ThemedView type="canvasSoft" style={styles.container}>
         <SafeAreaView style={styles.center} edges={['bottom', 'left', 'right']}>
-          <View
-            style={[styles.errorCard, { backgroundColor: theme.surface, borderColor: theme.hairline }, CardShadow]}>
-            <ThemedText type="headingMd" style={styles.centerText}>
-              {errorMsg ?? "We couldn't find that ticket."}
-            </ThemedText>
-            <Pressable
-              onPress={() => router.back()}
-              style={[styles.secondaryButton, { borderColor: theme.primaryOutline }]}>
-              <ThemedText type="button">Go back</ThemedText>
-            </Pressable>
-          </View>
+          <EmptyState
+            icon={{ ios: 'ticket', android: 'confirmation_number', web: 'confirmation_number' }}
+            title={errorMsg ? "Couldn't open this ticket" : 'Ticket not found'}
+            text={errorMsg ?? "We couldn't find that ticket."}
+            action={{ label: 'Go back', onPress: () => router.back() }}
+          />
         </SafeAreaView>
       </ThemedView>
     );
   }
 
   const isTerminal = TERMINAL_STATUSES.has(status.status);
+  // The ticket wears its department's tone, the same one as the department's tile on Home.
+  const tone = Tones[toneFor(status.service_name)][dark ? 'dark' : 'light'];
 
   return (
     <ThemedView type="canvasSoft" style={styles.container}>
       <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content}>
           <View
-            style={[styles.tokenCard, { backgroundColor: theme.surface, borderColor: theme.hairline }, CardShadow]}>
-            <ThemedText type="tokenNumber" style={styles.tokenCode}>
+            style={[styles.tokenCard, gradient(tone.from, tone.to), CardShadow]}
+            accessible
+            accessibilityLabel={`Token ${status.code}, ${status.service_name}`}>
+            <ThemedText type="tokenNumber" style={styles.centerText}>
               {status.code}
             </ThemedText>
-            <ThemedText type="body" themeColor="inkSecondary" style={styles.centerText}>
+            <UIText variant="bodyStrong" style={styles.centerText}>
               {status.service_name}
-            </ThemedText>
+            </UIText>
           </View>
 
           <QueueTracker
@@ -273,56 +277,34 @@ export default function TokenScreen() {
           />
 
           {holdSecondsLeft > 0 ? (
-            <View style={[styles.holdBanner, { backgroundColor: theme.successSoft, borderColor: theme.success }]}>
-              <ThemedText type="headingSm" themeColor="success" style={styles.centerText}>
+            <View style={[styles.holdBanner, { backgroundColor: theme.successSoft }]}>
+              <UIText variant="bodyStrong" color="success" style={styles.centerText}>
                 Payment received
-              </ThemedText>
-              <ThemedText type="bodySm" themeColor="inkSecondary" style={styles.centerText}>
+              </UIText>
+              <UIText variant="secondary" style={styles.centerText}>
                 Your slot is held for {Math.floor(holdSecondsLeft / 60)}:{String(holdSecondsLeft % 60).padStart(2, '0')}
-              </ThemedText>
+              </UIText>
             </View>
           ) : !isTerminal && feeInr != null && feeInr > 0 ? (
-            <Pressable
-              onPress={handleBookAndPay}
-              disabled={paying}
-              style={[styles.payButton, { backgroundColor: theme.primary, opacity: paying ? 0.6 : 1 }]}>
-              {paying ? (
-                <ActivityIndicator color={theme.onPrimary} />
-              ) : (
-                <ThemedText type="button" themeColor="onPrimary">
-                  Book &amp; pay {formatFee(feeInr)}
-                </ThemedText>
-              )}
-            </Pressable>
+            <Button label={`Book & pay ${formatFee(feeInr)}`} onPress={handleBookAndPay} loading={paying} block />
           ) : null}
 
           {payError ? (
-            <ThemedText type="bodySm" themeColor="danger" style={styles.centerText}>
+            <UIText variant="secondary" color="danger" style={styles.centerText}>
               {payError}
-            </ThemedText>
+            </UIText>
           ) : null}
 
           <PriorityInfoCard />
 
           {cancelError ? (
-            <ThemedText type="bodySm" themeColor="danger" style={styles.centerText}>
+            <UIText variant="secondary" color="danger" style={styles.centerText}>
               {cancelError}
-            </ThemedText>
+            </UIText>
           ) : null}
 
           {status.status === 'waiting' ? (
-            <Pressable
-              onPress={confirmCancel}
-              disabled={cancelling}
-              style={[styles.cancelButton, { backgroundColor: theme.dangerSoft, opacity: cancelling ? 0.6 : 1 }]}>
-              {cancelling ? (
-                <ActivityIndicator color={theme.danger} />
-              ) : (
-                <ThemedText type="button" themeColor="danger">
-                  Cancel ticket
-                </ThemedText>
-              )}
-            </Pressable>
+            <Button label="Cancel ticket" variant="danger" size="md" onPress={confirmCancel} loading={cancelling} style={styles.centerSelf} />
           ) : null}
         </ScrollView>
       </SafeAreaView>
@@ -333,54 +315,16 @@ export default function TokenScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.lg, gap: Spacing.md },
+  center: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.lg },
   centerText: { textAlign: 'center' },
-  content: { padding: Spacing.lg, alignItems: 'center', gap: Spacing.lg },
+  centerSelf: { alignSelf: 'center' },
+  content: { padding: 20, gap: 20 },
   tokenCard: {
-    alignSelf: 'stretch',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: Rounded.xl,
+    borderRadius: 20,
     paddingVertical: Spacing.xl,
     paddingHorizontal: Spacing.lg,
     gap: Spacing.xs,
   },
-  tokenCode: { textAlign: 'center' },
-  holdBanner: {
-    alignSelf: 'stretch',
-    borderWidth: 1,
-    borderRadius: Rounded.xl,
-    padding: Spacing.md,
-    gap: Spacing.xxs,
-  },
-  payButton: {
-    alignSelf: 'stretch',
-    minHeight: 48,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    alignSelf: 'stretch',
-    minHeight: 48,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderRadius: Rounded.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  errorCard: {
-    alignItems: 'center',
-    gap: Spacing.md,
-    borderWidth: 1,
-    borderRadius: Rounded.xl,
-    padding: Spacing.xl,
-  },
+  holdBanner: { borderRadius: 16, padding: Spacing.md, gap: Spacing.xxs },
 });
