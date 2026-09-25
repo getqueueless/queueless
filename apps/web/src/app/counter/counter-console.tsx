@@ -1,0 +1,354 @@
+"use client"
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ERRORS, errorInfo } from "@queueless/db"
+
+import { createClient } from "@/lib/supabase/client"
+import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
+import { ACTIVE_TOKEN_STATUSES, type CounterRow, type Lane, type TokenRow } from "./types"
+import styles from "./counter.module.css"
+
+type Banner = { kind: "error" | "info"; text: string } | null
+
+const LANE_LABELS: Record<Lane, string> = {
+  emergency: "Emergency",
+  senior: "Senior",
+  pregnant: "Pregnant",
+  appointment: "Appointment",
+  normal: "Normal",
+}
+
+// RPC errors surface as PostgrestError, but a self-hosted Postgres exception
+// (`raise exception 'counter_busy'`) can land its semantic code as either
+// `.code` or `.message` depending on how the DB agent's function raises it --
+// same shape as apps/mobile/src/lib/errors.ts's mapSupabaseError, kept local
+// here since apps/mobile and apps/web can't import across app boundaries.
+const KNOWN_CODES = new Set(Object.keys(ERRORS))
+function mapSupabaseError(error: { code?: string; message?: string } | null | undefined): string {
+  if (!error) return errorInfo("network_error").message
+  const code = error.code && KNOWN_CODES.has(error.code) ? error.code : undefined
+  const fromMessage =
+    !code && error.message && KNOWN_CODES.has(error.message) ? error.message : undefined
+  return errorInfo(code ?? fromMessage ?? "network_error").message
+}
+
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+}
+
+export function CounterConsole({
+  counter,
+  otherCounters,
+  initialToken,
+  serviceLabel,
+  staffName,
+}: {
+  counter: CounterRow
+  otherCounters: CounterRow[]
+  initialToken: TokenRow | null
+  serviceLabel: string
+  staffName: string
+}) {
+  const supabase = useMemo(() => createClient(), [])
+  const [current, setCurrent] = useState<TokenRow | null>(initialToken)
+  const [banner, setBanner] = useState<Banner>(null)
+  const [pending, setPending] = useState(false)
+  const [transferTarget, setTransferTarget] = useState("")
+  const [now, setNow] = useState(() => Date.now())
+  const pendingRef = useRef(false)
+
+  // One-second ticker for the "since call started" timer, only while there's
+  // something to time.
+  useEffect(() => {
+    if (!current?.called_at) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [current?.called_at])
+
+  const elapsedLabel = current?.called_at
+    ? formatElapsed(Math.max(0, Math.floor((now - new Date(current.called_at).getTime()) / 1000)))
+    : "00:00"
+
+  const run = useCallback(async (action: () => Promise<void>) => {
+    if (pendingRef.current) return
+    pendingRef.current = true
+    setPending(true)
+    setBanner(null)
+    try {
+      await action()
+    } finally {
+      pendingRef.current = false
+      setPending(false)
+    }
+  }, [])
+
+  // GOLDEN RULE: every mutation is an RPC -- call_next/mark_done/mark_no_show/
+  // recall_token/transfer_token own queue ordering and state transitions.
+  // None of these Postgres functions have landed in supabase/migrations yet
+  // (only private.handle_new_user/forbid_audit_log_mutation/fail/service_day
+  // exist there today), so each call is expected to fail with PGRST202
+  // ("server updating, retry shortly") until the DB agent ships them --
+  // handled the same as any other mapped error, not a special case.
+  const callNext = useCallback(async () => {
+    await run(async () => {
+      const { data, error } = await supabase.rpc("call_next", { counter_id: counter.id })
+      if (error) {
+        setBanner({ kind: "error", text: mapSupabaseError(error) })
+        return
+      }
+      if (!data) {
+        setBanner({ kind: "info", text: "No one waiting." })
+        return
+      }
+      setCurrent(data as TokenRow)
+    })
+  }, [counter.id, run, supabase])
+
+  const markDone = useCallback(async () => {
+    if (!current) return
+    await run(async () => {
+      const { error } = await supabase.rpc("mark_done", { token_id: current.id })
+      if (error) {
+        setBanner({ kind: "error", text: mapSupabaseError(error) })
+        return
+      }
+      setCurrent(null)
+    })
+  }, [current, run, supabase])
+
+  const markNoShow = useCallback(async () => {
+    if (!current) return
+    await run(async () => {
+      const { error } = await supabase.rpc("mark_no_show", { token_id: current.id })
+      if (error) {
+        setBanner({ kind: "error", text: mapSupabaseError(error) })
+        return
+      }
+      setCurrent(null)
+    })
+  }, [current, run, supabase])
+
+  const recall = useCallback(async () => {
+    if (!current) return
+    const code = current.code
+    await run(async () => {
+      const { data, error } = await supabase.rpc("recall_token", { token_id: current.id })
+      if (error) {
+        setBanner({ kind: "error", text: mapSupabaseError(error) })
+        return
+      }
+      setCurrent((data as TokenRow | null) ?? current)
+      setBanner({ kind: "info", text: `Recalled ${code}.` })
+    })
+  }, [current, run, supabase])
+
+  const transfer = useCallback(async () => {
+    if (!current || !transferTarget) return
+    await run(async () => {
+      const { error } = await supabase.rpc("transfer_token", {
+        token_id: current.id,
+        target_counter_id: transferTarget,
+      })
+      if (error) {
+        setBanner({ kind: "error", text: mapSupabaseError(error) })
+        return
+      }
+      setCurrent(null)
+      setTransferTarget("")
+    })
+  }, [current, transferTarget, run, supabase])
+
+  // Realtime: a second screen open on this same counter (a supervisor view, a
+  // second tab) sees calls/done/no-show/recall/transfer without a refresh.
+  // ponytail: this only reacts to updates where counter_id already equals (or
+  // becomes) this counter -- a transfer OUT that a *different* client
+  // initiates updates counter_id to the target, so this filter never matches
+  // that specific row change, and this screen won't auto-clear from it. Not a
+  // gap for the spec'd case (this desk's own actions always resolve locally
+  // via the RPC's response, above); upgrade to a broader `service_id=eq.`
+  // filter if cross-counter visibility into "my token got pulled away" turns
+  // out to matter for the demo.
+  const handleTokenEvent = useCallback((payload: { new?: TokenRow | null }) => {
+    const row = payload?.new
+    if (!row || !row.id) return
+    setCurrent((prev) => {
+      if (ACTIVE_TOKEN_STATUSES.includes(row.status)) return row
+      if (prev && prev.id === row.id) return null
+      return prev
+    })
+  }, [])
+
+  useResilientChannel({
+    channelName: `counter-${counter.id}-tokens`,
+    table: "tokens",
+    filter: `counter_id=eq.${counter.id}`,
+    onEvent: handleTokenEvent,
+  })
+
+  // Keyboard shortcuts: N/D/S/R, ignored while typing in a field and while a
+  // call is in flight (the `pending` lock inside `run` covers the actual
+  // double-submit risk; this just avoids firing at all mid-request).
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return
+      const el = document.activeElement as HTMLElement | null
+      if (el && (["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) || el.isContentEditable)) {
+        return
+      }
+      switch (event.key.toLowerCase()) {
+        case "n":
+          if (!current) {
+            event.preventDefault()
+            void callNext()
+          }
+          break
+        case "d":
+          if (current) {
+            event.preventDefault()
+            void markDone()
+          }
+          break
+        case "s":
+          if (current) {
+            event.preventDefault()
+            void markNoShow()
+          }
+          break
+        case "r":
+          if (current) {
+            event.preventDefault()
+            void recall()
+          }
+          break
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [current, callNext, markDone, markNoShow, recall])
+
+  return (
+    <div className={styles.shell}>
+      <header className={styles.header}>
+        <div>
+          <p className={styles.eyebrow}>Counter</p>
+          <h1 className={styles.counterName}>{counter.name}</h1>
+          <p className={styles.serviceLabel}>{serviceLabel}</p>
+        </div>
+        <div className={styles.staffBadge}>
+          <span className={styles.staffName}>{staffName}</span>
+          <span className={styles.stateBadge} data-state={counter.state}>
+            {counter.state}
+          </span>
+        </div>
+      </header>
+
+      {banner && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={banner.kind === "error" ? styles.bannerError : styles.bannerInfo}
+        >
+          {banner.text}
+        </div>
+      )}
+
+      {!current ? (
+        <div className={styles.idle}>
+          <button
+            type="button"
+            className={styles.callNextButton}
+            onClick={() => void callNext()}
+            disabled={pending}
+          >
+            {pending ? "Calling…" : "Call Next"}
+          </button>
+          <p className={styles.idleHint}>
+            Press <kbd className={styles.kbd}>N</kbd> to call the next token.
+          </p>
+        </div>
+      ) : (
+        <div className={styles.tokenCard}>
+          <span className={styles.laneBadge} data-lane={current.lane}>
+            {LANE_LABELS[current.lane]}
+          </span>
+          <p className={styles.tokenCode}>{current.code}</p>
+          <p className={styles.tokenMeta}>
+            {current.walk_in_label ?? "Registered patient"} · #{current.number}
+            {current.recall_count > 0 ? ` · recalled ${current.recall_count}×` : ""}
+          </p>
+          <p className={styles.timer} aria-label="Time since this token was called">
+            {elapsedLabel}
+          </p>
+
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.actionPrimary}
+              onClick={() => void markDone()}
+              disabled={pending}
+            >
+              Done <kbd className={styles.kbd}>D</kbd>
+            </button>
+            <button
+              type="button"
+              className={styles.actionDanger}
+              onClick={() => void markNoShow()}
+              disabled={pending}
+            >
+              No-show <kbd className={styles.kbd}>S</kbd>
+            </button>
+            <button
+              type="button"
+              className={styles.actionSecondary}
+              onClick={() => void recall()}
+              disabled={pending}
+            >
+              Recall <kbd className={styles.kbd}>R</kbd>
+            </button>
+            <div className={styles.transferRow}>
+              <select
+                className={styles.transferSelect}
+                value={transferTarget}
+                onChange={(event) => setTransferTarget(event.target.value)}
+                disabled={pending || otherCounters.length === 0}
+                aria-label="Transfer to counter"
+              >
+                <option value="">Transfer to…</option>
+                {otherCounters.map((other) => (
+                  <option key={other.id} value={other.id}>
+                    {other.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className={styles.actionSecondary}
+                onClick={() => void transfer()}
+                disabled={pending || !transferTarget}
+              >
+                Transfer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <footer className={styles.shortcuts}>
+        <span>
+          <kbd className={styles.kbd}>N</kbd> Call next
+        </span>
+        <span>
+          <kbd className={styles.kbd}>D</kbd> Done
+        </span>
+        <span>
+          <kbd className={styles.kbd}>S</kbd> No-show
+        </span>
+        <span>
+          <kbd className={styles.kbd}>R</kbd> Recall
+        </span>
+      </footer>
+    </div>
+  )
+}
