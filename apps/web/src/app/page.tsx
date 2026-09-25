@@ -19,7 +19,7 @@ import styles from "./page.module.css"
 const STEPS = [
   {
     title: "Take a token",
-    text: "Get a slip at the reception desk. It carries your number and a QR code.",
+    text: "Book one on your phone after signing in, or pick up a slip at the reception desk.",
     icon: (
       <>
         <path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4Z" />
@@ -28,13 +28,12 @@ const STEPS = [
     ),
   },
   {
-    title: "Leave the line",
-    text: "Scan the QR and your place is held. Sit anywhere, step out for tea, keep your phone on you.",
+    title: "Wait anywhere",
+    text: "Your place is held, not your seat. Sit anywhere, step out for tea, keep your phone on you.",
     icon: (
       <>
-        <circle cx="3.5" cy="18.5" r="1.5" />
-        <circle cx="8.5" cy="18.5" r="1.5" />
-        <path d="M12.5 18.5 20 11M14 11h6v6" />
+        <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" />
+        <circle cx="12" cy="10" r="2.5" />
       </>
     ),
   },
