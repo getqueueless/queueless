@@ -11,6 +11,7 @@ import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFee } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
+import { markTokenPaid } from '@/lib/paid-tokens';
 import { supabase } from '@/lib/supabase';
 
 // Client-only reassurance banner, no server backing: there's no "payment_pending"/hold state in
@@ -143,6 +144,7 @@ export default function TokenScreen() {
     setPaying(false);
 
     if (result.type === 'success') {
+      markTokenPaid(id);
       setHoldSecondsLeft(HOLD_SECONDS);
       refetch();
     } else if (result.type !== 'cancel' && result.type !== 'dismiss') {

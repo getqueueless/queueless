@@ -468,3 +468,33 @@ One line per deviation from the plan/spec, with why.
      ```
      Worth a real benchmark once a live stack with realistic recent data is available, rather
      than trusting this unverified.
+- 2026-09-26 (mobile, patient): mandatory profile completion (name/phone/DOB/gender/city/address
+  via `complete_my_profile`, department -> doctor cards, per-doctor booking, offline ticket claim
+  with optional QR, "Book & pay", receipts in History) landed on `mobpatient`. Everything below
+  is a boundary note for the other mobile engineer (auth/role routing, app.json/eas.json, iOS
+  CI) rather than a change made on this branch, per this branch's ownership split.
+  - **`(auth)/index.tsx`'s `routeAfterAuth`** still gates the profile-completion screen on
+    `profiles.full_name` being null, not `profile_completed_at`. That still catches every fresh
+    OTP signup (full_name is always null there), but a Google sign-in arrives with `full_name`
+    already set from the provider and would skip straight to the tabs with the rest of the
+    profile (phone/DOB/gender/city) still incomplete. Not fixed here — auth routing is out of
+    this branch's scope. Not a live gap in practice: every take-token/book/claim entry point
+    (`department/[serviceId].tsx`, `doctor/[doctorId].tsx`, `claim-ticket.tsx`) independently
+    gates on `profile_completed_at` itself via `use-require-complete-profile.ts`, and the real
+    enforcement is server-side in `complete_my_profile`'s callers regardless — this is only
+    about which screen a Google sign-in lands on first.
+  - **`app.json` has no camera permission entry.** `claim-ticket.tsx`'s QR scan (`expo-camera`,
+    added to `apps/mobile/package.json` on this branch) is gated to `Platform.OS === 'android'`
+    only, because iOS crashes on first camera use without `NSCameraUsageDescription` in
+    `ios.infoPlist`, and `app.json` is out of this branch's scope. Manual code entry (the
+    required path) works everywhere already. Add `NSCameraUsageDescription` (e.g. "Used to scan
+    your paper ticket's QR code") to `app.json`'s `ios.infoPlist`, then drop the Android-only
+    gate in `claim-ticket.tsx`.
+  - **No DB support for "Book & pay"'s hold/payment state.** `token/[id].tsx`'s post-payment
+    countdown banner is client-only cosmetic reassurance (no `token_status` value or column for
+    a pending/held state anywhere through migration 0042) — it never blocks or changes the real
+    queue position. Likewise "paid" in History's receipt line comes from a local
+    `lib/paid-tokens.ts` record (per-device, not synced, gone on reinstall), since no
+    `payments`/receipts table backs the patient side of this at all yet. Both are fine for a
+    demo; a real implementation needs a `payments` table plus whatever `lpu.lol/pay/<tokenId>`'s
+    own backend (a separate engineer's page, per the task prompt) actually writes.

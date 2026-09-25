@@ -6,10 +6,19 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CardShadow, Rounded, Spacing, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { formatFee } from '@/lib/doctors';
+import { getPaidAt } from '@/lib/paid-tokens';
 import { supabase } from '@/lib/supabase';
 
-type Row = Record<string, unknown> & { id?: string | number; status?: string };
-type HistoryItem = { key: string; kind: 'token' | 'appointment'; label: string; status: string; timestamp: string | null };
+type Row = Record<string, unknown> & { id?: string | number; status?: string; doctor_id?: string | null };
+type HistoryItem = {
+  key: string;
+  kind: 'token' | 'appointment';
+  label: string;
+  status: string;
+  timestamp: string | null;
+  receipt: string | null;
+};
 
 // Confirmed against supabase/migrations/0001_enums.sql: token_status has no 'booked'/'checked_in'
 // (those are appointment_status only), and appointment_status has no 'done' — a checked-in
@@ -103,6 +112,27 @@ export default function History() {
           serviceNames[row.id] = row.name;
         }
 
+        // Fee/receipt line for finished tokens with a doctor attached (doctors is publicly
+        // readable, no RPC needed) — there's no patient-facing receipts read anywhere in
+        // supabase/migrations (checked through 0042), so this plus the local paid-at stamp from
+        // "Book & pay" (lib/paid-tokens.ts) is the closest thing to a receipt this screen can
+        // honestly show.
+        const doctorIds = [...new Set(tokens.map((row) => row.doctor_id).filter((id): id is string => !!id))];
+        const feeByDoctor: Record<string, number> = {};
+        if (doctorIds.length > 0) {
+          const { data } = await supabase.from('doctors').select('id, fee_inr').in('id', doctorIds);
+          for (const row of (data ?? []) as { id: string; fee_inr: number }[]) feeByDoctor[row.id] = row.fee_inr;
+        }
+
+        function receiptFor(row: Row): string | null {
+          const doctorId = row.doctor_id;
+          if (!doctorId) return null;
+          const fee = feeByDoctor[doctorId];
+          if (fee == null || fee <= 0) return null;
+          const paidAt = getPaidAt(String(row.id));
+          return paidAt ? `Paid ${formatFee(fee)} on ${formatDate(paidAt)}` : `Fee: ${formatFee(fee)}`;
+        }
+
         const merged: HistoryItem[] = [
           ...tokens.map((row, i) => ({
             key: `token-${String(row.id ?? i)}`,
@@ -110,6 +140,7 @@ export default function History() {
             label: pickLabel(row, 'token', serviceNames),
             status: row.status ?? 'unknown',
             timestamp: pickTimestamp(row),
+            receipt: receiptFor(row),
           })),
           ...appointments.map((row, i) => ({
             key: `appointment-${String(row.id ?? i)}`,
@@ -117,6 +148,7 @@ export default function History() {
             label: pickLabel(row, 'appointment', serviceNames),
             status: row.status ?? 'unknown',
             timestamp: pickTimestamp(row),
+            receipt: null,
           })),
         ].sort((a, b) => (b.timestamp ?? '').localeCompare(a.timestamp ?? ''));
 
@@ -163,6 +195,11 @@ export default function History() {
                   {item.timestamp ? (
                     <ThemedText type="bodySm" themeColor="inkMuted">
                       {formatDate(item.timestamp)}
+                    </ThemedText>
+                  ) : null}
+                  {item.receipt ? (
+                    <ThemedText type="bodySm" themeColor="primaryText">
+                      {item.receipt}
                     </ThemedText>
                   ) : null}
                 </View>
