@@ -29,6 +29,14 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 40
+    # Job-level, not on the prebuild step: Metro inlines EXPO_PUBLIC_* while xcodebuild's
+    # "Bundle React Native code and images" phase runs, so the build step needs them too.
+    # Without them createClient() throws "supabaseUrl is required." at import and the app
+    # dies on launch.
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -77,9 +85,6 @@ jobs:
       - name: Expo prebuild (iOS)
         working-directory: apps/mobile
         env:
-          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
           CI: "1"
         run: npx expo prebuild --platform ios --clean
 
