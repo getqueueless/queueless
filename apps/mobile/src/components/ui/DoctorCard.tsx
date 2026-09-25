@@ -68,12 +68,17 @@ export function DoctorCard({
         </View>
       </AnimatedPressable>
       <View style={[styles.bottom, { borderTopColor: theme.hairline }]}>
-        <View style={styles.slot}>
-          <UIText variant="secondary">Next slot</UIText>
-          <UIText variant="bodyStrong" numberOfLines={1}>
-            {nextSlot ?? (status === 'leave' ? 'Not today' : '—')}
-          </UIText>
-        </View>
+        {/* No slot passed: no slot line (and no dash), the action keeps the right edge. */}
+        {nextSlot || status === 'leave' ? (
+          <View style={styles.slot}>
+            <UIText variant="secondary">Next slot</UIText>
+            <UIText variant="bodyStrong" numberOfLines={1}>
+              {nextSlot ?? 'Not today'}
+            </UIText>
+          </View>
+        ) : (
+          <View style={styles.slot} />
+        )}
         <Button
           label={actionLabel}
           size="md"
