@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QueueTracker, type TrackerStatus } from '@/components/motion/QueueTracker';
 import { useEtaAtJoin, useNowServing } from '@/components/motion/use-queue-extras';
-import { Button, Card, Chip, EmptyState, SectionHeader, Skeleton, StatusChip, UIText } from '@/components/ui';
+import { BottomSheet, Button, Card, Chip, EmptyState, SectionHeader, Skeleton, StatusChip, UIText } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFee } from '@/lib/doctors';
 import { isCheckInWindow } from '@/lib/appointmentWindow';
@@ -36,7 +36,15 @@ type QueueStatus = {
   counter_name: string | null;
 };
 
-function ActiveTokenCard({ tokenId, onPress }: { tokenId: string; onPress: () => void }) {
+function ActiveTokenCard({
+  tokenId,
+  onPress,
+  onCancel,
+}: {
+  tokenId: string;
+  onPress: () => void;
+  onCancel: () => void;
+}) {
   const [status, setStatus] = useState<QueueStatus | null>(null);
 
   const refetch = useCallback(async () => {
@@ -53,20 +61,27 @@ function ActiveTokenCard({ tokenId, onPress }: { tokenId: string; onPress: () =>
   if (!status) return <Skeleton height={160} radius={20} />;
 
   return (
-    <Card onPress={onPress} accessibilityLabel={`Ticket ${status.code}, ${status.service_name}`}>
-      <View style={styles.activeHeader}>
-        <UIText variant="title3">{status.code}</UIText>
-        <UIText variant="secondary">{status.service_name}</UIText>
-      </View>
-      <QueueTracker
-        status={status.status}
-        ahead={status.ahead}
-        etaMinutes={etaMinutes}
-        etaAtJoin={etaAtJoin}
-        counterCode={status.counter_name}
-        nowServingNumber={nowServing}
-        serviceName={status.service_name}
-      />
+    <Card accessibilityLabel={`Ticket ${status.code}, ${status.service_name}`}>
+      <Pressable onPress={onPress}>
+        <View style={styles.activeHeader}>
+          <UIText variant="title3">{status.code}</UIText>
+          <UIText variant="secondary">{status.service_name}</UIText>
+        </View>
+        <QueueTracker
+          status={status.status}
+          ahead={status.ahead}
+          etaMinutes={etaMinutes}
+          etaAtJoin={etaAtJoin}
+          counterCode={status.counter_name}
+          nowServingNumber={nowServing}
+          serviceName={status.service_name}
+        />
+      </Pressable>
+      {/* cancel_token (0011) only ever matches status='waiting' -- called/serving/pending_payment
+          can't be cancelled through this RPC, so the button only shows for waiting. */}
+      {status.status === 'waiting' ? (
+        <Button label="Cancel ticket" variant="ghost" size="md" onPress={onCancel} style={styles.cancelButton} />
+      ) : null}
     </Card>
   );
 }
@@ -87,7 +102,17 @@ function formatSlot(startsAt: string) {
   return `${d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-function ActiveAppointmentCard({ appt, onCheckIn, onPayNow }: { appt: ActiveAppointmentRow; onCheckIn: () => void; onPayNow: () => void }) {
+function ActiveAppointmentCard({
+  appt,
+  onCheckIn,
+  onPayNow,
+  onCancel,
+}: {
+  appt: ActiveAppointmentRow;
+  onCheckIn: () => void;
+  onPayNow: () => void;
+  onCancel: () => void;
+}) {
   const startsAt = one(appt.appointment_slots)?.starts_at ?? null;
   const doctorName = one(appt.doctors)?.name ?? null;
   const serviceName = one(appt.services)?.name ?? 'Appointment';
@@ -107,15 +132,25 @@ function ActiveAppointmentCard({ appt, onCheckIn, onPayNow }: { appt: ActiveAppo
       ) : canCheckIn ? (
         <Button label="Check in" size="md" onPress={onCheckIn} />
       ) : null}
+      {/* cancel_appointment (0013) only ever matches status='booked' -- a pending_payment hold
+          can't be cancelled through this RPC yet (checked with Payment work), so no button here
+          for that case; it just expires by itself in 10 min if unpaid. */}
+      {!pendingPayment ? <Button label="Cancel booking" variant="ghost" size="md" onPress={onCancel} style={styles.cancelButton} /> : null}
     </Card>
   );
 }
+
+type CancelTarget = { kind: 'token' | 'appointment'; id: string; message: string };
+
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
 function ActiveTab() {
   const router = useRouter();
   const [tokens, setTokens] = useState<ActiveTokenRow[] | null>(null);
   const [appointments, setAppointments] = useState<ActiveAppointmentRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
 
   const refetch = useCallback(async () => {
     const { data: auth } = await supabase.auth.getSession();
@@ -153,6 +188,39 @@ function ActiveTab() {
     if (token?.id) router.push({ pathname: '/(app)/token/[id]', params: { id: token.id, serviceId: token.service_id } });
   }
 
+  function confirmCancelToken(tokenId: string) {
+    // A walk-in ticket is never a scheduled slot -- whether or not it carried a paid fee
+    // (start_paid_booking), there's no "before the appointment" refund window to speak of.
+    setCancelTarget({ kind: 'token', id: tokenId, message: 'This is a walk-in ticket — no refund applies.' });
+  }
+
+  function confirmCancelAppointment(appt: ActiveAppointmentRow) {
+    const startsAt = one(appt.appointment_slots)?.starts_at ?? null;
+    const hoursLeft = startsAt ? new Date(startsAt).getTime() - new Date().getTime() : 0;
+    const message =
+      startsAt && hoursLeft >= TWO_HOURS_MS
+        ? 'You’re cancelling more than 2 hours before your appointment — you’ll get a full refund.'
+        : 'You’re cancelling less than 2 hours before your appointment — no refund applies.';
+    setCancelTarget({ kind: 'appointment', id: appt.id, message });
+  }
+
+  async function handleConfirmCancel() {
+    if (!cancelTarget) return;
+    setCancelBusy(true);
+    const { error } =
+      cancelTarget.kind === 'token'
+        ? await supabase.rpc('cancel_token', { p_token: cancelTarget.id })
+        : await supabase.rpc('cancel_appointment', { p_appointment: cancelTarget.id });
+    setCancelBusy(false);
+    setCancelTarget(null);
+    if (error) {
+      showToast(mapSupabaseError({ code: error.code, message: error.message }), 'error');
+    } else {
+      showToast(cancelTarget.kind === 'token' ? 'Ticket cancelled.' : 'Booking cancelled.', 'success');
+    }
+    refetch();
+  }
+
   if (tokens === null && !loadError) {
     return (
       <View style={styles.list}>
@@ -187,6 +255,7 @@ function ActiveTab() {
               key={t.id}
               tokenId={t.id}
               onPress={() => router.push({ pathname: '/(app)/token/[id]', params: { id: t.id, serviceId: t.service_id } })}
+              onCancel={() => confirmCancelToken(t.id)}
             />
           ))}
           {appointments?.map((a) => (
@@ -195,10 +264,26 @@ function ActiveTab() {
               appt={a}
               onCheckIn={() => handleCheckIn(a.id)}
               onPayNow={() => router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: a.id } })}
+              onCancel={() => confirmCancelAppointment(a)}
             />
           ))}
         </>
       )}
+
+      <BottomSheet visible={!!cancelTarget} onClose={() => setCancelTarget(null)}>
+        <View style={styles.confirmSheet}>
+          <UIText variant="title3">Cancel this booking?</UIText>
+          <UIText variant="body">{cancelTarget?.message}</UIText>
+          <Button label="Keep it" variant="secondary" block onPress={() => setCancelTarget(null)} />
+          <Button
+            label={cancelTarget?.kind === 'token' ? 'Cancel ticket' : 'Cancel booking'}
+            variant="danger"
+            block
+            loading={cancelBusy}
+            onPress={handleConfirmCancel}
+          />
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -352,6 +437,8 @@ const styles = StyleSheet.create({
   activeHeader: { gap: 2, marginBottom: 4 },
   apptCard: { gap: 4, alignItems: 'flex-start' },
   apptHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch', gap: 8 },
+  cancelButton: { marginTop: 4, alignSelf: 'flex-start' },
+  confirmSheet: { gap: 12, paddingBottom: 8 },
   pastRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   pastChips: { alignItems: 'flex-end', gap: 4 },
 });
