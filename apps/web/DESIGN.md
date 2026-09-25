@@ -176,22 +176,30 @@ typography:
     lineHeight: 1
     letterSpacing: -0.5px
     fontFeature: tnum
+  token-number-status:
+    fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace"
+    fontSize: "clamp(56px, 16vw, 88px)"
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: -0.02em
+    fontFeature: tnum
+    note: "The token code on /t/[id], the patient's own page. token-number grown fluidly so it reads at arm's length on a phone and stays the card's anchor on desktop. The counter console keeps the fixed 56px token-number."
   token-number-kiosk:
     fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace"
-    fontSize: 96px
+    fontSize: "clamp(112px, 15vw, 200px)"
     fontWeight: 700
-    lineHeight: 1
-    letterSpacing: -0.5px
+    lineHeight: 0.9
+    letterSpacing: -0.02em
     fontFeature: tnum
-    note: "The just-issued number on /kiosk, read at arm's length by the staff member handing over the slip -- one deliberate step above token-number, not a stray value."
+    note: "The just-issued number on the /kiosk ticket, read at arm's length by the staff member handing over the slip -- one deliberate step above token-number, not a stray value."
   token-number-board:
     fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace"
-    fontSize: "clamp(64px, 10vw, 180px)"
+    fontSize: "min(21cqi, 12vh)"
     fontWeight: 700
     lineHeight: 1
-    letterSpacing: -0.5px
+    letterSpacing: -0.02em
     fontFeature: tnum
-    note: "/display/[service]'s now-serving tiles -- fluid by design so a phone-sized preview and a wall-mounted TV both stay legible from their own real viewing distance; every other clamp() endpoint on that page (title, stat values, next-up chips) scales off this same instinct."
+    note: "/display/[service]'s now-serving tiles. Sized off each tile's own inline size (cqi) so a code like OPD-002 never wraps however many columns there are, and capped by viewport height so two rows of tiles still fit a 16:9 screen."
   caption-xs:
     fontFamily: Inter
     fontSize: 10px
@@ -384,7 +392,7 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 | `caption` | Inter | 12px | 500 | - | Badges, timestamps |
 | `button` | Inter | 14px | 500 | - | Staff buttons |
 | `button-cta` | Poppins | 14px | 700 | UPPER, +0.06em | Public CTAs |
-| `token-number*` | JetBrains Mono | 56 / 96 / fluid | 700 | - | Queue numbers |
+| `token-number*` | JetBrains Mono | 56 counter / 56–88 status / 112–200 kiosk / tile-relative board | 700 | - | Queue numbers |
 
 ## Layout
 
@@ -422,6 +430,17 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 - **`PublicFooter`** (`src/components/site/`): slate-deep in both themes, logo and tagline, cyan-dot column headings, and a `credit` slot for photo credits.
 - **`ThemeToggle`** (`src/components/theme/ThemeToggle.tsx`): a 44px round icon button in every header. `aria-label` names the target theme ("Switch to dark theme").
 - **Status badges, token tile, stat tile, text input**: unchanged in shape. Inputs take `radius-sm` and the `hairline-strong` border.
+- **Kiosk token slip** (`/kiosk`, `token-slip.tsx`): printed paper, so it uses fixed paper colours, not theme tokens: `#ffffff` paper, `#252525` number, `#4a4a4a` service and hint, `#6b6b6b` meta and fallback URL, `#cfcfcf` dashed rules. It is black on white in both themes and in print, and carries the one-colour Logo.
+- **Kiosk chrome**: Logo (not a link), a "Reception kiosk" tag and ThemeToggle only, with no public nav or footer. The terminal stays signed in to a staff account, so it must offer no route to `/counter` or `/admin`.
+
+### Staff chrome
+- **Counter app bar** (`/counter`): slate in both themes, with a 3px brand-cyan rule on top, Logo(22) (not a link, so a mid-shift click can't leave the console), a divider, the "Counter console" label and ThemeToggle.
+- **Admin sidebar** (`/admin/**`): slate in light, slate-deep in dark. Logo and org name at the top, just the LogoMark on the collapsed tablet rail. Inline SVG stroke icons per link. The current page gets a cyan edge bar, a cyan icon and white text. Focus rings on the sidebar are brand cyan (5.63:1 on slate), because the global `focus-ring` cannot be seen there. Sign out and ThemeToggle sit in its footer.
+- **Staff page titles** are `display-md` with a 32x4 cyan rule above them. **Staff card titles** are `heading-md` with a cyan dot, MedWin's footer-heading motif.
+- **Admin chart series**: actual wait is `accent-display` bars (a 70% `accent` mix over `surface` in dark, 3.99:1); predicted wait is a `slate` line (an `ink` line in dark). Legend and tooltip text stay `ink-secondary`, so no series colour is ever small text.
+
+### TV board palette
+`/display/[service]` pins its palette on the board root, so `:root[data-theme]` cannot reach it: background `slate-deep`, tiles `slate`, text `#ffffff`, secondary `#b3c6ca`, finished tokens and closed counters `#8fa9ae` (5.44:1 on slate, 6.48:1 on slate-deep), accent `#0cb7d6`. A counter that is calling turns solid cyan with `#112427` text (6.71:1); serving gets a cyan edge; paused and closed tiles are dashed. The computed ratios are in the header of `display.module.css`.
 
 ## Do's and Don'ts
 
@@ -449,4 +468,4 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 
 Touch targets are at least 44px on any control a counter/staff user taps repeatedly (call next, mark done), and on public nav and CTAs.
 
-`/display/[service]` is the one screen meant to run at *any* size in that range at once, from a kiosk-adjacent laptop up to a wall-mounted TV. So every size on it (title, stat values, counter tiles, the "next up" list, and `token-number-board` above) is a `clamp(min, preferred-vw, max)` scaled to viewport width rather than a fixed ramp step. This is deliberate fluid type, not drift off the ramp.
+`/display/[service]` is the one screen meant to run at *any* size in that range at once, from a kiosk-adjacent laptop up to a wall-mounted TV. So it has one viewport-driven base size (`clamp(16px, 1.1vw, 48px)` on the board root) and every other size on it (title, stat values, labels, the "next up" list) is set in `em` off that base, which gives a laptop, a 1080p TV and a 4K TV the same composition at their own scale. Token numbers are the exception: `token-number-board` sizes off each tile's width. The column count follows the number of counters (1, 2, 3, then 4 from 7 counters, 5 from 9 and 6 from 11), so up to 12 counters fit a 16:9 screen without scrolling. This is deliberate fluid type, not drift off the ramp.
