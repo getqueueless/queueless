@@ -1,11 +1,22 @@
 import { useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Button, Card, MIN_TAP, Radius, Type, UIText, type IconName } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { AUTH_REDIRECT } from '@/lib/auth-redirect';
 import { mapAuthError } from '@/lib/errors';
@@ -26,6 +37,10 @@ const CODE_LENGTH = 6;
 const MIN_PASSWORD = 8;
 // Measured against GoTrue (2026-09-25): a second send inside ~59s is over_email_send_rate_limit.
 const RESEND_COOLDOWN_SECONDS = 65;
+
+const GOOGLE_G = require('../../../assets/images/google-g.png');
+const ERROR_ICON: IconName = { ios: 'exclamationmark.circle.fill', android: 'error', web: 'error' };
+const OK_ICON: IconName = { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' };
 
 function isPlausibleEmail(value: string): boolean {
   return /^\S+@\S+\.\S+$/.test(value.trim());
@@ -217,7 +232,16 @@ export default function SignIn() {
     }
   }
 
-  const inputStyle = [styles.input, { color: theme.ink, backgroundColor: theme.canvas, borderColor: theme.hairline }];
+  // A danger border on the fields while an error shows; what was typed is never cleared.
+  const inputStyle = [
+    styles.input,
+    {
+      color: theme.ink,
+      backgroundColor: theme.surfaceSunken,
+      borderColor: error ? theme.danger : theme.hairlineStrong,
+      borderWidth: error ? 2 : 1,
+    },
+  ];
 
   const emailInput = (
     <TextInput
@@ -234,36 +258,38 @@ export default function SignIn() {
     />
   );
 
-  const errorText = error ? (
-    <ThemedText type="bodySm" themeColor="danger" style={styles.error} accessibilityLiveRegion="polite">
-      {error}
-    </ThemedText>
-  ) : null;
+  function banner(tone: 'danger' | 'success', text: string) {
+    return (
+      <View
+        accessibilityRole={tone === 'danger' ? 'alert' : undefined}
+        accessibilityLiveRegion="polite"
+        style={[
+          styles.banner,
+          { backgroundColor: tone === 'danger' ? theme.dangerSoft : theme.successSoft, borderColor: theme[tone] },
+        ]}>
+        <SymbolView name={tone === 'danger' ? ERROR_ICON : OK_ICON} size={22} tintColor={theme[tone]} />
+        <UIText variant="secondaryStrong" color={tone} style={styles.bannerText}>
+          {text}
+        </UIText>
+      </View>
+    );
+  }
+
+  const errorText = error ? banner('danger', error) : null;
 
   function primaryButton(label: string, onPress: () => void, disabled: boolean) {
-    return (
-      <Pressable
-        onPress={onPress}
-        disabled={disabled || busy}
-        accessibilityRole="button"
-        style={[styles.button, { backgroundColor: theme.primary, opacity: disabled || busy ? 0.6 : 1 }]}>
-        {busy ? (
-          <ActivityIndicator color={theme.onPrimary} />
-        ) : (
-          <ThemedText type="button" themeColor="onPrimary">
-            {label}
-          </ThemedText>
-        )}
-      </Pressable>
-    );
+    return <Button label={label} onPress={onPress} size="lg" block loading={busy} disabled={disabled} style={styles.button} />;
   }
 
   function link(label: string, onPress: () => void, style: StyleProp<ViewStyle> = styles.link) {
     return (
-      <Pressable onPress={onPress} accessibilityRole="link" hitSlop={4} style={style}>
-        <ThemedText type="bodySm" themeColor="primaryText">
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="link"
+        style={({ pressed }) => [styles.linkBase, style, pressed && styles.pressed]}>
+        <UIText variant="secondaryStrong" color="primaryText">
           {label}
-        </ThemedText>
+        </UIText>
       </Pressable>
     );
   }
@@ -271,10 +297,10 @@ export default function SignIn() {
   function screen(children: ReactNode) {
     return (
       <ThemedView type="canvasSoft" style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <ThemedView type="surface" style={[styles.card, { borderColor: theme.hairline }]}>
-            {children}
-          </ThemedView>
+        <SafeAreaView style={styles.container}>
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <Card style={styles.card}>{children}</Card>
+          </ScrollView>
         </SafeAreaView>
       </ThemedView>
     );
@@ -284,11 +310,11 @@ export default function SignIn() {
     return screen(
       <>
         <ThemedText type="displayMd">Enter your code</ThemedText>
-        <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
+        <UIText variant="body" color="inkSecondary" style={styles.subtitle}>
           We sent a 6-digit code to {trimmedEmail}. If the email has a link instead, tap it on this phone.
-        </ThemedText>
+        </UIText>
 
-        <ThemedView style={styles.codeRow}>
+        <View style={styles.codeRow}>
           {digits.map((digit, i) => (
             <TextInput
               key={i}
@@ -308,32 +334,35 @@ export default function SignIn() {
                 styles.codeBox,
                 {
                   color: theme.ink,
-                  backgroundColor: digit ? theme.primarySoft : theme.canvas,
-                  borderColor: digit ? theme.primaryOutline : theme.hairline,
-                  borderWidth: digit ? 2 : 1,
+                  backgroundColor: digit ? theme.primarySoft : theme.surfaceSunken,
+                  borderColor: digit ? theme.primaryOutline : error ? theme.danger : theme.hairlineStrong,
+                  borderWidth: digit || error ? 2 : 1,
                 },
               ]}
             />
           ))}
-        </ThemedView>
+        </View>
 
-        {verifying ? <ActivityIndicator color={theme.primary} style={styles.verifyingSpinner} /> : null}
         {errorText}
 
-        <Pressable
+        <Button
+          label="Verify"
           onPress={() => verify(digits.join(''))}
-          disabled={verifying || digits.some((d) => !d)}
-          accessibilityRole="button"
-          style={[styles.button, { backgroundColor: theme.primary, opacity: verifying ? 0.6 : 1 }]}>
-          <ThemedText type="button" themeColor="onPrimary">
-            Verify
-          </ThemedText>
-        </Pressable>
+          size="lg"
+          block
+          loading={verifying}
+          disabled={digits.some((d) => !d)}
+          style={styles.button}
+        />
 
-        <Pressable onPress={resend} disabled={cooldown > 0 || busy} accessibilityRole="button" style={styles.link}>
-          <ThemedText type="bodySm" themeColor={cooldown > 0 ? 'inkMuted' : 'primaryText'}>
+        <Pressable
+          onPress={resend}
+          disabled={cooldown > 0 || busy}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.linkBase, styles.link, pressed && styles.pressed]}>
+          <UIText variant="secondaryStrong" color={cooldown > 0 ? 'inkSecondary' : 'primaryText'}>
             {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
-          </ThemedText>
+          </UIText>
         </Pressable>
         {link('Wrong email?', () => {
           setAwaitingCode(false);
@@ -349,9 +378,9 @@ export default function SignIn() {
     return screen(
       <>
         <ThemedText type="displayMd">Sign in with a code</ThemedText>
-        <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
+        <UIText variant="body" color="inkSecondary" style={styles.subtitle}>
           We&apos;ll email you a 6-digit code — no password needed.
-        </ThemedText>
+        </UIText>
         {emailInput}
         {errorText}
         {primaryButton('Send code', sendSignInCode, !isPlausibleEmail(email))}
@@ -364,16 +393,12 @@ export default function SignIn() {
     return screen(
       <>
         <ThemedText type="displayMd">Reset your password</ThemedText>
-        <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
+        <UIText variant="body" color="inkSecondary" style={styles.subtitle}>
           Enter your email and we&apos;ll send you a link to choose a new password.
-        </ThemedText>
+        </UIText>
         {emailInput}
         {errorText}
-        {notice ? (
-          <ThemedText type="bodySm" themeColor="success" accessibilityLiveRegion="polite">
-            {notice}
-          </ThemedText>
-        ) : null}
+        {notice ? banner('success', notice) : null}
         {primaryButton(cooldown > 0 ? `Send again in ${cooldown}s` : 'Send reset link', sendReset, !isPlausibleEmail(email) || cooldown > 0)}
         {link('Back to sign in', () => switchMode('password'))}
       </>,
@@ -384,9 +409,9 @@ export default function SignIn() {
     return screen(
       <>
         <ThemedText type="displayMd">Create your account</ThemedText>
-        <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
+        <UIText variant="body" color="inkSecondary" style={styles.subtitle}>
           We&apos;ll email you a 6-digit code to confirm it&apos;s you.
-        </ThemedText>
+        </UIText>
         {emailInput}
         <TextInput
           value={password}
@@ -402,11 +427,11 @@ export default function SignIn() {
         />
         {errorText}
         {primaryButton('Create account', createAccount, !isPlausibleEmail(email) || !password)}
-        <View style={styles.footerRow}>
-          <ThemedText type="bodySm" themeColor="inkMuted">
+        <View style={[styles.footerRow, styles.footerDivider, { borderColor: theme.hairline }]}>
+          <UIText variant="secondary" color="inkSecondary">
             Already have an account?
-          </ThemedText>
-          {link('Sign in', () => switchMode('password'), styles.inlineLink)}
+          </UIText>
+          {link('Sign in', () => switchMode('password'))}
         </View>
       </>,
     );
@@ -415,9 +440,9 @@ export default function SignIn() {
   return screen(
     <>
       <ThemedText type="displayMd">Welcome</ThemedText>
-      <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
+      <UIText variant="body" color="inkSecondary" style={styles.subtitle}>
         Sign in to Queueless.
-      </ThemedText>
+      </UIText>
 
       {emailInput}
       <TextInput
@@ -438,35 +463,43 @@ export default function SignIn() {
       {errorText}
       {primaryButton('Sign in', handlePasswordSignIn, !isPlausibleEmail(email) || !password)}
 
-      <ThemedView style={styles.dividerRow}>
-        <ThemedView style={[styles.dividerLine, { backgroundColor: theme.hairline }]} />
-        <ThemedText type="bodySm" themeColor="inkMuted">
+      <View style={styles.dividerRow}>
+        <View style={[styles.dividerLine, { backgroundColor: theme.hairline }]} />
+        <UIText variant="secondary" color="inkSecondary">
           or
-        </ThemedText>
-        <ThemedView style={[styles.dividerLine, { backgroundColor: theme.hairline }]} />
-      </ThemedView>
+        </UIText>
+        <View style={[styles.dividerLine, { backgroundColor: theme.hairline }]} />
+      </View>
 
+      {/* Google's branding asks for a neutral button with the logo unaltered. */}
       <Pressable
         onPress={handleGoogleSignIn}
         disabled={googleLoading}
         accessibilityRole="button"
-        style={[styles.googleButton, { borderColor: theme.hairline, opacity: googleLoading ? 0.6 : 1 }]}>
+        accessibilityLabel="Continue with Google"
+        accessibilityState={{ disabled: googleLoading, busy: googleLoading }}
+        style={({ pressed }) => [
+          styles.googleButton,
+          { backgroundColor: theme.surface, borderColor: theme.hairlineStrong, opacity: googleLoading ? 0.6 : 1 },
+          pressed && styles.pressed,
+        ]}>
         {googleLoading ? (
           <ActivityIndicator color={theme.ink} />
         ) : (
-          <ThemedText type="button" themeColor="ink">
-            Continue with Google
-          </ThemedText>
+          <>
+            <Image source={GOOGLE_G} style={styles.googleLogo} accessibilityIgnoresInvertColors />
+            <UIText variant="bodyStrong">Continue with Google</UIText>
+          </>
         )}
       </Pressable>
 
       {link('Email me a sign-in code instead', () => switchMode('code'))}
 
       <View style={[styles.footerRow, styles.footerDivider, { borderColor: theme.hairline }]}>
-        <ThemedText type="bodySm" themeColor="inkMuted">
+        <UIText variant="secondary" color="inkSecondary">
           New to Queueless?
-        </ThemedText>
-        {link('Create an account', () => switchMode('signup'), styles.inlineLink)}
+        </UIText>
+        {link('Create an account', () => switchMode('signup'))}
       </View>
     </>,
   );
@@ -474,60 +507,54 @@ export default function SignIn() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safeArea: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.lg },
-  card: {
-    borderWidth: 1,
-    borderRadius: Rounded.xl,
-    padding: Spacing.xl,
-    gap: Spacing.sm,
-    ...CardShadow,
-  },
-  subtitle: { marginBottom: Spacing.md },
+  // 16pt gutter + 16pt card padding leaves room for six 48pt code boxes on a 360pt phone.
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 24 },
+  card: { paddingVertical: 24, gap: 12 },
+  subtitle: { marginBottom: 4 },
   input: {
-    borderWidth: 1,
-    borderRadius: Rounded.md,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    fontSize: 14,
-    minHeight: 44,
+    fontFamily: Type.body.fontFamily,
+    fontSize: Type.body.fontSize,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 52,
   },
-  codeRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: 'transparent' },
-  dividerRow: {
+  codeRow: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch' },
+  codeBox: {
+    width: MIN_TAP,
+    height: 56,
+    borderRadius: Radius.sm,
+    textAlign: 'center',
+    fontFamily: Type.title3.fontFamily,
+    fontSize: Type.title3.fontSize,
+  },
+  banner: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
-    backgroundColor: 'transparent',
+    alignItems: 'flex-start',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: Radius.sm,
+    padding: 12,
   },
+  bannerText: { flex: 1 },
+  button: { marginTop: 4 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 },
   dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
   googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    height: 56,
     borderWidth: 1,
-    borderRadius: Rounded.md,
-    paddingVertical: Spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
+    borderRadius: Radius.md,
+    paddingHorizontal: 24,
   },
-  codeBox: {
-    width: 44,
-    height: 52,
-    borderRadius: Rounded.md,
-    textAlign: 'center',
-    fontSize: 22,
-  },
-  verifyingSpinner: { marginTop: Spacing.xs },
-  error: { marginTop: Spacing.xxs },
-  button: {
-    borderRadius: Rounded.md,
-    paddingVertical: Spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.xs,
-    minHeight: 44,
-  },
-  link: { marginTop: Spacing.xs, alignSelf: 'center', minHeight: 44, justifyContent: 'center' },
-  forgotLink: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center' },
-  inlineLink: { minHeight: 44, justifyContent: 'center' },
-  footerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: Spacing.xxs, flexWrap: 'wrap' },
-  footerDivider: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: Spacing.xs, paddingTop: Spacing.xs },
+  googleLogo: { width: 20, height: 20 },
+  linkBase: { minHeight: MIN_TAP, minWidth: MIN_TAP, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
+  link: { alignSelf: 'center' },
+  forgotLink: { alignSelf: 'flex-end', marginTop: -4 },
+  pressed: { opacity: 0.7 },
+  footerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' },
+  footerDivider: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 4 },
 });

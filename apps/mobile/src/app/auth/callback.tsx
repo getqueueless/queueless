@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, StyleSheet, TextInput } from 'react-native';
+import { ActivityIndicator, BackHandler, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Button, Card, Radius, Type, UIText, type IconName } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { exchangeAuthRedirect } from '@/lib/auth-redirect';
 import { mapAuthError } from '@/lib/errors';
@@ -17,6 +18,7 @@ import { supabase } from '@/lib/supabase';
 // redirect can't yank the user away mid password reset (and blocks Android back while resetting).
 
 const MIN_PASSWORD = 8;
+const ERROR_ICON: IconName = { ios: 'exclamationmark.circle.fill', android: 'error', web: 'error' };
 
 export default function AuthCallback() {
   const theme = useTheme();
@@ -79,64 +81,62 @@ export default function AuthCallback() {
 
   return (
     <ThemedView type="canvasSoft" style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView type="surface" style={[styles.card, { borderColor: theme.hairline }]}>
-          {state === 'working' ? (
-            <>
-              <ActivityIndicator color={theme.primary} />
-              <ThemedText type="body" themeColor="inkSecondary" style={styles.center}>
-                Signing you in…
-              </ThemedText>
-            </>
-          ) : state === 'recovery' ? (
-            <>
-              <ThemedText type="displayMd">Choose a new password</ThemedText>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder={`New password (${MIN_PASSWORD}+ characters)`}
-                placeholderTextColor={theme.inkMuted}
-                secureTextEntry
-                autoComplete="new-password"
-                textContentType="newPassword"
-                style={[styles.input, { color: theme.ink, backgroundColor: theme.canvas, borderColor: theme.hairline }]}
-              />
-              {message ? (
-                <ThemedText type="bodySm" themeColor="danger">
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <Card style={styles.card}>
+            {state === 'working' ? (
+              <>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <UIText variant="body" color="inkSecondary" style={styles.center}>
+                  Signing you in…
+                </UIText>
+              </>
+            ) : state === 'recovery' ? (
+              <>
+                <ThemedText type="displayMd">Choose a new password</ThemedText>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={`New password (${MIN_PASSWORD}+ characters)`}
+                  placeholderTextColor={theme.inkMuted}
+                  secureTextEntry
+                  autoComplete="new-password"
+                  textContentType="newPassword"
+                  style={[
+                    styles.input,
+                    {
+                      color: theme.ink,
+                      backgroundColor: theme.surfaceSunken,
+                      borderColor: message ? theme.danger : theme.hairlineStrong,
+                      borderWidth: message ? 2 : 1,
+                    },
+                  ]}
+                />
+                {message ? (
+                  <View
+                    accessibilityRole="alert"
+                    accessibilityLiveRegion="polite"
+                    style={[styles.banner, { backgroundColor: theme.dangerSoft, borderColor: theme.danger }]}>
+                    <SymbolView name={ERROR_ICON} size={22} tintColor={theme.danger} />
+                    <UIText variant="secondaryStrong" color="danger" style={styles.bannerText}>
+                      {message}
+                    </UIText>
+                  </View>
+                ) : null}
+                <Button label="Save password" onPress={saveNewPassword} size="lg" block loading={saving} style={styles.button} />
+              </>
+            ) : (
+              <>
+                <SymbolView name={ERROR_ICON} size={40} tintColor={theme.danger} />
+                <ThemedText type="displayMd">Link didn&apos;t work</ThemedText>
+                <UIText variant="body" color="inkSecondary">
                   {message}
-                </ThemedText>
-              ) : null}
-              <Pressable
-                onPress={saveNewPassword}
-                disabled={saving}
-                accessibilityRole="button"
-                style={[styles.button, { backgroundColor: theme.primary, opacity: saving ? 0.6 : 1 }]}>
-                {saving ? (
-                  <ActivityIndicator color={theme.onPrimary} />
-                ) : (
-                  <ThemedText type="button" themeColor="onPrimary">
-                    Save password
-                  </ThemedText>
-                )}
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <ThemedText type="displayMd">Link didn&apos;t work</ThemedText>
-              <ThemedText type="body" themeColor="inkSecondary">
-                {message}
-              </ThemedText>
-              <Pressable
-                onPress={() => router.replace('/(auth)')}
-                accessibilityRole="button"
-                style={[styles.button, { backgroundColor: theme.primary }]}>
-                <ThemedText type="button" themeColor="onPrimary">
-                  Back to sign in
-                </ThemedText>
-              </Pressable>
-            </>
-          )}
-        </ThemedView>
+                </UIText>
+                <Button label="Back to sign in" onPress={() => router.replace('/(auth)')} size="lg" block style={styles.button} />
+              </>
+            )}
+          </Card>
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -144,23 +144,18 @@ export default function AuthCallback() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safeArea: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.lg },
-  card: { borderWidth: 1, borderRadius: Rounded.xl, padding: Spacing.xl, gap: Spacing.sm, ...CardShadow },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 24 },
+  card: { paddingVertical: 24, gap: 12 },
   center: { textAlign: 'center' },
   input: {
-    borderWidth: 1,
-    borderRadius: Rounded.md,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    fontSize: 14,
-    minHeight: 44,
+    fontFamily: Type.body.fontFamily,
+    fontSize: Type.body.fontSize,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 52,
   },
-  button: {
-    borderRadius: Rounded.md,
-    paddingVertical: Spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.xs,
-    minHeight: 44,
-  },
+  banner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderRadius: Radius.sm, padding: 12 },
+  bannerText: { flex: 1 },
+  button: { marginTop: 4 },
 });
