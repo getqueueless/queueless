@@ -55,3 +55,28 @@ async def test_admin_gets_model_metadata(client, db_pool):
         "mae_model_by_service",
     ):
         assert key in body, f"missing field: {key}"
+
+
+async def test_patient_forbidden_from_admin_retrain(client, db_pool):
+    user_id = uuid.uuid4()
+    await _seed_role(db_pool, user_id, "patient")
+    token = make_token(sub=str(user_id))
+    resp = client.post("/admin/retrain", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 403
+
+
+async def test_staff_forbidden_from_admin_retrain(client, db_pool):
+    user_id = uuid.uuid4()
+    await _seed_role(db_pool, user_id, "staff")
+    token = make_token(sub=str(user_id))
+    resp = client.post("/admin/retrain", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 403
+
+
+async def test_admin_retrain_starts_and_returns_202(client, db_pool):
+    user_id = uuid.uuid4()
+    await _seed_role(db_pool, user_id, "admin")
+    token = make_token(sub=str(user_id))
+    resp = client.post("/admin/retrain", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 202
+    assert resp.json()["status"] == "started"
