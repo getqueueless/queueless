@@ -45,6 +45,18 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 }
 
+const DEVICE_ID_KEY = 'queueless-device-id';
+
+/** A stable per-install id for apps/api's `push_tokens.device_id` — persisted in the same
+ * expo-sqlite-backed localStorage the Supabase client already uses for its session. */
+function getOrCreateDeviceId(): string {
+  const existing = localStorage.getItem(DEVICE_ID_KEY);
+  if (existing) return existing;
+  const generated = `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  localStorage.setItem(DEVICE_ID_KEY, generated);
+  return generated;
+}
+
 async function registerTokenWithApi(expoPushToken: string): Promise<void> {
   try {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -54,17 +66,18 @@ async function registerTokenWithApi(expoPushToken: string): Promise<void> {
     const accessToken = data.session?.access_token;
     if (!accessToken) return;
 
-    await fetch(`${apiUrl}/push/register`, {
+    // apps/api's real endpoint: POST /push-tokens, body {token, device_id}, 204 on success.
+    await fetch(`${apiUrl}/push-tokens`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ expo_push_token: expoPushToken }),
+      body: JSON.stringify({ token: expoPushToken, device_id: getOrCreateDeviceId() }),
     });
   } catch (err) {
     // API may not be up yet — never let this block the caller.
-    console.log('[notifications] push/register failed (non-fatal):', err);
+    console.log('[notifications] push-tokens registration failed (non-fatal):', err);
   }
 }
 

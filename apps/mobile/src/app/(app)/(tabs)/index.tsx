@@ -21,6 +21,27 @@ type BoardService = { service_id: string; waiting_count: number; avg_service_sec
 
 const EMPTY_BOARD_ROW: BoardService = { service_id: '', waiting_count: 0, avg_service_secs: 0, open_counters: 0 };
 
+// apps/api's /predict only knows this fixed 5-service Hospital OPD demo preset (see
+// apps/api/app/routes/predict.py's Service Literal) — it takes a slug, not services.id, and
+// there's no confirmed slug column on `services` yet, so match by name as a best effort.
+const SERVICE_SLUGS: Record<string, string> = {
+  general: 'general_opd',
+  opd: 'general_opd',
+  pediatric: 'pediatrics',
+  paediatric: 'pediatrics',
+  ortho: 'ortho',
+  dental: 'dental',
+  eye: 'eye',
+};
+
+function matchServiceSlug(name: string): string | null {
+  const lower = name.toLowerCase();
+  for (const [needle, slug] of Object.entries(SERVICE_SLUGS)) {
+    if (lower.includes(needle)) return slug;
+  }
+  return null;
+}
+
 function formatWait(seconds: number): string {
   if (seconds <= 0) return 'No wait';
   if (seconds < 60) return '< 1 min';
@@ -43,22 +64,41 @@ function ServiceCard({
   // Best-effort prediction upgrade — never blocks first paint, which already shows localEstimate.
   useEffect(() => {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (!apiUrl) return;
+    const slug = matchServiceSlug(service.name);
+    if (!apiUrl || !slug) return;
     let cancelled = false;
 
-    fetch(`${apiUrl}/predict?service_id=${service.id}`, { signal: AbortSignal.timeout(1500) })
+    const now = new Date();
+    // apps/api's training data uses weekday 0 = Monday; JS Date#getDay() uses 0 = Sunday.
+    const weekday = (now.getDay() + 6) % 7;
+
+    fetch(`${apiUrl}/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service: slug,
+        hour: now.getHours(),
+        weekday,
+        queue_len_ahead: boardRow.waiting_count,
+        counters_open: Math.max(boardRow.open_counters, 1),
+      }),
+      signal: AbortSignal.timeout(1500),
+    })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('predict: bad status'))))
       .then((body) => {
-        if (!cancelled && typeof body?.wait_seconds === 'number') setPredictedSeconds(body.wait_seconds);
+        if (!cancelled && typeof body?.predicted_wait_minutes === 'number') {
+          setPredictedSeconds(Math.round(body.predicted_wait_minutes * 60));
+        }
       })
       .catch(() => {
-        // Any failure/timeout/missing URL — the local estimate already on screen is enough.
+        // Any failure/timeout/missing URL/unrecognized service name — the local estimate
+        // already on screen is enough.
       });
 
     return () => {
       cancelled = true;
     };
-  }, [service.id]);
+  }, [service.id, service.name, boardRow.waiting_count, boardRow.open_counters]);
 
   const waitSeconds = predictedSeconds ?? localEstimate;
   const label = predictedSeconds !== null ? 'predicted' : 'estimate';
