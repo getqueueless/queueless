@@ -119,3 +119,18 @@ One line per deviation from the plan/spec, with why.
   is cosmetic and must never gate taking a token. `(app)/_layout.tsx` retries that one pending
   write once on every future boot until it succeeds, then clears the stash. Once RLS lands,
   this starts succeeding with no code change needed.
+- 2026-09-25: Live RLS gap, narrowing but not closed. `organizations`, `services`, `counters`,
+  `board_services`, `board_counters` (0030) and `push_tokens` (0016) now have RLS; `profiles`,
+  `tokens`, `appointments`, `appointment_slots`, `counter_services`, `notifications`, and
+  `audit_log` still don't, and no migration has revoked Postgres's default privilege grants on
+  them either. Until that lands, the live `anon` key — shipped inside the public web and mobile
+  bundles — can `select`/`insert`/`update`/`delete` on `tokens` and `profiles` (including setting
+  `role='admin'` on itself) directly through PostgREST, bypassing every RPC's checks. This is
+  real and live on the deployed instance today, seeded or not. Closing it is a full RLS-policy
+  pass across the remaining tables, tracked as its own piece of work, not bundled into whatever
+  task happens to touch the schema next.
+- 2026-09-25: Admin dashboard's "today" for the `board_services` lookup is computed client-side
+  as `new Date().toISOString().slice(0,10)` (UTC), not the org's `Asia/Kolkata` day the backend
+  computes everywhere else via `private.service_day`. They diverge for about 5.5 hours a day
+  (roughly 00:00-05:30 IST), during which the dashboard queries the wrong day's board row. This
+  is an `apps/web` fix, out of scope for the DB side.
