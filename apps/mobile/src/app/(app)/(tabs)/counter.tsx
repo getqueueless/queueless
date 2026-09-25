@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { todayDateString } from '@/lib/service-day';
 import { supabase } from '@/lib/supabase';
+import { useServiceUpdates } from '@/lib/service-updates';
 import { useLiveRefresh } from '@/lib/use-live-refresh';
 import { useRole } from '@/lib/use-role';
 import { useSession } from '@/lib/use-session';
@@ -70,6 +71,7 @@ export default function Counter() {
   const [selectedCounterId, setSelectedCounterId] = useState<string | null>(null);
   const [current, setCurrent] = useState<TokenRow | null>(null);
   const [queue, setQueue] = useState<TokenRow[]>([]);
+  const [servedServiceIds, setServedServiceIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -127,6 +129,7 @@ export default function Counter() {
       .select('service_id')
       .eq('counter_id', selectedCounterId);
     const serviceIds = (csRows ?? []).map((r) => r.service_id as string);
+    setServedServiceIds(serviceIds);
 
     const { data: currentRows } = await supabase
       .from('tokens')
@@ -154,26 +157,7 @@ export default function Counter() {
   }, [selectedCounterId, orgId]);
   useLiveRefresh(refetch);
 
-  // One effect drives both the initial/counter-switch load and the realtime subscription,
-  // mirroring Home's pattern: the subscribe callback's SUBSCRIBED case is the trigger, not a
-  // separate bare effect (that's a real "calling setState in a callback when external state
-  // changes," not a synchronous effect-body setState). `refetch` changing identity (org or
-  // selected counter changes) tears down and resubscribes the channel, whose SUBSCRIBED
-  // callback fires again and refetches for the new selection — no extra effect needed.
-  useEffect(() => {
-    if (!orgId) return;
-    const channel = supabase
-      .channel(`counter-tokens:${orgId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tokens', filter: `org_id=eq.${orgId}` }, () => {
-        refetch();
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') refetch();
-      });
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [orgId, refetch]);
+  useServiceUpdates(servedServiceIds, refetch);
 
   async function withHaptics<T>(action: () => Promise<{ data: T | null; error: { code?: string; message?: string } | null }>) {
     if (busy) return;

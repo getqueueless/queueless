@@ -11,6 +11,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { todayDateString } from '@/lib/service-day';
 import { supabase } from '@/lib/supabase';
+import { useServiceUpdates } from '@/lib/service-updates';
 import { useLiveRefresh } from '@/lib/use-live-refresh';
 import { useRole } from '@/lib/use-role';
 import { useSession } from '@/lib/use-session';
@@ -149,23 +150,7 @@ export default function AdminDashboard() {
   }, [orgId]);
   useLiveRefresh(refetch);
 
-  // One channel covering board_services/board_counters/tokens for this org — same shape as
-  // counter.tsx: the subscribe callback's SUBSCRIBED case fires the initial load, not a bare
-  // effect. board_services is already Realtime-subscribed this way elsewhere ((tabs)/index.tsx).
-  useEffect(() => {
-    if (!orgId) return;
-    const channel = supabase
-      .channel(`admin-dashboard:${orgId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'board_services', filter: `org_id=eq.${orgId}` }, () => refetch())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'board_counters', filter: `org_id=eq.${orgId}` }, () => refetch())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tokens', filter: `org_id=eq.${orgId}` }, () => refetch())
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') refetch();
-      });
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [orgId, refetch]);
+  useServiceUpdates(services.map((sv) => sv.id), refetch);
 
   // Best-effort predicted-wait upgrade per hour bucket — never blocks the chart, which already
   // shows real "actual" bars from the query above. Same non-blocking fetch-in-effect shape as
