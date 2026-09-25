@@ -20,6 +20,8 @@ export type QueueTrackerProps = {
   /** The service's most recently called token code. */
   nowServingNumber: string | null;
   serviceName: string | null;
+  /** The estimate is /predict's documented fallback, not the model. */
+  etaIsRough?: boolean;
 };
 
 const ENDED: Partial<Record<TrackerStatus, { label: string; text: string }>> = {
@@ -61,6 +63,7 @@ export function QueueTracker({
   counterCode,
   nowServingNumber,
   serviceName,
+  etaIsRough = false,
 }: QueueTrackerProps) {
   // Called or being served: nobody is ahead any more, you are at the counter.
   const atCounter = status === "called" || status === "serving";
@@ -98,7 +101,7 @@ export function QueueTracker({
     ? "Your turn now."
     : etaMinutes === null
       ? "No wait estimate yet."
-      : `Estimated wait about ${etaMinutes} ${etaMinutes === 1 ? "minute" : "minutes"}, ${Math.round(progress * 100)}% of it done.`;
+      : `${etaIsRough ? "Rough estimate" : "Estimated wait"}: about ${etaMinutes} ${etaMinutes === 1 ? "minute" : "minutes"}, ${Math.round(progress * 100)}% of it done.`;
 
   const overflow = laneAhead !== null && laneAhead > MAX_DOTS ? laneAhead - MAX_DOTS : 0;
   const youAt = lane.dots.length + (overflow ? 1 : 0);
@@ -132,7 +135,7 @@ export function QueueTracker({
             ) : (
               <>
                 <span className={styles.ringMins} style={{ "--eta": Math.round(etaMinutes) } as CSSProperties} />
-                <span className={styles.ringUnit}>min</span>
+                <span className={styles.ringUnit}>{etaIsRough ? "min, rough" : "min"}</span>
               </>
             )}
           </span>

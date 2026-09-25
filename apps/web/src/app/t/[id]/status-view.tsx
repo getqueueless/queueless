@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { LogoMark } from "@/components/brand/Logo"
+import { QueueTracker } from "@/components/motion/QueueTracker"
+import { useEtaAtJoin, useNowServing } from "@/components/motion/useQueueExtras"
 import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { createClient } from "@/lib/supabase/client"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
@@ -39,10 +41,6 @@ const STATUS_BADGE_CLASS: Record<TokenRow["status"], string> = {
   cancelled: styles.badgeNoShow,
   pending_payment: styles.badgeWaiting,
 }
-
-// The happy path drawn as a progress track (words, no numerals). Skipped /
-// no-show / cancelled leave it, so the track is hidden for those.
-const STEPS = ["waiting", "called", "serving", "done"] as const
 
 // Live refresh cadence for the derived, not-realtime-pushed numbers (position
 // and ETA change as OTHER tokens move, and the realtime channel below is
@@ -135,6 +133,9 @@ export function StatusView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token.counter_id])
   const displayCounter = counter && counter.id === token.counter_id ? counter : null
+  const nowServing = useNowServing(token.service_id, token.service_day)
+  const etaMinutes = predictedWaitMinutes === null ? null : Math.max(0, Math.round(predictedWaitMinutes))
+  const etaAtJoin = useEtaAtJoin(tokenId, etaMinutes)
 
   // Refresh position + ETA periodically while still waiting -- these are
   // derived from every other waiting token in the service, which the
@@ -170,8 +171,6 @@ export function StatusView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token.status, serviceId])
 
-  const step = (STEPS as readonly string[]).indexOf(token.status)
-
   return (
     <main id="main" className={styles.page}>
       <div className={styles.band}>
@@ -192,103 +191,16 @@ export function StatusView({
           </div>
         </div>
 
-        {step >= 0 && (
-          <ol className={styles.steps} aria-label="Progress">
-            {STEPS.map((key, i) => (
-              <li
-                key={key}
-                className={styles.step}
-                data-state={i < step ? "past" : i === step ? "current" : "next"}
-                aria-current={i === step ? "step" : undefined}
-              >
-                {STATUS_LABEL[key]}
-              </li>
-            ))}
-          </ol>
-        )}
-
-        {/* One persistent live region, so a realtime status change (above
-            all, "called") is announced without the patient refreshing. */}
-        <div aria-live="polite" aria-atomic="true">
-          {token.status === "waiting" && (
-            <div className={styles.body}>
-              <p className={styles.line}>
-                {queueAhead === null ? (
-                  "Position in queue is unavailable right now."
-                ) : queueAhead === 0 ? (
-                  <strong className={`${styles.stat} ${styles.next}`}>You’re next.</strong>
-                ) : (
-                  <>
-                    <strong className={styles.stat}>{queueAhead}</strong>{" "}
-                    {queueAhead === 1 ? "person" : "people"} ahead of you.
-                  </>
-                )}
-              </p>
-              {predictedWaitMinutes !== null && (
-                <p className={styles.eta}>
-                  Estimated wait{" "}
-                  <strong className={styles.stat}>
-                    ~{Math.max(0, Math.round(predictedWaitMinutes))} min
-                  </strong>
-                  {predictedIsFallback && <span className={styles.etaNote}> (rough estimate)</span>}
-                </p>
-              )}
-            </div>
-          )}
-
-          {(token.status === "called" || token.status === "serving") && (
-            <div className={styles.body}>
-              <p className={styles.lineUrgent}>
-                {token.status === "called" ? "You’re being called now." : "You’re being served."}
-              </p>
-              {displayCounter && (
-                <p className={styles.directions}>
-                  <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" className={styles.directionsIcon}>
-                    <path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span>
-                    <span className={styles.goTo}>Go to</span>{" "}
-                    {/* Say "Counter" unless the counter's own name already does. */}
-                    {!/^counter\b/i.test(displayCounter.name) && (
-                      <span className={styles.counterWord}>Counter </span>
-                    )}
-                    <strong className={styles.counterName}>{displayCounter.name}</strong>
-                  </span>
-                </p>
-              )}
-            </div>
-          )}
-
-          {token.status === "done" && (
-            <div className={styles.body}>
-              <p className={styles.line}>Visit complete. Thank you.</p>
-            </div>
-          )}
-
-          {token.status === "no_show" && (
-            <div className={styles.body}>
-              <p className={styles.line}>Marked as a no‑show. See the counter to be re‑added.</p>
-            </div>
-          )}
-
-          {token.status === "skipped" && (
-            <div className={styles.body}>
-              <p className={styles.line}>You were skipped. Check in with the counter.</p>
-            </div>
-          )}
-
-          {token.status === "cancelled" && (
-            <div className={styles.body}>
-              <p className={styles.line}>This token was cancelled.</p>
-            </div>
-          )}
-
-          {token.status === "pending_payment" && (
-            <div className={styles.body}>
-              <p className={styles.line}>Waiting for your payment to confirm.</p>
-            </div>
-          )}
-        </div>
+        <QueueTracker
+          status={token.status}
+          ahead={queueAhead}
+          etaMinutes={etaMinutes}
+          etaAtJoin={etaAtJoin}
+          etaIsRough={predictedIsFallback}
+          counterCode={displayCounter?.name ?? null}
+          nowServingNumber={nowServing}
+          serviceName={service?.name ?? null}
+        />
 
         <p className={styles.footer}>Updates automatically. No need to refresh.</p>
       </div>
