@@ -118,6 +118,9 @@ export default function AppLayout() {
           headerStyle: { backgroundColor: theme.surface },
           headerTintColor: theme.ink,
           headerShadowVisible: false,
+          // The navigator's default scene colour is React Navigation's light grey in every theme;
+          // screens with a transparent root (the four patient tabs) need the themed canvas under them.
+          contentStyle: { backgroundColor: theme.canvasSoft },
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="token/[id]" options={{ title: 'Your ticket' }} />

@@ -37,7 +37,7 @@ export function ThemeTransitionHost({ children }: { children: ReactNode }) {
   // commit that repaints the app, so the old colours never snap.
   if (scheme !== prevScheme) {
     setPrevScheme(scheme);
-    if (armed && !reduceMotion) setFade({ key: (fade?.key ?? 0) + 1, from: Colors[prevScheme].canvas });
+    if (armed && !reduceMotion) setFade({ key: (fade?.key ?? 0) + 1, from: Colors[prevScheme].canvasSoft });
   }
 
   // Disarm after the commit that used it.
@@ -46,7 +46,9 @@ export function ThemeTransitionHost({ children }: { children: ReactNode }) {
   }, [scheme]);
 
   return (
-    <View style={styles.flex}>
+    // The themed canvas under everything, so a screen with a transparent root never shows the
+    // page (web) or window (native) colour of the other theme.
+    <View style={[styles.flex, { backgroundColor: Colors[scheme].canvasSoft }]}>
       {children}
       {fade ? <Overlay key={fade.key} color={fade.from} onDone={() => setFade(null)} /> : null}
     </View>
