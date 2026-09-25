@@ -28,6 +28,14 @@ CREATE TABLE IF NOT EXISTS services (
     name text NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS board_services (
+    service_id uuid NOT NULL,
+    day date NOT NULL,
+    waiting_count int NOT NULL DEFAULT 0,
+    avg_service_secs int,
+    PRIMARY KEY (service_id, day)
+);
+
 CREATE TABLE IF NOT EXISTS tokens (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     service_id uuid NOT NULL,

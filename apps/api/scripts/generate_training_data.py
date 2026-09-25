@@ -2,22 +2,39 @@
 
 This is synthetic data, not real patient data. Generating assumptions (also
 documented verbatim in docs/api/model-card.md):
-  - Per-service base minutes: general_opd=8, pediatrics=10, ortho=12, dental=15, eye=12.
+  - Per-service base minutes, keyed by the real demo org's service_id (no
+    human-readable name is available to apps/api at query time -- its DB
+    role has SELECT on board_services but not on services, per
+    supabase/migrations/0018_queueless_api_role.sql):
+    General OPD=8, Pediatrics=10, Orthopedics=14, Pharmacy=4.
   - Peak-hour multiplier ~1.4x for hour in {9, 10, 11, 14, 15}.
   - Monday multiplier ~1.2x for weekday == 0.
   - wait_minutes = base * peak_mult * monday_mult * queue_len_ahead / counters_open,
     plus right-skewed noise via rng.gamma (not Gaussian), clipped at 0.
+
+No supabase/scripts/seed.sh exists yet (checked as of this writing -- only
+migrate.sh/reset.sh/smoke.sh/test.sh are present), so there is no live demo
+org to pull real service_id values from. SERVICE_IDS below are fixed
+placeholder UUIDs for one demo org's 4 real Hospital OPD services (General
+OPD, Pediatrics, Orthopedics, Pharmacy -- Dental and Eye do not exist in the
+real system and have been removed). Retrain against the real values the
+moment a seed script lands.
 """
 
 import numpy as np
 import pandas as pd
 
+SERVICE_IDS = {
+    "General OPD": "10000000-0000-0000-0000-000000000001",
+    "Pediatrics": "10000000-0000-0000-0000-000000000002",
+    "Orthopedics": "10000000-0000-0000-0000-000000000003",
+    "Pharmacy": "10000000-0000-0000-0000-000000000004",
+}
 BASE_MINUTES = {
-    "general_opd": 8,
-    "pediatrics": 10,
-    "ortho": 12,
-    "dental": 15,
-    "eye": 12,
+    SERVICE_IDS["General OPD"]: 8,
+    SERVICE_IDS["Pediatrics"]: 10,
+    SERVICE_IDS["Orthopedics"]: 14,
+    SERVICE_IDS["Pharmacy"]: 4,
 }
 SERVICES = list(BASE_MINUTES)
 PEAK_HOURS = {9, 10, 11, 14, 15}
