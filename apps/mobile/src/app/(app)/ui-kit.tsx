@@ -6,7 +6,10 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ThemedView } from '@/components/themed-view';
-import { Button, UIText } from '@/components/ui';
+import { Button, Card, DeptTile, DoctorCard, StatusChip, UIText, type ChipStatus } from '@/components/ui';
+
+const DEPTS = ['General OPD', 'Orthopedics', 'Pharmacy', 'Pediatrics', 'Cardiology', 'ENT'];
+const CHIPS: ChipStatus[] = ['available', 'late', 'leave', 'paid', 'pending', 'refunded'];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -21,6 +24,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 export default function UiKit() {
   const [loading, setLoading] = useState(false);
+  const [wait, setWait] = useState(12);
 
   return (
     <ThemedView type="canvasSoft" style={styles.flex}>
@@ -60,6 +64,49 @@ export default function UiKit() {
             <Button label="Disabled" disabled />
           </View>
         </Section>
+
+        <Section title="Card">
+          <Card onPress={() => {}} accessibilityLabel="Your token OPD-042">
+            <UIText variant="title3">OPD-042</UIText>
+            <UIText variant="secondary">General OPD · press and hold to see the 0.98 scale</UIText>
+          </Card>
+          <Card>
+            <UIText>A static card has no press state.</UIText>
+          </Card>
+        </Section>
+
+        <Section title="DeptTile">
+          <View style={styles.grid}>
+            {DEPTS.map((d, i) => (
+              <View key={d} style={styles.cell}>
+                <DeptTile name={d} waitMinutes={i === 0 ? wait : i === 2 ? 0 : i === 5 ? null : 8 + i * 5} onPress={() => {}} />
+              </View>
+            ))}
+          </View>
+          <Button label="Change OPD wait" size="md" variant="secondary" onPress={() => setWait((w) => (w === 12 ? 17 : 12))} />
+        </Section>
+
+        <Section title="DoctorCard">
+          <DoctorCard
+            name="Dr. Asha Rao"
+            department="General OPD"
+            feeInr={300}
+            status="available"
+            nextSlot="Today, 11:30 AM"
+            onAction={() => {}}
+            onPress={() => {}}
+          />
+          <DoctorCard name="Dr. Vikram Singh" department="Orthopedics" feeInr={500} status="late" nextSlot="Today, 12:10 PM" actionLabel="Take token" />
+          <DoctorCard name="Dr. Meera Iyer" department="Pediatrics" feeInr={0} status="leave" />
+        </Section>
+
+        <Section title="StatusChip">
+          <View style={styles.wrap}>
+            {CHIPS.map((s) => (
+              <StatusChip key={s} status={s} />
+            ))}
+          </View>
+        </Section>
       </ScrollView>
     </ThemedView>
   );
@@ -71,4 +118,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   section: { gap: 12 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  cell: { width: '47%', flexGrow: 1 },
 });

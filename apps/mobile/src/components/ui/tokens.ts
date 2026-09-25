@@ -67,7 +67,7 @@ const DEPARTMENT_TONES: [RegExp, Tone][] = [
   [/ortho|bone|physio/i, 'amber'],
   [/pharm/i, 'green'],
   [/pediatric|paediatric|child/i, 'rose'],
-  [/cardio|heart/i, 'rose'],
+  [/cardio|heart/i, 'orange'],
   [/ent|ear|eye|ophthal|dental/i, 'blue'],
   [/gyn|obst|matern/i, 'orange'],
 ];
@@ -97,12 +97,14 @@ export function iconFor(name: string): IconName {
 }
 
 /**
- * A two-stop diagonal gradient as a style. React Native draws it natively (new architecture);
- * react-native-web passes plain CSS through. `from` doubles as the solid fallback.
+ * A CSS linear-gradient as a style: React Native draws it natively (new architecture) and
+ * react-native-web passes it through as CSS. No gradient dependency.
  */
+export function cssGradient(css: string): ViewStyle {
+  return Platform.OS === 'web' ? ({ backgroundImage: css } as ViewStyle) : { experimental_backgroundImage: css };
+}
+
+/** Two-stop diagonal gradient; `from` doubles as the solid fallback. */
 export function gradient(from: string, to: string): ViewStyle {
-  const css = `linear-gradient(135deg, ${from}, ${to})`;
-  return Platform.OS === 'web'
-    ? ({ backgroundColor: from, backgroundImage: css } as ViewStyle)
-    : { backgroundColor: from, experimental_backgroundImage: css };
+  return { backgroundColor: from, ...cssGradient(`linear-gradient(135deg, ${from}, ${to})`) };
 }
