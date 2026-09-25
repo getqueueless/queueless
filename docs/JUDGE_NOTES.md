@@ -70,6 +70,13 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   already sent in `private.token_notifications` — it cannot write `tokens`, `profiles`, or
   anything the RPC layer owns. Registering a push token is still the client's own job through
   normal RLS (`push_tokens` is owner-only for `authenticated`), not the API's.
+- **Why email OTP.** Patients sign in with a 6-digit code emailed to them, not a password with
+  autoconfirmed signup. One verified inbox per patient closes the "make 50 accounts to spam the
+  queue" hole that autoconfirm-only signup left wide open — getting a token now costs a real
+  email address, not just a form submission. A global send-rate cap (30 codes/hour) limits how
+  many codes this abuse path can ever generate, on top of the existing per-patient limits
+  (3 tokens/10min, cooldown after cancellations). Staff/admin logins are untouched — they still
+  use a password and never go through the mailer.
 
 ## Web app
 
