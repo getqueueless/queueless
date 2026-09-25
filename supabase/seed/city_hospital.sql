@@ -59,20 +59,105 @@ update public.counters set state = 'closed' where org_id = :'org_id' and name = 
 update public.counters set state = 'paused' where org_id = :'org_id' and name = 'PHA-2';
 
 -- appointment slots: today + tomorrow, every 15 minutes 09:00-17:00 IST, capacity 2, per service
+-- (doctor_id left null -- "any available doctor"). 0039 dropped the old unique(service_id,
+-- starts_at) in favor of unique(doctor_id, starts_at) where doctor_id is not null, so a
+-- doctor_id-is-null row like this one has no constraint to ON CONFLICT against any more --
+-- guard with not exists instead, same as the counters insert above.
 insert into public.appointment_slots (service_id, starts_at, capacity)
 select
   s.id,
-  ((private.service_day(:'org_id', now()) + day_offset)::timestamp
-    + interval '9 hours' + (slot_n * 15) * interval '1 minute') at time zone 'Asia/Kolkata',
+  gen.starts_at,
   2
 from public.services s
-cross join generate_series(0, 1) as day_offset
-cross join generate_series(0, 32) as slot_n -- 09:00 to 17:00 inclusive, 15-min steps
+cross join lateral (
+  select ((private.service_day(:'org_id', now()) + day_offset)::timestamp
+    + interval '9 hours' + (slot_n * 15) * interval '1 minute') at time zone 'Asia/Kolkata' as starts_at
+  from generate_series(0, 1) as day_offset
+  cross join generate_series(0, 32) as slot_n -- 09:00 to 17:00 inclusive, 15-min steps
+) as gen
 where s.org_id = :'org_id'
-on conflict (service_id, starts_at) do nothing;
+  and not exists (
+    select 1 from public.appointment_slots a
+    where a.service_id = s.id and a.starts_at = gen.starts_at and a.doctor_id is null
+  );
+
+-- doctors: 2-3 per service, realistic Indian names/specialties, a morning + an evening shift
+-- each. Guarded on (org, name) since doctors has no natural unique key of its own. One doctor
+-- (Dr. Kavita Reddy, ORT) is on leave today via doctor_leaves; one (Dr. Neha Sharma, OPD) is
+-- running_late via doctor_status -- both picked to show up on the patient-facing status view.
+select set_config('queueless.seed_org_id', :'org_id', false);
+
+do $$
+declare
+  v_org uuid := current_setting('queueless.seed_org_id')::uuid;
+  v_day date := private.service_day(v_org, now());
+  v_svc_id uuid;
+  v_doctor_id uuid;
+  v_doctor record;
+  v_doctors jsonb := '[
+    {"service":"OPD","name":"Dr. Neha Sharma","specialty":"General Medicine","qualification":"MBBS, MD","room":"OPD-101","fee_inr":300},
+    {"service":"OPD","name":"Dr. Rajesh Iyer","specialty":"General Medicine","qualification":"MBBS","room":"OPD-102","fee_inr":250},
+    {"service":"OPD","name":"Dr. Farah Sheikh","specialty":"Internal Medicine","qualification":"MBBS, MD","room":"OPD-103","fee_inr":350},
+    {"service":"PED","name":"Dr. Priya Nair","specialty":"Pediatrics","qualification":"MBBS, DCH","room":"PED-201","fee_inr":320},
+    {"service":"PED","name":"Dr. Arjun Menon","specialty":"Pediatrics","qualification":"MBBS, MD","room":"PED-202","fee_inr":300},
+    {"service":"ORT","name":"Dr. Kavita Reddy","specialty":"Orthopedics","qualification":"MBBS, MS Ortho","room":"ORT-301","fee_inr":400},
+    {"service":"ORT","name":"Dr. Sandeep Kulkarni","specialty":"Orthopedics","qualification":"MBBS, MS Ortho","room":"ORT-302","fee_inr":380},
+    {"service":"PHA","name":"Dr. Meera Joshi","specialty":"Clinical Pharmacology","qualification":"B.Pharm, PharmD","room":"PHA-401","fee_inr":150}
+  ]';
+begin
+  for v_doctor in select * from jsonb_to_recordset(v_doctors)
+    as x(service text, name text, specialty text, qualification text, room text, fee_inr int)
+  loop
+    select id into v_svc_id from public.services where org_id = v_org and code = v_doctor.service;
+
+    select id into v_doctor_id from public.doctors
+      where org_id = v_org and service_id = v_svc_id and name = v_doctor.name;
+
+    if v_doctor_id is null then
+      insert into public.doctors (org_id, service_id, name, specialty, qualification, room, fee_inr)
+      values (v_org, v_svc_id, v_doctor.name, v_doctor.specialty, v_doctor.qualification, v_doctor.room, v_doctor.fee_inr)
+      returning id into v_doctor_id;
+
+      -- morning (09:00-13:00) and evening (17:00-20:00) shifts, Mon-Sat (weekday 1-6)
+      insert into public.doctor_schedules (doctor_id, weekday, start_time, end_time, max_patients, slot_minutes)
+      select v_doctor_id, w, '09:00'::time, '13:00'::time, 16, 15 from generate_series(1, 6) as w
+      union all
+      select v_doctor_id, w, '17:00'::time, '20:00'::time, 12, 15 from generate_series(1, 6) as w;
+
+      -- a lunch break inside the gap between shifts is redundant, so give every doctor a short
+      -- mid-morning break instead, inside the morning shift, so slot generation has one to skip
+      insert into public.doctor_breaks (doctor_id, weekday, start_time, end_time)
+      select v_doctor_id, w, '11:00'::time, '11:15'::time from generate_series(1, 6) as w;
+
+      perform private.generate_doctor_slots(v_doctor_id, v_day, v_day + 1);
+    end if;
+  end loop;
+
+  -- one doctor on leave today (and tomorrow, so the demo doesn't need re-running at midnight).
+  -- doctor_leaves is what actually blocks slot generation; doctor_status is a separate,
+  -- staff-set flag doctor_status_today doesn't derive from it, so set both -- otherwise the
+  -- demo's patient-facing status view would still read this doctor back as "available".
+  select d.id into v_doctor_id from public.doctors d
+    where d.org_id = v_org and d.name = 'Dr. Kavita Reddy';
+  if not exists (select 1 from public.doctor_leaves where doctor_id = v_doctor_id and from_date <= v_day and to_date >= v_day) then
+    insert into public.doctor_leaves (doctor_id, from_date, to_date, reason)
+    values (v_doctor_id, v_day, v_day + 1, 'Conference');
+  end if;
+  update public.doctor_status
+    set status = 'off', late_minutes = null, day = v_day, updated_at = now()
+    where doctor_id = v_doctor_id;
+
+  -- one doctor running 20 minutes late today (doctor_status_today falls back to 'available'
+  -- once `day` rolls past, so this only ever shows as late on the day it was set)
+  select d.id into v_doctor_id from public.doctors d
+    where d.org_id = v_org and d.name = 'Dr. Neha Sharma';
+  update public.doctor_status
+    set status = 'running_late', late_minutes = 20, day = v_day, updated_at = now()
+    where doctor_id = v_doctor_id;
+end;
+$$;
 
 -- 14 days of synthetic history, oldest first, guarded so a rerun never doubles it
-select set_config('queueless.seed_org_id', :'org_id', false);
 
 do $$
 declare

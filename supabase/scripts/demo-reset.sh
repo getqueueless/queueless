@@ -85,6 +85,25 @@ begin
   end if;
 
   perform private.rebuild_boards(v_org, v_day);
+
+  -- keep the "one running late, one on leave" doctors demo-fresh no matter which calendar day
+  -- this actually runs on -- doctor_status falls back to 'available' once its `day` is stale,
+  -- and a doctor_leaves row is a fixed date range, so both need restamping to today, same as
+  -- the live queue above.
+  update public.doctor_status ds
+    set status = 'running_late', late_minutes = 20, day = v_day, updated_at = now()
+    from public.doctors d
+    where d.id = ds.doctor_id and d.org_id = v_org and d.name = 'Dr. Neha Sharma';
+
+  update public.doctor_leaves dl
+    set from_date = v_day, to_date = v_day + 1
+    from public.doctors d
+    where d.id = dl.doctor_id and d.org_id = v_org and d.name = 'Dr. Kavita Reddy';
+
+  update public.doctor_status ds
+    set status = 'off', late_minutes = null, day = v_day, updated_at = now()
+    from public.doctors d
+    where d.id = ds.doctor_id and d.org_id = v_org and d.name = 'Dr. Kavita Reddy';
 end;
 $$;
 SQL
