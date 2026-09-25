@@ -18,13 +18,16 @@ COUNTER_A = uuid.uuid4()
 COUNTER_B = uuid.uuid4()
 
 
-async def _seed_called_tokens(db_pool, n: int, start_number: int = 1):
+async def _seed_called_tokens(db_pool, n: int, start_number: int = 1, doctor_id=None):
     base = datetime(2026, 1, 1, tzinfo=timezone.utc)
     rows = []
     for i in range(n):
         created_at = base + timedelta(days=i % 90, hours=(i * 7) % 24, minutes=i % 60)
         wait = timedelta(minutes=3 + (i % 40))
         service_id = GENERAL_OPD if i % 3 else ORTHO
+        # Every 3rd row doctor-attributed when a doctor_id is given -- the
+        # rest stay generic, same real-world mix the synthetic data models.
+        row_doctor = doctor_id if (doctor_id is not None and i % 3 == 0) else None
         rows.append(
             (
                 uuid.uuid4(),
@@ -34,11 +37,12 @@ async def _seed_called_tokens(db_pool, n: int, start_number: int = 1):
                 start_number + (i % 30),
                 COUNTER_A if i % 2 else COUNTER_B,
                 "done",
+                row_doctor,
             )
         )
     await db_pool.executemany(
-        "INSERT INTO tokens (id, service_id, created_at, called_at, number, counter_id, status) "
-        "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO tokens (id, service_id, created_at, called_at, number, counter_id, status, doctor_id) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         rows,
     )
 
@@ -183,3 +187,42 @@ async def test_retrain_sets_failure_gauge_on_exception(db_pool, tmp_path, monkey
             _FakeApp(), db_pool, lock_key=555_000_006, min_real_rows=500, admin_user_id=uuid.uuid4()
         )
     assert retrain_last_success._value.get() == 0
+
+
+def test_rows_to_training_frame_derives_doctor_column_from_real_rows():
+    import asyncpg
+    from app.routes.admin import _rows_to_training_frame
+
+    doctor_a = uuid.uuid4()
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    # asyncpg.Record isn't directly constructible; a plain dict with the
+    # same keys works identically for pandas.DataFrame(rows, columns=...)
+    # since it indexes by column name either way.
+    rows = [
+        {"service_id": uuid.uuid4(), "created_at": now, "called_at": now + timedelta(minutes=5), "number": 1, "counter_id": uuid.uuid4(), "doctor_id": doctor_a},
+        {"service_id": uuid.uuid4(), "created_at": now, "called_at": now + timedelta(minutes=5), "number": 2, "counter_id": uuid.uuid4(), "doctor_id": None},
+    ]
+    df = _rows_to_training_frame(rows, ["svc-a"])
+    assert list(df["doctor"]) == [str(doctor_a), "none"]
+
+
+async def test_retrain_with_real_doctor_attributed_tokens_reports_doctor_mae(db_pool, tmp_path, monkeypatch):
+    from app.routes import admin as admin_module
+
+    monkeypatch.setattr(admin_module, "ML_DIR", tmp_path)
+    (tmp_path / "model_meta.json").write_text('{"version": 1}')
+
+    doctor_id = uuid.uuid4()
+    await _seed_called_tokens(db_pool, n=520, doctor_id=doctor_id)
+
+    class _FakeApp:
+        class state:
+            ml_model = None
+            ml_meta = None
+
+    result = await admin_module.retrain_once(
+        _FakeApp(), db_pool, lock_key=555_000_007, min_real_rows=500, admin_user_id=uuid.uuid4()
+    )
+    assert result["status"] == "retrained"
+    assert "none" in result["mae_model_by_doctor"]
+    assert str(doctor_id) in result["mae_model_by_doctor"]

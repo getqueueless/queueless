@@ -23,7 +23,7 @@ log = structlog.get_logger()
 
 ML_DIR = Path(__file__).resolve().parent.parent.parent / "ml"
 
-FEATURE_COLUMNS = ["service", "hour", "weekday", "queue_len_ahead", "counters_open"]
+FEATURE_COLUMNS = ["service", "doctor", "hour", "weekday", "queue_len_ahead", "counters_open"]
 TARGET_COLUMN = "wait_minutes"
 
 _MODEL_REPORT_FIELDS = (
@@ -66,7 +66,7 @@ def _rows_to_training_frame(rows: list[asyncpg.Record], service_categories: list
     upgrade path is a real counters_audit replay (0025_remaining_audit_
     triggers.sql) if that ceiling ever matters.
     """
-    df = pd.DataFrame(rows, columns=["service_id", "created_at", "called_at", "number", "counter_id"])
+    df = pd.DataFrame(rows, columns=["service_id", "created_at", "called_at", "number", "counter_id", "doctor_id"])
     df["created_at"] = pd.to_datetime(df["created_at"], utc=True)
     df["called_at"] = pd.to_datetime(df["called_at"], utc=True)
 
@@ -91,6 +91,10 @@ def _rows_to_training_frame(rows: list[asyncpg.Record], service_categories: list
     df["queue_len_ahead"] = (df["number"] - 1).clip(lower=0)
     df["wait_minutes"] = (df["called_at"] - df["created_at"]).dt.total_seconds() / 60
     df["service"] = pd.Categorical(df["service_id"].astype(str), categories=service_categories)
+    # "none" for a walk-in with no doctor attribution, same convention
+    # scripts/generate_training_data.py uses -- one categorical dtype the
+    # model treats consistently whether the data is synthetic or real.
+    df["doctor"] = df["doctor_id"].apply(lambda d: str(d) if d is not None else "none")
 
     return df
 
@@ -134,7 +138,7 @@ async def retrain_once(app, pool: asyncpg.Pool, lock_key: int, min_real_rows: in
                 return {"status": "already_running"}
 
             rows = await conn.fetch(
-                "SELECT service_id, created_at, called_at, number, counter_id "
+                "SELECT service_id, created_at, called_at, number, counter_id, doctor_id "
                 "FROM tokens WHERE called_at IS NOT NULL"
             )
             if len(rows) < min_real_rows:
@@ -151,8 +155,21 @@ async def retrain_once(app, pool: asyncpg.Pool, lock_key: int, min_real_rows: in
             started = time.monotonic()
             try:
                 df = _rows_to_training_frame(rows, SERVICES)
+                # Discovered from the real data, not a fixed constant like
+                # the synthetic path's DOCTOR_IDS -- real doctors get
+                # created/deactivated (supabase/migrations/0038) with no
+                # fixed roster apps/api can read (no grant on `doctors`).
+                doctor_categories = ["none"] + sorted(d for d in df["doctor"].unique() if d != "none")
+                # Categorical with a fixed category list, matching how
+                # `service` is already built -- so a predict-time row
+                # (app/ml_runtime.py builds the exact same dtype from these
+                # same meta-reported categories) is dtype-consistent with
+                # what this model was actually fit on, not just string-
+                # equal.
+                df["doctor"] = pd.Categorical(df["doctor"], categories=doctor_categories)
                 model, meta = await asyncio.to_thread(
-                    train_and_evaluate, df, FEATURE_COLUMNS, TARGET_COLUMN, SERVICES
+                    train_and_evaluate, df, FEATURE_COLUMNS, TARGET_COLUMN, SERVICES,
+                    doctor_categories=doctor_categories,
                 )
                 meta["trained_on"] = "real"
                 meta["trained_at"] = datetime.now(timezone.utc).isoformat()

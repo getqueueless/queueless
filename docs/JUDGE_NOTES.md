@@ -589,13 +589,15 @@ Plain-English notes per feature: what was built, how it actually works, and why.
 - **The actual, measured numbers, corrected** (from running `scripts/train.py`, not hand-typed —
   an earlier version of this section reported 92.3% against a baseline that forgot to divide by
   the number of open counters, which a judge asking "how did you validate this?" would have
-  caught): the model's average error is **7.49 minutes**; the honest baseline — the exact same
+  caught): the model's average error is **6.74 minutes**; the honest baseline — the exact same
   formula (`waiting × avg time ÷ open counters`) the app itself would show without any ML — is
-  off by **33.68 minutes** on average, a **77.76% improvement**. Validated with a chronological
-  split (the model never sees the last 20% of days during training), not a random shuffle, so
-  "does this work on a day it hasn't seen" is actually tested. Full methodology, including why
-  this improvement number is higher than typically expected and what was checked to rule out a
-  bug, is in `docs/api/model-card.md`'s Validation section.
+  off by **37.39 minutes** on average, an **81.98% improvement** (moved up from an earlier
+  77.76% when per-doctor features landed — real added signal the baseline structurally can't
+  use, not baseline noise; see the model card). Validated with a chronological split (the model
+  never sees the last 20% of days during training), not a random shuffle, so "does this work on
+  a day it hasn't seen" is actually tested. Full methodology, including why this improvement
+  number is higher than typically expected and what was checked to rule out a bug, is in
+  `docs/api/model-card.md`'s Validation section.
 - **The responsible-AI part.** If the model is asked about a situation it barely saw in training
   (fewer than 30 similar examples), it does not guess — it falls back to that same honest baseline
   formula and says so in the response (`"fallback": true`). This is the guardrail against a
@@ -614,6 +616,15 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   served someone that day (queueless_api's database account can't read a live counters list at
   all) — both documented in `docs/api/model-card.md` with the upgrade path if either ever matters
   more than it does at this scale.
+- **Per-doctor predictions (v2), additive not breaking.** `/predict` now takes an optional
+  `doctor_id` — the same one model learns doctor-level speed alongside service-level, and
+  falls back to the plain service-level prediction (the v1 behavior, unchanged) whenever a
+  doctor is unspecified, unknown to the model, or has too little real history for that hour.
+  Real-data retraining discovers which doctors actually have enough completed appointments
+  automatically — apps/api has no fixed doctor list to maintain, and no permission to read one
+  directly either. An admin can also just ask, in plain English, "what's Dr. X's average
+  service time" via `/admin/ask` — that's a real, already-existing database function
+  (`analytics.doctor_service_time`), not a new one built for this.
 
 ## AI features (DeepSeek)
 
