@@ -36,6 +36,8 @@ const PAIRS = [
   ["warning", "surface", 4.5], ["warning", "warning-soft", 4.5],
   ["danger", "surface", 4.5], ["danger", "danger-soft", 4.5],
   ["focus-ring", "canvas", 3], ["focus-ring", "surface", 3], ["focus-ring", "canvas-soft", 3],
+  ["focus-ring-on-slate", "slate", 3], ["focus-ring-on-slate", "slate-deep", 3],
+  ["ink", "primary-soft", 4.5],
 ];
 
 let failed = 0;

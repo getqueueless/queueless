@@ -13,6 +13,7 @@ colors:
     slate-overlay: "rgba(26, 50, 55, 0.84)"
     on-slate: "#ffffff"
     on-slate-muted: "#b3c6ca"
+    focus-ring-on-slate: "#0cb7d6"
   light:
     primary: "#087589"
     primary-hover: "#066474"
@@ -68,6 +69,10 @@ shadows:
     card: "0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -12px rgba(0, 0, 0, 0.6)"
     raised: "0 22px 48px -18px rgba(0, 0, 0, 0.75)"
 
+motion:
+  ease-out: "cubic-bezier(0.2, 0.8, 0.2, 1)"
+  note: "Transitions are 150ms and state reveals 400ms on this curve; every animation sits behind prefers-reduced-motion."
+
 fonts:
   display: "Poppins (400, 700) via next/font, --font-poppins"
   body: "Inter (variable) via next/font, --font-inter"
@@ -76,7 +81,7 @@ fonts:
 typography:
   display-hero:
     fontFamily: Poppins
-    fontSize: "clamp(32px, 5vw, 56px)"
+    fontSize: "clamp(34px, 6vw, 64px)"
     fontWeight: 700
     lineHeight: 1.1
     letterSpacing: 0.01em
@@ -104,7 +109,7 @@ typography:
     lineHeight: 1
     letterSpacing: 0
     fontFeature: tnum
-    note: "The 01 02 03 04 on numbered cards."
+    note: "The 01 02 03 04 on the landing services list (36px in the mobile two-column card), and the service code (OPD, PED...) that leads each /kiosk service card."
   heading-lg:
     fontFamily: Poppins
     fontSize: 22px
@@ -186,12 +191,12 @@ typography:
     note: "The token code on /t/[id], the patient's own page. token-number grown fluidly so it reads at arm's length on a phone and stays the card's anchor on desktop. The counter console keeps the fixed 56px token-number."
   token-number-kiosk:
     fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace"
-    fontSize: "clamp(112px, 15vw, 200px)"
+    fontSize: "min(152px, 21cqi)"
     fontWeight: 700
     lineHeight: 0.9
     letterSpacing: -0.02em
     fontFeature: tnum
-    note: "The just-issued number on the /kiosk ticket, read at arm's length by the staff member handing over the slip -- one deliberate step above token-number, not a stray value."
+    note: "The just-issued token CODE (PED-006, not the bare number) on the /kiosk ticket, sized off the ticket stub with a container query on .tokenPanel so it never wraps. Read at arm's length by the staff member handing over the slip."
   token-number-board:
     fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace"
     fontSize: "min(21cqi, 12vh)"
@@ -378,7 +383,7 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 
 | Token | Face | Size | Weight | Case | Use |
 |---|---|---|---|---|---|
-| `display-hero` | Poppins | 32–56px fluid | 700 | UPPER | Landing hero |
+| `display-hero` | Poppins | 34–64px fluid | 700 | UPPER | Landing hero |
 | `display-lg` | Poppins | 28–40px fluid | 700 | UPPER, +0.02em | Two-tone section headings |
 | `display-md` | Poppins | 30px | 700 | Sentence | Staff page titles, stat values |
 | `numeral-card` | Poppins | 44–60px fluid | 400 | - | 01 02 03 04 |
@@ -392,7 +397,7 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 | `caption` | Inter | 12px | 500 | - | Badges, timestamps |
 | `button` | Inter | 14px | 500 | - | Staff buttons |
 | `button-cta` | Poppins | 14px | 700 | UPPER, +0.06em | Public CTAs |
-| `token-number*` | JetBrains Mono | 56 counter / 56–88 status / 112–200 kiosk / tile-relative board | 700 | - | Queue numbers |
+| `token-number*` | JetBrains Mono | 56 counter / 56–88 status / stub-relative kiosk (max 152) / tile-relative board | 700 | - | Queue numbers |
 
 ## Layout
 
@@ -426,7 +431,7 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 - **`card-overlap`**: the same with `shadow-raised`, pulled up over the hero.
 - **`section-dark`**: slate fill, white text, `radius-section` corners.
 - **`TwoToneHeading`** (`src/components/site/TwoToneHeading.tsx`): `display-lg` with the lead words in ink and the accent words in `accent-display`, or brand accent with `onDark`.
-- **`PublicHeader`** (`src/components/site/`): skip link, logo, public nav (Home, Get a token, Check status, Staff login as an outline button) and the theme toggle. `tone="slate"` sits it transparent on the hero overlay with white text. Pages that use it render `<main id="main">` (skip-link target), and the landing page's status lookup carries `id="status"` ("Check status" links to `/#status`).
+- **`PublicHeader`** (`src/components/site/`): skip link, logo, public nav (Home, Get a token, Check status, Staff login as an outline button) and the theme toggle. "Get a token" opens the landing's How it works (`/#how`): tokens come from reception, and `/kiosk` needs a staff sign-in, so no public link points there. On phones Home is hidden (the logo links home). `tone="slate"` sits it transparent on the hero overlay with white text. Pages that use it render `<main id="main">` (skip-link target), and the landing page's status lookup carries `id="status"` ("Check status" links to `/#status`).
 - **`PublicFooter`** (`src/components/site/`): slate-deep in both themes, logo and tagline, cyan-dot column headings, and a `credit` slot for photo credits.
 - **`ThemeToggle`** (`src/components/theme/ThemeToggle.tsx`): a 44px round icon button in every header. `aria-label` names the target theme ("Switch to dark theme").
 - **Status badges, token tile, stat tile, text input**: unchanged in shape. Inputs take `radius-sm` and the `hairline-strong` border.
@@ -434,13 +439,23 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 - **Kiosk chrome**: Logo (not a link), a "Reception kiosk" tag and ThemeToggle only, with no public nav or footer. The terminal stays signed in to a staff account, so it must offer no route to `/counter` or `/admin`.
 
 ### Staff chrome
-- **Counter app bar** (`/counter`): slate in both themes, with a 3px brand-cyan rule on top, Logo(22) (not a link, so a mid-shift click can't leave the console), a divider, the "Counter console" label and ThemeToggle.
+- **Counter app bar** (`/counter`): slate in both themes, no cyan rule, Logo(22) (not a link, so a mid-shift click can't leave the console), a divider, the "Counter console" label and ThemeToggle.
 - **Admin sidebar** (`/admin/**`): slate in light, slate-deep in dark. Logo and org name at the top, just the LogoMark on the collapsed tablet rail. Inline SVG stroke icons per link. The current page gets a cyan edge bar, a cyan icon and white text. Focus rings on the sidebar are brand cyan (5.63:1 on slate), because the global `focus-ring` cannot be seen there. Sign out and ThemeToggle sit in its footer.
-- **Staff page titles** are `display-md` with a 32x4 cyan rule above them. **Staff card titles** are `heading-md` with a cyan dot, MedWin's footer-heading motif.
-- **Admin chart series**: actual wait is `accent-display` bars (a 70% `accent` mix over `surface` in dark, 3.99:1); predicted wait is a `slate` line (an `ink` line in dark). Legend and tooltip text stay `ink-secondary`, so no series colour is ever small text.
+- **Counter console**: the only cyan edge is on the current-token card. Skip is neutral like Recall (skipping is routine, not destructive). Done / Skip / Recall sit on a `2fr 1fr 1fr` grid under a dashed tear-line rule; on phones Done takes its own row. Error and info banners sit under the card so the buttons never move under the pointer.
+- **Staff page titles** are plain `display-md`. **Staff card titles** are plain `heading-md` `<h2>`s. Info banners are sunken boxes with a hairline all round, no side stripe. Admin row actions are 34px on fine pointers and 44px on touch.
+- **`[data-surface="slate"]`** marks slate regions (counter app bar, admin sidebar, TV board). Focus rings inside switch to `focus-ring-on-slate` (brand cyan, 5.63:1 on slate, 6.71:1 on slate-deep).
+- **Admin chart series**: actual wait is `accent-display` bars (a 70% `accent` mix over `surface` in dark, 3.99:1); predicted wait is a `slate` line (an `ink` line in dark), hidden entirely when /predict is unavailable rather than drawn flat at zero. Legend and tooltip text stay `ink-secondary`, so no series colour is ever small text.
 
 ### TV board palette
-`/display/[service]` pins its palette on the board root, so `:root[data-theme]` cannot reach it: background `slate-deep`, tiles `slate`, text `#ffffff`, secondary `#b3c6ca`, finished tokens and closed counters `#8fa9ae` (5.44:1 on slate, 6.48:1 on slate-deep), accent `#0cb7d6`. A counter that is calling turns solid cyan with `#112427` text (6.71:1); serving gets a cyan edge; paused and closed tiles are dashed. The computed ratios are in the header of `display.module.css`.
+`/display/[service]` pins its palette on the board root, so `:root[data-theme]` cannot reach it: background `slate-deep`, tiles `slate`, text `#ffffff`, secondary `#b3c6ca`, finished tokens and closed counters `#8fa9ae` (5.44:1 on slate, 6.48:1 on slate-deep), accent `#0cb7d6`. A counter that is calling turns solid cyan with `#112427` text (6.71:1) and, on each new call, a cyan ring ripples out of the tile 3 x 1.5s (4.5s, inside WCAG 2.2.2) and stops; no glow, and no ring under reduced motion. Paused and closed tiles are dashed. Each tile leads with the token in mono; the counter sits under it as sentence-case Poppins "Counter X" at about 40% of the token size, never in the token's code shape. Status chips follow the `status-badge` spec in dark-theme colours at weight 600: Now calling, Serving, Done, No-show, Skipped, Cancelled, Paused, Closed. Unknown values are a drawn dim bar, not a glyph. The computed ratios are in the header of `display.module.css`.
+
+### Motifs
+- **Cyan stripe** only on token surfaces: the /t status card and the /kiosk issued ticket (a full-width 6px strip), and the counter's current-token card. The impeccable detector flags these as side-tabs; they are the sanctioned exception. No cyan card-top tabs anywhere else.
+- **Cyan dot** only in footer headings and live/state indicators. No eyebrow dots.
+- **One signature per public screen.** The landing's is the example token slip in the status card: fixed `#ffffff` paper in both themes, print sizes 11/12/34px, and a real QR that only encodes "Example slip only".
+- **/t CALLED** fills the status card head with brand `accent` and `on-accent` ink (6.39:1).
+- The landing's How it works is `section-dark` with `radius-section` on all four corners (MedWin's stadium) and canvas space before the footer.
+- No em dashes in UI copy; page titles come from the root layout's `"%s | Queueless"` template.
 
 ## Do's and Don'ts
 

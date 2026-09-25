@@ -17,6 +17,7 @@
   --color-slate-overlay: rgba(26, 50, 55, 0.84); /* over hero photos */
   --color-on-slate: #ffffff;
   --color-on-slate-muted: #b3c6ca;
+  --color-focus-ring-on-slate: #0cb7d6; /* focus-ring cannot be seen on slate */
 
   /* Theme colors -- light. */
   --color-primary: #087589; /* AA cyan: links, small text, filled buttons with white text */
@@ -67,6 +68,8 @@
   --space-xl: 32px;
   --space-xxl: 48px;
   --space-section: 64px;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 :root[data-theme="dark"] {
@@ -135,4 +138,15 @@ a {
 :focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
+}
+
+/* Slate regions opt in with data-surface="slate". :where() keeps this at the
+   base rule's specificity, so any module ring still wins. */
+:where([data-surface="slate"]) :focus-visible {
+  outline-color: var(--color-focus-ring-on-slate);
+}
+
+::selection {
+  background: var(--color-primary-soft);
+  color: var(--color-ink);
 }
