@@ -26,8 +26,7 @@ export function useRole(userId: string | undefined): RoleState {
   const [state, setState] = useState<RoleState>(DEFAULT_STATE);
 
   useEffect(() => {
-    // No userId (signed out) needs no async lookup — the render branch below already returns
-    // the right thing directly, without a setState round-trip through this effect.
+    // No userId needs no async lookup — the render branch below answers "loading" directly.
     if (!userId) return;
 
     let cancelled = false;
@@ -51,6 +50,9 @@ export function useRole(userId: string | undefined): RoleState {
     };
   }, [userId]);
 
-  if (!userId) return { role: 'patient', orgId: null, loading: false };
+  // No user id yet means the session is still arriving (every caller lives under (app), which
+  // redirects a real sign-out to (auth)). Reporting loading keeps staff/admin from flashing the
+  // patient tabs on cold start.
+  if (!userId) return { role: 'patient', orgId: null, loading: true };
   return state;
 }
