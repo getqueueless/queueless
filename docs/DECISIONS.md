@@ -324,3 +324,38 @@ One line per deviation from the plan/spec, with why.
   - Not changed: `queueless_api` still holds `select, insert` on `private.token_notifications`,
     unused since 1d271f3. apps/api's `/admin/retrain` wants `insert` on `audit_log`; not granted,
     it was outside this task's list.
+- 2026-09-26 (mobile): building the patient/staff/admin role-routed app, found (and flagged
+  separately, not fixed here -- out of `apps/mobile`'s scope) that `profiles` and `tokens` have
+  no RLS on prod at all as of migration 0032 -- `anon` can currently read every profile
+  (role/org_id/full_name) and every token (code/patient_id) with no login, and has an UPDATE
+  grant on `profiles` (verified non-destructively: a PATCH against a nonexistent id returned
+  `200 []` instead of a permission error), meaning anyone can set their own `role` to `'admin'`
+  with one unauthenticated request. `useRole()` (`src/lib/use-role.ts`) reads `profiles.role` for
+  UI routing only and defaults to `'patient'` on any failure -- it is not, and was never meant to
+  be, the real authorization boundary; every actual staff/admin write still goes through an RPC
+  or an RLS-scoped table that checks role server-side independently. Still, this needs fixing
+  before judging -- a task is queued for whoever runs the DB session next.
+- 2026-09-26 (mobile): Google sign-in (`src/lib/google-auth.ts`) is built client-side (PKCE,
+  `signInWithOAuth` + `expo-web-browser`, redirect `queueless://auth/callback`) but GoTrue has no
+  Google provider configured on `origin/main` (`supabase/docker-compose.yml`/`.env.example` have
+  no `GOTRUE_EXTERNAL_GOOGLE_*`) -- that needs a real Google Cloud OAuth client, which only a
+  human can create, plus `queueless://**`/`exp://**` in GoTrue's redirect allow-list for it to
+  work from Expo Go during dev. Until that lands, the button shows a mapped "Google sign-in
+  isn't set up yet" error instead of crashing.
+- 2026-09-26 (mobile): the "Settings: language EN/HI/PA -> profiles.language RPC" ask has no
+  matching column or RPC anywhere in `supabase/migrations/` (checked all 32 files) -- scoped
+  down to a local-only preference (same `localStorage` polyfill the theme preference already
+  uses), not synced to the server. Flagging rather than inventing a fake RPC call.
+- 2026-09-26 (mobile): the admin dashboard has no `admin_service_today`/`admin_counter_today`/
+  `admin_hourly` SQL views to read -- none exist in any migration. `apps/web`'s own admin
+  dashboard (`_lib/use-queue-stats.ts`) already solved this the same way: compute the stats
+  client-side from `tokens`/`board_services` reads. Mobile's dashboard does the same rather than
+  inventing a second approach.
+- 2026-09-26 (mobile): admin "staff management" is scoped to *promoting/demoting an existing
+  profile* via `set_member_role` (which takes a `uuid`, not an email) -- not "invite new staff by
+  email." Creating a brand-new auth user needs `auth.admin.createUser()`, which only works with
+  the `service_role` key; `apps/web` has this because it can run that call inside a Next.js
+  server route (`api/admin/staff/route.ts`) that never ships the key to the browser. Mobile has
+  no server component, so embedding that key in the app bundle is not an option -- an admin can
+  promote/demote whoever already has an account, but inviting someone new by email has to happen
+  from the web admin console instead.

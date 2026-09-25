@@ -14,6 +14,10 @@ export const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      // PKCE, not the implicit flow -- required for Google sign-in (lib/google-auth.ts) to
+      // exchange the code GoTrue hands back over `queueless://auth/callback` for a session.
+      // Doesn't affect email OTP, which never goes through this exchange path.
+      flowType: "pkce",
     },
   },
 );

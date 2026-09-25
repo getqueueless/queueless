@@ -8,6 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapAuthError } from '@/lib/errors';
+import { signInWithGoogle } from '@/lib/google-auth';
 import { supabase } from '@/lib/supabase';
 
 const CODE_LENGTH = 6;
@@ -31,6 +32,7 @@ export default function Otp() {
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
@@ -86,6 +88,27 @@ export default function Otp() {
     clearCode();
   }
 
+  // Session now exists (auth.onAuthStateChange already fired) — decide where to land next.
+  // Calling this explicitly rather than only relying on (auth)/_layout's own session redirect
+  // covers the first-login name screen; the two can race by a frame (see docs/DECISIONS.md),
+  // worst case a one-frame flash of the tab bar before landing on name-entry, never a wrong
+  // final screen. Shared by OTP verify and Google sign-in — same decision either way. Google
+  // sign-ins typically arrive with `full_name` already set (GoTrue copies it from the provider
+  // into `raw_user_meta_data`, and the signup trigger copies that into `profiles`), so most
+  // Google sign-ins skip name-entry entirely without any extra code here.
+  async function routeAfterAuth() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (userId) {
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
+      if (!profile?.full_name) {
+        router.replace('/(app)/name-entry');
+        return;
+      }
+    }
+    router.replace('/(app)/(tabs)');
+  }
+
   async function verify(code: string) {
     setError(null);
     setVerifying(true);
@@ -100,22 +123,19 @@ export default function Otp() {
       clearCode();
       return;
     }
+    await routeAfterAuth();
+  }
 
-    // Session now exists (auth.onAuthStateChange already fired) — decide where to land next.
-    // Calling this explicitly rather than only relying on (auth)/_layout's own session redirect
-    // covers the first-login name screen; the two can race by a frame (see docs/DECISIONS.md),
-    // worst case a one-frame flash of the tab bar before landing on name-entry, never a wrong
-    // final screen.
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
-    if (userId) {
-      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      if (!profile?.full_name) {
-        router.replace('/(app)/name-entry');
-        return;
-      }
+  async function handleGoogleSignIn() {
+    setError(null);
+    setGoogleLoading(true);
+    const result = await signInWithGoogle();
+    setGoogleLoading(false);
+    if (!result.ok) {
+      if (!result.cancelled) setError(result.message);
+      return;
     }
-    router.replace('/(app)/(tabs)');
+    await routeAfterAuth();
   }
 
   function handleDigitChange(index: number, value: string) {
@@ -194,6 +214,27 @@ export default function Otp() {
               ) : (
                 <ThemedText type="button" themeColor="onPrimary">
                   Send code
+                </ThemedText>
+              )}
+            </Pressable>
+
+            <ThemedView style={styles.dividerRow}>
+              <ThemedView style={[styles.dividerLine, { backgroundColor: theme.hairline }]} />
+              <ThemedText type="bodySm" themeColor="inkMuted">
+                or
+              </ThemedText>
+              <ThemedView style={[styles.dividerLine, { backgroundColor: theme.hairline }]} />
+            </ThemedView>
+
+            <Pressable
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+              style={[styles.googleButton, { borderColor: theme.hairline, opacity: googleLoading ? 0.6 : 1 }]}>
+              {googleLoading ? (
+                <ActivityIndicator color={theme.ink} />
+              ) : (
+                <ThemedText type="button" themeColor="ink">
+                  Continue with Google
                 </ThemedText>
               )}
             </Pressable>
@@ -299,6 +340,22 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   codeRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: 'transparent' },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+    backgroundColor: 'transparent',
+  },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  googleButton: {
+    borderWidth: 1,
+    borderRadius: Rounded.md,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
   codeBox: {
     width: 44,
     height: 52,
