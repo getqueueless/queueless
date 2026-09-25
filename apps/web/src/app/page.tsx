@@ -208,19 +208,17 @@ export default async function Home() {
         </section>
       </main>
 
-      <div className={styles.footerTargets}>
-        <PublicFooter
-          credit={
-            <>
-              Photo by{" "}
-              <a href="https://www.pexels.com/@jinshu-pulpatta-2151876856/">Jinshu Pulpatta</a> on{" "}
-              <a href="https://www.pexels.com/photo/modern-hospital-corridor-with-empty-chairs-33812023/">
-                Pexels
-              </a>
-            </>
-          }
-        />
-      </div>
+      <PublicFooter
+        credit={
+          <>
+            Photo by{" "}
+            <a href="https://www.pexels.com/@jinshu-pulpatta-2151876856/">Jinshu Pulpatta</a> on{" "}
+            <a href="https://www.pexels.com/photo/modern-hospital-corridor-with-empty-chairs-33812023/">
+              Pexels
+            </a>
+          </>
+        }
+      />
       <MobileCta watch="hero-ctas" />
     </>
   )
