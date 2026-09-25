@@ -9,7 +9,8 @@ import { SignOutButton } from '@/components/sign-out-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Button, Card, EmptyState, MIN_TAP, Radius, SectionHeader, StatusChip, Type, UIText } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { todayDateString } from '@/lib/service-day';
@@ -252,10 +253,12 @@ export default function Counter() {
     );
   }
 
+  const deskOpen = selectedCounter?.state === 'open';
+
   return (
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <AnimatedHeading text="Counter" />
             <ThemeToggle />
@@ -270,9 +273,7 @@ export default function Counter() {
           </View>
 
           {counters.length === 0 ? (
-            <ThemedText type="body" themeColor="inkMuted">
-              No counters set up for this org yet.
-            </ThemedText>
+            <UIText color="inkSecondary">No counters set up for this org yet.</UIText>
           ) : (
             <View style={styles.pickerRow}>
               {counters.map((c) => {
@@ -281,6 +282,8 @@ export default function Counter() {
                   <Pressable
                     key={c.id}
                     onPress={() => selectCounter(c.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
                     style={[
                       styles.pickerChip,
                       {
@@ -288,18 +291,20 @@ export default function Counter() {
                         borderColor: selected ? theme.primary : theme.hairline,
                       },
                     ]}>
-                    <ThemedText type="button" themeColor={selected ? 'onPrimary' : 'ink'}>
+                    <UIText variant="bodyStrong" style={{ color: selected ? theme.onPrimary : theme.ink }} numberOfLines={1}>
                       {c.name}
-                    </ThemedText>
+                    </UIText>
                   </Pressable>
                 );
               })}
             </View>
           )}
 
+          {counters.length > 0 && !selectedCounter ? <UIText color="inkSecondary">Pick your desk to start calling.</UIText> : null}
+
           {selectedCounter ? (
             <>
-              <View style={styles.segmentedRow}>
+              <View style={[styles.segmentedRow, { backgroundColor: theme.surfaceSunken }]} accessibilityRole="radiogroup">
                 {COUNTER_STATES.map((state) => {
                   const selected = selectedCounter.state === state;
                   return (
@@ -307,135 +312,79 @@ export default function Counter() {
                       key={state}
                       onPress={() => handleCounterState(state)}
                       disabled={busy}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected, disabled: busy }}
                       style={[
                         styles.segment,
-                        {
-                          backgroundColor: selected ? theme.dark : 'transparent',
-                          borderColor: selected ? theme.dark : theme.hairline,
-                          opacity: busy ? 0.6 : 1,
-                        },
+                        { backgroundColor: selected ? theme.primary : 'transparent', opacity: busy ? 0.6 : 1 },
                       ]}>
-                      <ThemedText type="button" themeColor={selected ? 'onPrimary' : 'inkSecondary'} style={styles.capitalize}>
+                      <UIText
+                        variant={selected ? 'bodyStrong' : 'body'}
+                        style={[styles.capitalize, { color: selected ? theme.onPrimary : theme.inkSecondary }]}>
                         {state}
-                      </ThemedText>
+                      </UIText>
                     </Pressable>
                   );
                 })}
               </View>
 
-              {actionError ? (
-                <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
-                  {actionError}
-                </ThemedText>
-              ) : null}
-
-              <ThemedView type="surface" style={[styles.currentCard, CardShadow, { borderColor: theme.hairline }]}>
+              <Card style={styles.currentCard}>
                 {current ? (
                   <>
-                    <View style={styles.currentHeader}>
-                      <ThemedText type="tokenNumber" themeColor="primaryDisplay">
-                        {current.code}
-                      </ThemedText>
-                      <View style={[styles.laneBadge, { backgroundColor: theme.primarySoft, borderColor: theme.primaryOutline }]}>
-                        <ThemedText type="caption" themeColor="primaryText">
-                          {laneLabel(current.lane)}
-                        </ThemedText>
-                      </View>
+                    <View style={styles.currentMeta}>
+                      <StatusChip
+                        status={current.status === 'serving' ? 'available' : 'pending'}
+                        label={current.status === 'serving' ? 'Serving' : current.status === 'called' ? 'Called' : current.status}
+                      />
+                      <LaneChip lane={current.lane} />
                     </View>
-                    <ThemedText type="body" themeColor="inkSecondary">
-                      {holderLabel(current)} · {current.status}
+                    <UIText style={[styles.tokenCode, { color: theme.primaryDisplay }]} numberOfLines={1} adjustsFontSizeToFit>
+                      {current.code}
+                    </UIText>
+                    <UIText color="inkSecondary">
+                      {holderLabel(current)}
                       {current.recall_count > 0 ? ` · recalled ${current.recall_count}x` : ''}
-                    </ThemedText>
-
-                    <View style={styles.actionRow}>
-                      {current.status === 'called' ? (
-                        <>
-                          <Pressable
-                            onPress={() => withHaptics(() => rpc('start_serving', { p_token: current.id }))}
-                            disabled={busy}
-                            style={[styles.actionButton, { backgroundColor: theme.primary, opacity: busy ? 0.6 : 1 }]}>
-                            <ThemedText type="button" themeColor="onPrimary">
-                              Start serving
-                            </ThemedText>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => withHaptics(() => rpc('recall_token', { p_token: current.id }))}
-                            disabled={busy || current.recall_count >= 2}
-                            style={[styles.actionButtonOutline, { borderColor: theme.hairline, opacity: busy || current.recall_count >= 2 ? 0.5 : 1 }]}>
-                            <ThemedText type="button" themeColor="ink">
-                              Recall
-                            </ThemedText>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => withHaptics(() => rpc('skip_token', { p_token: current.id }))}
-                            disabled={busy}
-                            style={[styles.actionButtonOutline, { borderColor: theme.danger, opacity: busy ? 0.6 : 1 }]}>
-                            <ThemedText type="button" themeColor="danger">
-                              Skip / no-show
-                            </ThemedText>
-                          </Pressable>
-                        </>
-                      ) : (
-                        <Pressable
-                          onPress={() => withHaptics(() => rpc('complete_token', { p_token: current.id }))}
-                          disabled={busy}
-                          style={[styles.actionButton, { backgroundColor: theme.success, opacity: busy ? 0.6 : 1 }]}>
-                          <ThemedText type="button" themeColor="onPrimary">
-                            Complete
-                          </ThemedText>
-                        </Pressable>
-                      )}
-                    </View>
+                    </UIText>
                   </>
                 ) : (
-                  <>
-                    <ThemedText type="body" themeColor="inkMuted" style={styles.emptyDeskText}>
-                      This desk isn&apos;t serving anyone right now.
-                    </ThemedText>
-                    <Pressable
-                      onPress={handleCallNext}
-                      disabled={busy || selectedCounter.state !== 'open'}
-                      style={[
-                        styles.callNextButton,
-                        { backgroundColor: theme.primary, opacity: busy || selectedCounter.state !== 'open' ? 0.5 : 1 },
-                      ]}>
-                      {busy ? (
-                        <ActivityIndicator color={theme.onPrimary} />
-                      ) : (
-                        <ThemedText type="headingSm" themeColor="onPrimary">
-                          Call next
-                        </ThemedText>
-                      )}
-                    </Pressable>
-                    {selectedCounter.state !== 'open' ? (
-                      <ThemedText type="caption" themeColor="inkMuted" style={styles.emptyDeskText}>
-                        Open this desk to call the next patient.
-                      </ThemedText>
-                    ) : null}
-                  </>
+                  <View style={styles.idle}>
+                    <UIText variant="title3" style={styles.centerText}>
+                      Nobody at the desk
+                    </UIText>
+                    <UIText color="inkSecondary" style={styles.centerText}>
+                      {deskOpen ? 'Call the next patient when you are ready.' : 'Open this desk to call the next patient.'}
+                    </UIText>
+                  </View>
                 )}
-              </ThemedView>
+              </Card>
 
-              <AnimatedHeading size="section" text={`Waiting (${queue.length})`} style={styles.sectionLabel} />
-              <ThemedView type="surface" style={[styles.queueCard, CardShadow, { borderColor: theme.hairline }]}>
-                {queue.length === 0 ? (
-                  <ThemedText type="bodySm" themeColor="inkMuted" style={styles.queueEmpty}>
-                    Nobody waiting for this desk&apos;s services.
-                  </ThemedText>
-                ) : (
-                  queue.map((t, i) => (
+              <SectionHeader title={`Waiting (${queue.length})`} />
+              {queue.length === 0 ? (
+                <Card>
+                  <EmptyState
+                    icon={{ ios: 'person.2', android: 'group', web: 'group' }}
+                    title="Queue is clear"
+                    text="Nobody waiting for this desk's services."
+                  />
+                </Card>
+              ) : (
+                <Card style={styles.listCard}>
+                  {queue.map((t, i) => (
                     <View key={t.id} style={[styles.queueRow, i > 0 && { borderTopWidth: 1, borderColor: theme.hairline }]}>
-                      <ThemedText type="bodyLg">{t.code}</ThemedText>
-                      <ThemedText type="bodySm" themeColor="inkMuted">
-                        {laneLabel(t.lane)} · {holderLabel(t)}
-                      </ThemedText>
+                      <View style={styles.queueText}>
+                        <UIText variant="title3">{t.code}</UIText>
+                        <UIText variant="secondary" numberOfLines={1}>
+                          {holderLabel(t)}
+                        </UIText>
+                      </View>
+                      <LaneChip lane={t.lane} />
                     </View>
-                  ))
-                )}
-              </ThemedView>
+                  ))}
+                </Card>
+              )}
 
-              <AnimatedHeading size="section" text="Verify priority" style={styles.sectionLabel} />
-              <ThemedView type="surface" style={[styles.queueCard, CardShadow, { borderColor: theme.hairline }]}>
+              <SectionHeader title="Verify priority" />
+              <Card>
                 <View style={styles.lookupRow}>
                   <TextInput
                     value={lookupCode}
@@ -443,56 +392,116 @@ export default function Counter() {
                     placeholder="Ticket code, e.g. G-042"
                     placeholderTextColor={theme.inkMuted}
                     autoCapitalize="characters"
-                    style={[styles.lookupInput, { color: theme.ink, borderColor: theme.hairline }]}
+                    accessibilityLabel="Ticket code"
+                    style={[styles.lookupInput, { color: theme.ink, borderColor: theme.hairline, backgroundColor: theme.canvas }]}
                   />
-                  <Pressable
-                    onPress={handleLookup}
-                    disabled={lookupBusy || !lookupCode.trim()}
-                    style={[styles.lookupButton, { backgroundColor: theme.dark, opacity: lookupBusy ? 0.6 : 1 }]}>
-                    <ThemedText type="button" themeColor="onPrimary">
-                      Find
-                    </ThemedText>
-                  </Pressable>
+                  <Button label="Find" size="md" onPress={handleLookup} loading={lookupBusy} disabled={!lookupCode.trim()} />
                 </View>
 
                 {lookupError ? (
-                  <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
+                  <UIText variant="secondary" color="danger">
                     {lookupError}
-                  </ThemedText>
+                  </UIText>
                 ) : null}
 
                 {lookupResult ? (
                   <View style={styles.lookupResult}>
-                    <ThemedText type="headingSm">{lookupResult.code}</ThemedText>
-                    <ThemedText type="bodySm" themeColor="inkSecondary">
-                      {holderLabel(lookupResult)} · currently {laneLabel(lookupResult.lane)}
-                    </ThemedText>
-                    <View style={styles.actionRow}>
-                      <Pressable
-                        onPress={() => handleVerify('senior')}
-                        disabled={lookupBusy}
-                        style={[styles.actionButtonOutline, { borderColor: theme.primaryOutline, opacity: lookupBusy ? 0.6 : 1 }]}>
-                        <ThemedText type="button" themeColor="primaryText">
-                          Mark senior
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleVerify('pregnant')}
-                        disabled={lookupBusy}
-                        style={[styles.actionButtonOutline, { borderColor: theme.primaryOutline, opacity: lookupBusy ? 0.6 : 1 }]}>
-                        <ThemedText type="button" themeColor="primaryText">
-                          Mark pregnant
-                        </ThemedText>
-                      </Pressable>
+                    <View style={styles.lookupHeader}>
+                      <UIText variant="title2">{lookupResult.code}</UIText>
+                      <LaneChip lane={lookupResult.lane} />
+                    </View>
+                    <UIText variant="secondary">{holderLabel(lookupResult)}</UIText>
+                    <View style={styles.buttonRow}>
+                      <Button label="Mark senior" variant="secondary" size="md" onPress={() => handleVerify('senior')} disabled={lookupBusy} style={styles.grow} />
+                      <Button label="Mark pregnant" variant="secondary" size="md" onPress={() => handleVerify('pregnant')} disabled={lookupBusy} style={styles.grow} />
                     </View>
                   </View>
                 ) : null}
-              </ThemedView>
+              </Card>
             </>
           ) : null}
         </ScrollView>
       </SafeAreaView>
+
+      {selectedCounter ? (
+        // Thumb zone: the desk's next action always sits at the bottom, above the tab bar.
+        <SafeAreaView edges={['bottom']} style={[styles.bottomBar, { backgroundColor: theme.surface, borderTopColor: theme.hairline }]}>
+          {actionError ? (
+            <UIText variant="secondaryStrong" color="danger" accessibilityLiveRegion="polite">
+              {actionError}
+            </UIText>
+          ) : null}
+          {!current ? (
+            <Button
+              label="Call next"
+              onPress={handleCallNext}
+              loading={busy}
+              disabled={!deskOpen}
+              block
+              style={styles.callNext}
+              accessibilityHint={deskOpen ? undefined : 'Open this desk first'}
+            />
+          ) : (
+            <>
+              {current.status === 'called' ? (
+                <View style={styles.buttonRow}>
+                  <Button
+                    label="Recall"
+                    variant="secondary"
+                    onPress={() => withHaptics(() => rpc('recall_token', { p_token: current.id }))}
+                    disabled={busy || current.recall_count >= 2}
+                    style={styles.grow}
+                  />
+                  <Button
+                    label="Skip"
+                    variant="danger"
+                    onPress={() => withHaptics(() => rpc('skip_token', { p_token: current.id }))}
+                    disabled={busy}
+                    style={styles.grow}
+                    accessibilityHint="Marks this ticket as a no-show"
+                  />
+                </View>
+              ) : null}
+              {current.status === 'called' ? (
+                <Button
+                  label="Serve"
+                  onPress={() => withHaptics(() => rpc('start_serving', { p_token: current.id }))}
+                  disabled={busy}
+                  block
+                  style={styles.callNext}
+                />
+              ) : (
+                <Button
+                  label="Done"
+                  onPress={() => withHaptics(() => rpc('complete_token', { p_token: current.id }))}
+                  disabled={busy}
+                  block
+                  style={styles.callNext}
+                />
+              )}
+            </>
+          )}
+        </SafeAreaView>
+      ) : null}
     </ThemedView>
+  );
+}
+
+/** Lane as a soft pill: emergency in red, walk-in neutral, priority lanes in cyan. Not a tap target. */
+function LaneChip({ lane }: { lane: string }) {
+  const theme = useTheme();
+  const [bg, fg] =
+    lane === 'emergency'
+      ? [theme.dangerSoft, theme.danger]
+      : ['senior', 'pregnant', 'appointment'].includes(lane)
+        ? [theme.primarySoft, theme.primaryText]
+        : [theme.surfaceSunken, theme.inkSecondary];
+  return (
+    <View style={[styles.laneChip, { backgroundColor: bg }]}>
+      <UIText variant="secondaryStrong" style={{ color: fg }} numberOfLines={1}>
+        {laneLabel(lane)}
+      </UIText>
+    </View>
   );
 }
 
@@ -502,75 +511,41 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
-  scroll: { paddingBottom: Spacing.xxl, gap: Spacing.sm },
+  scroll: { paddingBottom: Spacing.lg, gap: Spacing.sm },
   header: { marginTop: Spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
-  pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.xs },
+  pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   pickerChip: {
     borderWidth: 1,
-    borderRadius: Rounded.pill,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    minHeight: 44,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.md + 4,
+    minHeight: MIN_TAP,
     justifyContent: 'center',
   },
-  segmentedRow: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.xs },
-  segment: {
-    flex: 1,
-    minHeight: 44,
-    borderWidth: 1,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  segmentedRow: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: Radius.md, marginTop: Spacing.xs },
+  segment: { flex: 1, minHeight: MIN_TAP, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   capitalize: { textTransform: 'capitalize' },
-  error: { marginTop: Spacing.xs },
-  currentCard: {
-    borderWidth: 1,
-    borderRadius: Rounded.xl,
-    padding: Spacing.lg,
-    marginTop: Spacing.sm,
-    gap: Spacing.xs,
-  },
-  currentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  laneBadge: { borderWidth: 1, borderRadius: Rounded.pill, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.xs },
-  actionButton: {
-    flexGrow: 1,
-    minHeight: 48,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-  },
-  actionButtonOutline: {
-    flexGrow: 1,
-    minHeight: 48,
-    borderRadius: Rounded.md,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-  },
-  emptyDeskText: { textAlign: 'center' },
-  callNextButton: {
-    minHeight: 56,
-    borderRadius: Rounded.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.sm,
-  },
-  sectionLabel: { marginTop: Spacing.md, marginBottom: Spacing.xs },
-  queueCard: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.sm },
-  queueEmpty: { padding: Spacing.sm, textAlign: 'center' },
-  queueRow: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.xs, gap: 2 },
-  lookupRow: { flexDirection: 'row', gap: Spacing.xs },
+  currentCard: { marginTop: Spacing.xs, padding: Spacing.lg, gap: Spacing.xs },
+  currentMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.xs },
+  tokenCode: { ...Type.title1, fontSize: 64, lineHeight: 76, letterSpacing: 1 },
+  idle: { alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.md },
+  centerText: { textAlign: 'center' },
+  listCard: { paddingVertical: Spacing.xxs, gap: 0 },
+  queueRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, minHeight: 64, paddingVertical: Spacing.xs },
+  queueText: { flex: 1, gap: 2 },
+  laneChip: { borderRadius: Radius.pill, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xxs, alignSelf: 'center' },
+  lookupRow: { flexDirection: 'row', gap: Spacing.xs, alignItems: 'center' },
   lookupInput: {
+    ...Type.body,
     flex: 1,
     borderWidth: 1,
-    borderRadius: Rounded.md,
-    paddingHorizontal: Spacing.sm,
-    minHeight: 44,
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.md,
+    minHeight: MIN_TAP,
   },
-  lookupButton: { minHeight: 44, borderRadius: Rounded.md, paddingHorizontal: Spacing.md, justifyContent: 'center' },
-  lookupResult: { marginTop: Spacing.sm, gap: Spacing.xxs },
+  lookupResult: { gap: Spacing.xs },
+  lookupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+  buttonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  grow: { flexGrow: 1 },
+  bottomBar: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.sm, gap: Spacing.xs, borderTopWidth: 1 },
+  callNext: { height: 72, borderRadius: Radius.lg },
 });
