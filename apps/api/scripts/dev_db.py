@@ -5,6 +5,7 @@ profiles, tokens, push_tokens, token_notifications. This schema lives only
 in this fixture -- it is never written to supabase/migrations.
 """
 
+import asyncio
 import subprocess
 import time
 
@@ -75,7 +76,7 @@ async def wait_ready(timeout_seconds: float = 20.0) -> None:
             return
         except Exception as exc:  # noqa: BLE001 - retrying until the port is up
             last_error = exc
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
     raise RuntimeError(f"postgres never became ready: {last_error}")
 
 
