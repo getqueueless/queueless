@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card, ChipRow, OutlineButton, PrimaryButton } from '@/components/admin/controls';
+import { LabeledInput } from '@/components/admin/labeled-input';
 import { StateCard } from '@/components/admin/state-card';
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { EmptyState, StatusChip, UIText, type ChipStatus } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiFetch } from '@/lib/api-fetch';
@@ -48,13 +49,27 @@ function daysAgo(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// primaryText, not primary -- raw primary (#0cb7d6) is 2.40:1 on white, below AA at this size
-// (see constants/theme.ts's own comment); primaryText is the small-text-safe cyan (5.36:1).
-function statusColor(status: PaymentRow['status']): 'primaryText' | 'danger' | 'inkMuted' {
-  if (status === 'captured') return 'primaryText';
-  if (status === 'failed') return 'danger';
-  return 'inkMuted';
+const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`;
+
+function whenOf(iso: string): string {
+  return new Date(iso).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Asia/Kolkata',
+  });
 }
+
+// StatusChip has no "failed" look; the neutral grey chip reads closest, the reason shows in red below.
+const CHIP: Record<PaymentRow['status'], { status: ChipStatus; label?: string }> = {
+  captured: { status: 'paid' },
+  refunded: { status: 'refunded' },
+  created: { status: 'pending' },
+  failed: { status: 'leave', label: 'Failed' },
+};
+
+const EMPTY_ICON = { ios: 'creditcard', android: 'payments', web: 'payments' } as const;
 
 export default function AdminPayments() {
   const theme = useTheme();
@@ -126,25 +141,23 @@ export default function AdminPayments() {
           ) : (
             <>
               <Card>
-                <ThemedText type="headingSm">Online bookings</ThemedText>
+                <UIText variant="title3" accessibilityRole="header">
+                  Online bookings
+                </UIText>
                 {rows.length === 0 ? (
-                  <ThemedText type="bodySm" themeColor="inkMuted">
-                    No online payments in this range.
-                  </ThemedText>
+                  <EmptyState icon={EMPTY_ICON} title="No online payments" text="Nothing was paid online in this range." />
                 ) : (
                   rows.map((r) => (
-                    <View key={r.id} style={styles.row}>
+                    <View key={r.id} style={[styles.row, { borderTopColor: theme.hairline }]}>
                       <View style={styles.rowTop}>
                         <View style={styles.flex}>
-                          <ThemedText type="body">{r.tokens?.code ?? '—'}</ThemedText>
-                          <ThemedText type="caption" themeColor="inkMuted">
-                            {r.tokens?.doctors?.name ?? 'No doctor'}
-                          </ThemedText>
+                          <UIText variant="title3">{inr(r.amount_inr)}</UIText>
+                          <UIText variant="secondary">
+                            {r.tokens?.code ?? '—'} · {r.tokens?.doctors?.name ?? 'No doctor'}
+                          </UIText>
+                          <UIText variant="secondary">{whenOf(r.captured_at ?? r.created_at)}</UIText>
                         </View>
-                        <ThemedText type="bodyLg">₹{r.amount_inr}</ThemedText>
-                        <ThemedText type="caption" themeColor={statusColor(r.status)} style={styles.capitalize}>
-                          {r.status}
-                        </ThemedText>
+                        <StatusChip status={CHIP[r.status].status} label={CHIP[r.status].label} />
                       </View>
 
                       {r.status === 'captured' && refundingId !== r.id && (
@@ -152,34 +165,33 @@ export default function AdminPayments() {
                       )}
                       {refundingId === r.id && (
                         <View style={styles.refundForm}>
-                          <TextInput
+                          <LabeledInput
+                            label="Refund reason"
                             value={refundReason}
                             onChangeText={setRefundReason}
                             placeholder="Reason"
-                            placeholderTextColor={theme.inkMuted}
                             editable={!refundBusy}
-                            style={[styles.input, { borderColor: theme.hairline, color: theme.ink }]}
                           />
                           <View style={styles.refundActions}>
                             <PrimaryButton label={refundBusy ? 'Refunding…' : 'Confirm'} busy={refundBusy} onPress={() => confirmRefund(r.id)} />
                             <OutlineButton label="Cancel" disabled={refundBusy} onPress={() => setRefundingId(null)} />
                           </View>
                           {refundError && (
-                            <ThemedText type="caption" themeColor="danger">
+                            <UIText variant="secondary" color="danger" accessibilityRole="alert">
                               {refundError}
-                            </ThemedText>
+                            </UIText>
                           )}
                         </View>
                       )}
                       {r.status === 'refunded' && (
-                        <ThemedText type="caption" themeColor="inkMuted">
+                        <UIText variant="secondary">
                           {r.initiated_by ? 'Refunded by admin' : 'Refunded automatically (doctor on leave)'}
-                        </ThemedText>
+                        </UIText>
                       )}
                       {r.status === 'failed' && r.failure_reason && (
-                        <ThemedText type="caption" themeColor="inkMuted">
+                        <UIText variant="secondary" color="danger">
                           {r.failure_reason}
-                        </ThemedText>
+                        </UIText>
                       )}
                     </View>
                   ))
@@ -187,23 +199,24 @@ export default function AdminPayments() {
               </Card>
 
               <Card>
-                <ThemedText type="headingSm">Automatic doctor-leave refunds</ThemedText>
-                <ThemedText type="caption" themeColor="inkMuted">
+                <UIText variant="title3" accessibilityRole="header">
+                  Automatic doctor-leave refunds
+                </UIText>
+                <UIText variant="secondary">
                   Refunded by the background job the moment a doctor&apos;s leave covered the day -- no admin action taken.
-                </ThemedText>
+                </UIText>
                 {autoRefunds.length === 0 ? (
-                  <ThemedText type="bodySm" themeColor="inkMuted">
-                    None in this range.
-                  </ThemedText>
+                  <UIText variant="secondary">None in this range.</UIText>
                 ) : (
                   autoRefunds.map((r) => (
-                    <View key={r.id} style={styles.row}>
-                      <ThemedText type="body">
-                        {r.tokens?.code ?? '—'} · {r.tokens?.doctors?.name ?? 'No doctor'} · ₹{r.amount_inr}
-                      </ThemedText>
-                      <ThemedText type="caption" themeColor="inkMuted">
-                        {r.refunded_at ? new Date(r.refunded_at).toLocaleString() : '—'}
-                      </ThemedText>
+                    <View key={r.id} style={[styles.logRow, { borderTopColor: theme.hairline }]}>
+                      <View style={styles.flex}>
+                        <UIText variant="bodyStrong">
+                          {r.tokens?.code ?? '—'} · {r.tokens?.doctors?.name ?? 'No doctor'}
+                        </UIText>
+                        <UIText variant="secondary">{r.refunded_at ? whenOf(r.refunded_at) : '—'}</UIText>
+                      </View>
+                      <UIText variant="bodyStrong">{inr(r.amount_inr)}</UIText>
                     </View>
                   ))
                 )}
@@ -219,13 +232,12 @@ export default function AdminPayments() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { paddingVertical: Spacing.xl, alignItems: 'center' },
-  safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
+  safeArea: { flex: 1, paddingHorizontal: Spacing.md },
   scroll: { paddingVertical: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xxl },
-  row: { gap: Spacing.xxs, paddingVertical: Spacing.sm },
-  rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  flex: { flex: 1 },
-  capitalize: { textTransform: 'capitalize' },
-  refundForm: { gap: Spacing.xs, marginTop: Spacing.xxs },
+  row: { gap: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth },
+  rowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  logRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, minHeight: 56, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth },
+  flex: { flex: 1, gap: 2 },
+  refundForm: { gap: Spacing.sm },
   refundActions: { flexDirection: 'row', gap: Spacing.sm },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs },
 });
