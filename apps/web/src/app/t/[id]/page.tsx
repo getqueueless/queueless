@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 function NotFoundCard() {
   return (
     <>
-      <PublicHeader current="status" />
+      <PublicHeader current="status" liveToken={false} />
       <main id="main" className={styles.page}>
         <div className={styles.band}>
           <LogoMark size={300} className={styles.bandMark} />
@@ -74,7 +74,7 @@ export default async function TokenStatusPage({ params }: { params: Promise<{ id
 
   return (
     <>
-      <PublicHeader current="status" />
+      <PublicHeader current="status" liveToken={false} />
       <StatusView
         tokenId={id}
         initialToken={token}

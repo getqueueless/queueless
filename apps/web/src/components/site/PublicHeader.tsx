@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { Logo } from "@/components/brand/Logo";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { loadLiveToken } from "@/components/tokens/active-token";
+import { ActiveTokenBar } from "@/components/tokens/ActiveTokenBar";
 import { roleLandingPath } from "@/lib/auth/redirect";
 import { getMyProfile } from "@/lib/supabase/get-role";
 import { createClient } from "@/lib/supabase/server";
@@ -24,9 +27,18 @@ type PublicHeaderProps = {
   current?: "home" | "how" | "status" | "signin";
   /** "surface" = white bar, ink text. "slate" = transparent, white text, for sitting on the hero overlay. */
   tone?: "surface" | "slate";
+  /** A signed-in patient's live token strip under the bar. Off where the page already is that status (/t/[id]). */
+  liveToken?: boolean;
 };
 
-export async function PublicHeader({ current, tone = "surface" }: PublicHeaderProps) {
+// Streams in after the header, so a slow token read never holds the page.
+// Renders nothing when the patient has no active token.
+async function LiveTokenBar() {
+  const live = await loadLiveToken(await createClient());
+  return <ActiveTokenBar key={live?.token.id ?? "none"} initial={live} />;
+}
+
+export async function PublicHeader({ current, tone = "surface", liveToken = true }: PublicHeaderProps) {
   const page = (key: string) => (current === key ? ("page" as const) : undefined);
 
   const supabase = await createClient();
@@ -37,41 +49,48 @@ export async function PublicHeader({ current, tone = "surface" }: PublicHeaderPr
   const displayName = profile?.fullName ?? user?.email ?? null;
 
   return (
-    <header className={tone === "slate" ? `${styles.header} ${styles.slate}` : styles.header}>
-      <a href="#main" className={styles.skip}>
-        Skip to content
-      </a>
-      <div className={styles.inner}>
-        <Link href="/" className={styles.brand}>
-          <Logo size={26} />
-        </Link>
-        <HeaderMenu>
-          {NAV.map((item) => (
-            <Link
-              key={item.key}
-              href={item.key === "how" && user ? "/my" : item.href}
-              aria-current={page(item.key)}
-              className={styles.link}
-            >
-              {item.label}
-            </Link>
-          ))}
-          {user ? (
-            <>
-              {displayName && <span className={styles.userName}>{displayName}</span>}
-              <Link href={roleLandingPath(profile)} className={styles.login}>
-                Dashboard
+    <>
+      <header className={tone === "slate" ? `${styles.header} ${styles.slate}` : styles.header}>
+        <a href="#main" className={styles.skip}>
+          Skip to content
+        </a>
+        <div className={styles.inner}>
+          <Link href="/" className={styles.brand}>
+            <Logo size={26} />
+          </Link>
+          <HeaderMenu>
+            {NAV.map((item) => (
+              <Link
+                key={item.key}
+                href={item.key === "how" && user ? "/my" : item.href}
+                aria-current={page(item.key)}
+                className={styles.link}
+              >
+                {item.label}
               </Link>
-              <SignOutButton className={styles.signOut} redirectTo="/" />
-            </>
-          ) : (
-            <Link href="/login" aria-current={page("signin")} className={styles.login}>
-              Log in
-            </Link>
-          )}
-        </HeaderMenu>
-        <ThemeToggle className={styles.toggle} />
-      </div>
-    </header>
+            ))}
+            {user ? (
+              <>
+                {displayName && <span className={styles.userName}>{displayName}</span>}
+                <Link href={roleLandingPath(profile)} className={styles.login}>
+                  Dashboard
+                </Link>
+                <SignOutButton className={styles.signOut} redirectTo="/" />
+              </>
+            ) : (
+              <Link href="/login" aria-current={page("signin")} className={styles.login}>
+                Log in
+              </Link>
+            )}
+          </HeaderMenu>
+          <ThemeToggle className={styles.toggle} />
+        </div>
+      </header>
+      {liveToken && profile?.role === "patient" && (
+        <Suspense fallback={null}>
+          <LiveTokenBar />
+        </Suspense>
+      )}
+    </>
   );
 }
