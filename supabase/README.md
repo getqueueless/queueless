@@ -27,6 +27,33 @@ Mobile/Expo note: a phone can't reach `localhost`. Use the laptop's LAN IP in
 `apps/mobile/.env` (`EXPO_PUBLIC_SUPABASE_URL=http://<lan-ip>:8000`); the Android emulator
 uses `10.0.2.2` instead.
 
+## Patient auth: email OTP
+
+Patients sign in with a one-time code emailed to them, not a password:
+
+```js
+// Request a code (creates the account on first use)
+await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
+// -> POST /auth/v1/otp, needs `apikey: ANON_KEY`
+
+// Confirm it
+await supabase.auth.verifyOtp({ email, token, type: 'email' })
+// -> POST /auth/v1/verify, no apikey required (this route is open in kong.yml)
+```
+
+The code is a 6-digit number, expires after **10 minutes**, and arrives in the **email
+subject line** (`###### is your Queueless code`), not the body — patients are typing a code,
+not clicking a link, so this is optimized for exactly that. Sends are capped at 30/hour
+(`GOTRUE_RATE_LIMIT_EMAIL_SENT`) as the abuse line for this feature.
+
+Locally, `SMTP_HOST` is blank and `MAILER_AUTOCONFIRM=true`, so GoTrue's noop mailer signs
+everyone in instantly with no real email sent — that's expected, not a bug. On the deployed
+instance, real SMTP credentials are set and `MAILER_AUTOCONFIRM=false`, so a login genuinely
+requires the emailed code.
+
+Staff and admin accounts are unaffected — they still sign in with `signInWithPassword()` and
+are seeded with `email_confirm: true` via the admin API, which never touches the mailer.
+
 ## apps/api's database access
 
 `apps/api` connects directly to Postgres (`127.0.0.1:54322`) as its own least-privilege role,
