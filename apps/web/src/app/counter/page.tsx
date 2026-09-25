@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
+import { Logo, LogoMark } from "@/components/brand/Logo"
+import { ThemeToggle } from "@/components/theme/ThemeToggle"
 import { createClient } from "@/lib/supabase/server"
 import { CounterConsole } from "./counter-console"
 import { ACTIVE_TOKEN_STATUSES, type CounterRow, type ProfileRow, type TokenRow } from "./types"
@@ -12,6 +14,21 @@ export const metadata: Metadata = {
 
 const TOKEN_COLUMNS =
   "id, org_id, service_id, service_day, number, code, lane, status, patient_id, walk_in_label, counter_id, recall_count, called_at, serving_at"
+
+// Slate app bar shared by the console and the no-desk state: the brand mark,
+// the screen name and the theme toggle.
+function CounterTopBar() {
+  return (
+    <header className={styles.topbar}>
+      <div className={styles.topbarInner}>
+        <Logo size={22} />
+        <span className={styles.topbarDivider} aria-hidden="true" />
+        <span className={styles.topbarLabel}>Counter console</span>
+        <ThemeToggle className={styles.toggle} />
+      </div>
+    </header>
+  )
+}
 
 export default async function CounterPage() {
   const supabase = await createClient()
@@ -57,15 +74,21 @@ export default async function CounterPage() {
 
   if (!counter) {
     return (
-      <main className={styles.page}>
-        <div className={styles.emptyState}>
-          <h1 className={styles.emptyTitle}>No counter assigned</h1>
-          <p className={styles.emptyBody}>
-            Your account ({profile.full_name ?? user.email}) isn&apos;t linked to a desk yet.
-            Ask an admin to assign you a counter.
-          </p>
-        </div>
-      </main>
+      <div className={styles.page}>
+        <CounterTopBar />
+        <main id="main">
+          <div className={styles.emptyState}>
+            <span className={styles.emptyIcon}>
+              <LogoMark size={26} />
+            </span>
+            <h1 className={styles.emptyTitle}>No counter assigned</h1>
+            <p className={styles.emptyBody}>
+              Your account ({profile.full_name ?? user.email}) isn&apos;t linked to a desk yet.
+              Ask an admin to assign you a counter.
+            </p>
+          </div>
+        </main>
+      </div>
     )
   }
 
@@ -87,13 +110,16 @@ export default async function CounterPage() {
       .join(" · ") || "No service assigned"
 
   return (
-    <main className={styles.page}>
-      <CounterConsole
-        counter={counter}
-        initialToken={(currentTokenRes.data as TokenRow | null) ?? null}
-        serviceLabel={serviceLabel}
-        staffName={profile.full_name ?? user.email ?? "Staff"}
-      />
-    </main>
+    <div className={styles.page}>
+      <CounterTopBar />
+      <main id="main">
+        <CounterConsole
+          counter={counter}
+          initialToken={(currentTokenRes.data as TokenRow | null) ?? null}
+          serviceLabel={serviceLabel}
+          staffName={profile.full_name ?? user.email ?? "Staff"}
+        />
+      </main>
+    </div>
   )
 }
