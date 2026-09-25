@@ -7,7 +7,7 @@ select ok(has_function_privilege('authenticated', 'private.is_staff_of(uuid)', '
 select ok(has_function_privilege('authenticated', 'private.is_admin_of(uuid)', 'execute'), 'authenticated can call private.is_admin_of');
 
 select is(
-  has_function_privilege('authenticated', 'private.mint_token(uuid,uuid,lane,uuid,text,uuid,timestamptz,uuid)', 'execute'),
+  has_function_privilege('authenticated', 'private.mint_token(uuid,uuid,lane,uuid,text,uuid,timestamptz,uuid,uuid)', 'execute'),
   false, 'authenticated cannot call private.mint_token'
 );
 select is(
