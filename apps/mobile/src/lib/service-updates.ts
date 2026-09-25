@@ -1,3 +1,4 @@
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useEffect } from 'react';
 
 import { supabase } from '@/lib/supabase';
@@ -9,27 +10,38 @@ import { supabase } from '@/lib/supabase';
 // realtime-js hands back the SAME channel for a topic already in use, so two screens (Counter
 // and the admin dashboard are both mounted as tabs) must share one channel per topic. This
 // keeps one channel per service and fans each broadcast out to every listener.
-const listeners = new Map<string, Set<() => void>>();
+//
+// A channel that is still leaving is also handed back (and its subscribe() is a no-op), so a
+// quick leave + rejoin of the same topic (switching desks and back) must wait for the leave.
+type Entry = { listeners: Set<() => void>; channel: RealtimeChannel | null };
+const entries = new Map<string, Entry>();
+const leaving = new Map<string, Promise<unknown>>();
 
 function listen(serviceId: string, onUpdate: () => void): () => void {
-  let set = listeners.get(serviceId);
-  if (!set) {
-    const fresh = new Set<() => void>();
-    listeners.set(serviceId, fresh);
-    supabase
-      .channel(`service:${serviceId}`)
-      .on('broadcast', { event: 'token_update' }, () => fresh.forEach((fn) => fn()))
-      .subscribe();
-    set = fresh;
+  let entry = entries.get(serviceId);
+  if (!entry) {
+    const fresh: Entry = { listeners: new Set(), channel: null };
+    entries.set(serviceId, fresh);
+    (leaving.get(serviceId) ?? Promise.resolve()).then(() => {
+      if (entries.get(serviceId) !== fresh) return; // everyone left before the old channel did
+      fresh.channel = supabase
+        .channel(`service:${serviceId}`)
+        .on('broadcast', { event: 'token_update' }, () => fresh.listeners.forEach((fn) => fn()))
+        .subscribe();
+    });
+    entry = fresh;
   }
-  const own = set;
-  own.add(onUpdate);
+  const own = entry;
+  own.listeners.add(onUpdate);
   return () => {
-    own.delete(onUpdate);
-    if (own.size > 0 || listeners.get(serviceId) !== own) return;
-    listeners.delete(serviceId);
-    const channel = supabase.getChannels().find((c) => c.topic === `realtime:service:${serviceId}`);
-    if (channel) supabase.removeChannel(channel);
+    own.listeners.delete(onUpdate);
+    if (own.listeners.size > 0 || entries.get(serviceId) !== own) return;
+    entries.delete(serviceId);
+    if (!own.channel) return;
+    const removal = supabase.removeChannel(own.channel).finally(() => {
+      if (leaving.get(serviceId) === removal) leaving.delete(serviceId);
+    });
+    leaving.set(serviceId, removal);
   };
 }
 
