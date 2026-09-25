@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@queueless/db": "workspace:*",
     "@expo/ui": "~57.0.20",
     "expo": "~57.0.25",
     "expo-constants": "~57.0.19",
@@ -37,7 +38,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "check-types": "tsc --noEmit"
   },
   "private": true
 }
