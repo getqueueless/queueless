@@ -26,13 +26,11 @@ export function useRole(userId: string | undefined): RoleState {
   const [state, setState] = useState<RoleState>(DEFAULT_STATE);
 
   useEffect(() => {
-    if (!userId) {
-      setState({ role: 'patient', orgId: null, loading: false });
-      return;
-    }
+    // No userId (signed out) needs no async lookup — the render branch below already returns
+    // the right thing directly, without a setState round-trip through this effect.
+    if (!userId) return;
 
     let cancelled = false;
-    setState((s) => ({ ...s, loading: true }));
 
     supabase
       .from('profiles')
@@ -53,5 +51,6 @@ export function useRole(userId: string | undefined): RoleState {
     };
   }, [userId]);
 
+  if (!userId) return { role: 'patient', orgId: null, loading: false };
   return state;
 }

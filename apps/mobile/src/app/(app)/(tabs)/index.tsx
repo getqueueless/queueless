@@ -11,6 +11,7 @@ import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { estimateWaitSeconds } from '@/lib/predict';
+import { todayDateString } from '@/lib/service-day';
 import { supabase } from '@/lib/supabase';
 
 // Confirmed against supabase/migrations/0003_services_counters.sql and
@@ -24,15 +25,6 @@ type BoardServiceRow = { service_id: string; waiting_count: number; avg_service_
 type BoardService = { waiting_count: number; avg_service_secs: number; open_counters: number };
 
 const EMPTY_BOARD_ROW: BoardService = { waiting_count: 0, avg_service_secs: 0, open_counters: 0 };
-
-// Must match the server's private.service_day(org_id, now()) — (now() at time zone
-// org.timezone)::date, and organizations.timezone defaults to Asia/Kolkata (single-org
-// hackathon demo). UTC-sliced would diverge from the real service day for ~5.5h/day
-// (00:00-05:30 IST) — see docs/DECISIONS.md, the same bug was caught in apps/web's admin
-// dashboard and is fixed here the same way rather than repeated.
-function todayDateString(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-}
 
 function formatWait(seconds: number): string {
   if (seconds <= 0) return 'No wait';
