@@ -910,3 +910,20 @@ under "Web app" above.
   with the current one marked, and a polite live region announces each new step. With reduced
   motion the same states show without movement. The lane logic has a small `node --test` check
   (`src/components/motion/queue-lane.test.mjs`).
+
+## One sign-in screen on the phone (2026-09-26)
+
+- **Same shape as the web login.** Email and password first, with "Forgot password?"; then
+  Google; then "Email me a sign-in code instead"; then "New to Queueless? Create an account".
+  Patients, staff and admins all use this one screen, and the database role decides which tabs
+  they land on afterwards.
+- **Sign-up is verified.** A new account gets a 6-digit code by email before it can sign in.
+  If the address already has an account, the app says so instead of waiting for a code that
+  will never come.
+- **Links in emails open the app.** Every email the app triggers (sign-in, sign-up, password
+  reset) points back to `queueless://auth/callback`. Tapping a reset link on the phone opens a
+  "Choose a new password" screen; tapping a sign-in link signs the user straight in. Both use
+  PKCE, so a link only works on the phone that asked for it.
+- **iOS builds no longer get lost.** Several people push at once, and GitHub's concurrency
+  setting silently cancelled every waiting build. Builds now wait their turn in order; one that
+  reaches its turn while a newer one is waiting skips itself, so the newest code always ships.

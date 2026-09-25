@@ -589,3 +589,13 @@ One line per deviation from the plan/spec, with why.
   token and My-active-tokens screens (10 s here, not the shared 15 s default -- a queue position
   is the one number a patient actually watches) rather than writing a second poll/focus
   mechanism, per the task's own "add refetch on focus and a 10s poll" ask.
+- 2026-09-26 (mobile): unified sign-in replaces the code-first screen and the separate
+  password-fallback screen. Emails carry `emailRedirectTo`/`redirectTo` =
+  `queueless://auth/callback` (allow-listed), handled by `src/app/auth/callback.tsx`, which lives
+  outside `(auth)` so that group's "signed in -> tabs" redirect can't interrupt a password
+  reset. Verified on prod: the reset email's link redirects to
+  `queueless://auth/callback?code=…` and the exchange returns a session with
+  `redirectType: 'recovery'`.
+- 2026-09-26 (ci): `ios-sidestore.yml` drops `concurrency:` (it keeps one pending run and
+  cancels the rest). A `wait-turn` job on ubuntu waits for older runs, then skips the macOS build
+  if a newer run is already queued. Needs `actions: read`.
