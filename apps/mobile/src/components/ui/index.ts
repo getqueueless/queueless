@@ -8,6 +8,7 @@ export { Chip } from './Chip';
 export { DeptTile, type DeptTileProps } from './DeptTile';
 export { DoctorCard, type DoctorCardProps } from './DoctorCard';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
+export { ListGroup, ListRow, type ListRowProps } from './ListGroup';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { StatusChip, type ChipStatus } from './StatusChip';
