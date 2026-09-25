@@ -1,12 +1,22 @@
 # Queueless mobile — MedWin-derived design tokens
 
 Derived directly from `~/code/design-ref/medwin/` (a static HTML template) and
-`~/code/design-ref/medwin-full.png`, not from `apps/web/DESIGN.md` — that file still describes
-the old teal/Inter "calm clinical" system as of 2026-09-25 and the web session's own MedWin pass
-hadn't landed there when this was written. Every color below cites the `css/style.css` line it
-came from, the same discipline this repo's `docs/DECISIONS.md` already uses for migrations. If
-`apps/web/DESIGN.md` lands a MedWin token set before this one is reconciled, that file is the
-documented source of truth for the pair — see `docs/DECISIONS.md` for the reconciliation note.
+`~/code/design-ref/medwin-full.png`. Every color below cites the `css/style.css` line it came
+from, the same discipline this repo's `docs/DECISIONS.md` already uses for migrations.
+
+apps/web's MedWin token layer (`apps/web/src/app/globals.css`, c94d4c2) has since landed with
+AA-checked values, and it is the source of truth for text colors; mobile's text tokens now use its
+values. The names differ, though:
+
+| Web | Mobile |
+|---|---|
+| `--color-accent` `#0cb7d6` | `primary` (fill only) |
+| `--color-accent-display` `#0a95ae` | `primaryDisplay` |
+| `--color-primary` `#087589` | `primaryText` |
+| `--color-on-accent` `#252525` | `onPrimary` |
+
+One deliberate difference: web's filled buttons are `#087589` with white text, while mobile's keep
+the bright `#0cb7d6` fill with ink text. Both pass AA.
 
 ## Colors
 
@@ -17,14 +27,15 @@ documented source of truth for the pair — see `docs/DECISIONS.md` for the reco
 | `primary` | `#0cb7d6` | style.css:219 (also 740, 744; a couple of call sites use `#0cb6d5` — same intended color, standardized here) |
 | `primaryOutline` | `#2cc1db` | style.css:740, 745 — lighter cyan, borders/hover/active states, never a fill |
 | `dark` (hero/footer band) | `#1a3237` | style.css:757 |
-| `ink` | `#1f1f1f` | standardized from `#1f1f1f`/`#111111`/`#212121`, all used for headings/dark text — `#1f1f1f` is the most common |
-| `inkSecondary` | `#898989` | style.css:517, 532, 605 — standardized from `#898989`/`#767676`/`#6d6d6d` |
+| `ink` | `#252525` | BRAND.md Ink (15.3:1 on white), the same value as `onPrimary`. MedWin's `#1f1f1f` was close. |
+| `inkSecondary` | `#6b6b6b` | web's `--color-ink-muted` (5.33:1 on white). MedWin's `#898989` (style.css:517) is 3.50:1 and fails AA for body text |
 | `inkMuted` | `#666666` | style.css:31 (body copy default color) |
 | `hairline` | `#cfcfcf` | style.css:508, 529, 553, 1011, 1028 |
 | `canvas` | `#ffffff` | template's page background throughout |
 | `canvasSoft` | `#f7fbfc` | derived: a faint tint of `primary` for section backgrounds, not a literal template value |
 | `surface` | `#ffffff` | cards sit on white with a hairline border + soft shadow (style.css:480, 899), never a filled card background |
 | `primaryDisplay` | `#0a95ae` | apps/web/brand/BRAND.md "Cyan display": large cyan words on white only (3.55:1). `primary` itself is 2.40:1 on white, so it is never text |
+| `primaryText` | `#087589` | BRAND.md "Cyan text": small cyan text, links and the selected tab label (5.36:1 on white, 4.84:1 on `primarySoft`) |
 | `onPrimary` | `#252525` | text on `primary` fills: ink, 6.39:1. Not MedWin's white, which is 2.40:1 on `#0cb7d6` and fails AA at every size (BRAND.md) |
 
 `primarySoft` (light tint of `primary`) and `surfaceSunken` are kept as compatibility tokens so
@@ -33,9 +44,9 @@ per-screen restyling — not literal MedWin values, just a derived tint.
 
 `danger`/`warning`/`success` are **not** MedWin colors — the template has none, and its two
 decorative one-offs (`#fb6818` orange, style.css:297; `#e52e71` pink, style.css:584) are not
-promoted into the token set as semantic roles, per the task brief. Kept the existing project
-values instead (danger `#c23b34`, warning `#a9660c`, success `#1c8a5c`, each with a `-soft`
-tint), unchanged from the pre-redesign `theme.ts`.
+promoted into the token set as semantic roles, per the task brief. Their text values now follow
+web's AA-checked set (danger `#c13b34`, warning `#95590a`, success `#197c53`), so each passes
+4.5:1 on its own `-soft` tint.
 
 ### Dark (MedWin itself is light-only; derived in its own spirit — darken canvas, brighten accent)
 
@@ -52,6 +63,7 @@ tint), unchanged from the pre-redesign `theme.ts`.
 | `canvasSoft` | `#0e1518` |
 | `surface` | `#14171c` |
 | `primaryDisplay` | `#3fd6f0` |
+| `primaryText` | `#5fdcf3` |
 | `onPrimary` | `#04201e` |
 | `danger` | `#e5766f`, `dangerSoft` `#301715` |
 | `warning` | `#dba24d`, `warningSoft` `#2e2211` |
@@ -91,16 +103,17 @@ consistency there.
   as a component instead of hand-splitting `<Text>` runs on every screen.
 - **Numbered card** — a large faint `primaryDisplay`-tinted number (`01`–`04` style, style.css's
   `.number_text`/`.care_text` pattern from index.html:221-241), a heading, a short line. Used for
-  Home's service list — the pattern, not the literal MedWin icon set.
+  Home's service list — the pattern, not the literal MedWin icon set. At 18% opacity the number is
+  decoration, not readable text, so no contrast target applies to it.
 - **Card** — white `surface`, `hairline` border, soft shadow (`0 0 10px rgba(0,0,0,0.08)`-ish,
   derived from style.css:480/899's blurred/no-offset shadows), generous padding — MedWin leans on
   soft shadows and generous card padding, a step softer/roomier than this app's pre-redesign flat
   hairline-only cards.
 - **Button (primary)** — filled `primary`, `onPrimary` text, uppercase `button` type, rounded
-  corners (style.css:586 uses 8px on `.book_btn a`). **Never** `primary` as a text color at body
-  size — `#0cb7d6` on white is ~2.4:1 contrast, well under WCAG AA's 4.5:1 text minimum. Use
-  `primaryOutline` (or a further-darkened value) for any small cyan-colored text; `primary` itself
-  is fill/large-graphic/button-background only.
+  corners (style.css:586 uses 8px on `.book_btn a`). **Never** `primary` or `primaryOutline` as
+  text: on white they are 2.40:1 and 2.15:1, far under WCAG AA's 4.5:1. Large cyan words use
+  `primaryDisplay`, and small cyan text and links use `primaryText`. `primary` is for fills, large
+  graphics and button backgrounds; `primaryOutline` is for borders only.
 - **Button (outline)** — transparent fill, `primaryOutline` border, per style.css:739-745's
   hover/active state on `.readmore_bt`.
 
@@ -111,6 +124,8 @@ using the scales that already exist.
 ## Dark-mode preference
 
 `useTheme()` resolves a `"system" | "light" | "dark"` preference (default `"system"`) stored under
-key `queueless-theme-preference` in the same `localStorage` global `expo-sqlite/localStorage/install`
-already polyfills for the Supabase client — no new persistence dependency. `"system"` resolves via
+key `queueless-theme-preference` in `localStorage`. On native, that global comes from
+`src/lib/storage-polyfill.ts` (expo-sqlite), the same one the Supabase client uses. On web it is
+the browser's own, and during static rendering, where there is none, the preference falls back to
+`"system"`. No new persistence dependency. `"system"` resolves via
 `useColorScheme()` exactly as before.

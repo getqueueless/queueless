@@ -263,7 +263,7 @@ export default function Otp() {
           </Pressable>
 
           <Pressable onPress={resend} disabled={cooldown > 0 || sending} style={styles.link}>
-            <ThemedText type="bodySm" themeColor={cooldown > 0 ? 'inkMuted' : 'primaryOutline'}>
+            <ThemedText type="bodySm" themeColor={cooldown > 0 ? 'inkMuted' : 'primaryText'}>
               {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
             </ThemedText>
           </Pressable>

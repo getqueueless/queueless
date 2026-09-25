@@ -85,7 +85,7 @@ export default function PasswordFallback() {
         </Pressable>
 
         <Pressable onPress={() => router.replace('/(auth)')} style={styles.link}>
-          <ThemedText type="bodySm" themeColor="primaryOutline">
+          <ThemedText type="bodySm" themeColor="primaryText">
             Back to email code sign-in
           </ThemedText>
         </Pressable>

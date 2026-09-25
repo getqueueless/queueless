@@ -1,14 +1,18 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function TabsLayout() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  // useTheme follows the in-app Appearance choice. The selected label is text, so it takes the
+  // AA text cyan, not `primary` (2.40:1 on white).
+  const colors = useTheme();
 
   return (
-    <NativeTabs backgroundColor={colors.surface} tintColor={colors.primary} iconColor={colors.inkMuted}>
+    <NativeTabs
+      backgroundColor={colors.surface}
+      tintColor={colors.primaryText}
+      iconColor={colors.inkMuted}
+      indicatorColor={colors.primarySoft}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

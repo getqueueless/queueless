@@ -1,8 +1,7 @@
 /**
  * Derived from apps/mobile/DESIGN.md — tokens pulled directly from the MedWin reference
- * template (~/code/design-ref/medwin/), independently of apps/web/DESIGN.md, which still
- * described the old teal/Inter system when this was written. Reconcile against
- * apps/web/DESIGN.md once its own MedWin pass lands — see docs/DECISIONS.md.
+ * template (~/code/design-ref/medwin/). apps/web's MedWin token layer has since landed and owns
+ * the AA-checked values these text colors now follow; DESIGN.md maps the names between the two.
  */
 
 import '@/global.css';
@@ -14,33 +13,35 @@ export const Colors = {
     primary: '#0cb7d6',
     primaryOutline: '#2cc1db',
     primarySoft: '#e3f7fa',
-    // apps/web/brand/BRAND.md: #0cb7d6 is 2.40:1 on white, so cyan words use #0a95ae (large
-    // text only, 3.55:1) and text on cyan fills is ink (6.39:1), never white.
+    // apps/web/brand/BRAND.md: #0cb7d6 is 2.40:1 on white, so it is never text. Large cyan words
+    // use primaryDisplay (3.55:1, large only), small cyan text and links use primaryText (5.36:1),
+    // and text on cyan fills is ink (6.39:1), never white.
     primaryDisplay: '#0a95ae',
+    primaryText: '#087589',
     dark: '#1a3237',
     onPrimary: '#252525',
     canvas: '#ffffff',
     canvasSoft: '#f7fbfc',
     surface: '#ffffff',
     surfaceSunken: '#f0f4f5',
-    ink: '#1f1f1f',
-    inkSecondary: '#898989',
+    ink: '#252525',
+    inkSecondary: '#6b6b6b',
     inkMuted: '#666666',
     hairline: '#cfcfcf',
     hairlineStrong: '#a9a9a9',
-    success: '#1c8a5c',
+    success: '#197c53',
     successSoft: '#e3f4ea',
-    warning: '#a9660c',
+    warning: '#95590a',
     warningSoft: '#faf0dd',
-    danger: '#c23b34',
+    danger: '#c13b34',
     dangerSoft: '#fbe8e6',
-    focusRing: '#0cb7d6',
   },
   dark: {
     primary: '#3fd6f0',
     primaryOutline: '#5fdcf3',
     primarySoft: '#123338',
     primaryDisplay: '#3fd6f0',
+    primaryText: '#5fdcf3',
     dark: '#0d1a1d',
     onPrimary: '#04201e',
     canvas: '#0a0c0f',
@@ -58,7 +59,6 @@ export const Colors = {
     warningSoft: '#2e2211',
     danger: '#e5766f',
     dangerSoft: '#301715',
-    focusRing: '#3fd6f0',
   },
 } as const;
 
