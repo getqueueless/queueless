@@ -16,4 +16,6 @@ class Settings(BaseSettings):
     role_cache_ttl_seconds: float = 5.0
     scheduler_interval_seconds: int = 45
     poll_interval_seconds: int = 5
+    # pg_advisory_xact_lock keys share ONE global keyspace across the whole
+    # Postgres instance -- pick a value nothing else on this DB also uses.
     advisory_lock_key: int = 918_273_645

@@ -9,6 +9,7 @@ from app.logging_config import configure_logging
 from app.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.notifications import listen_task, poller_task
 from app.routes import health, push_tokens
+from app.scheduler import scheduler_loop
 
 configure_logging()
 settings = Settings()
@@ -32,10 +33,19 @@ async def lifespan(app: FastAPI):
     app.state.poller_task = asyncio.create_task(
         poller_task(app.state.db_pool, settings.poll_interval_seconds)
     )
+    app.state.scheduler_task = asyncio.create_task(
+        scheduler_loop(
+            app.state.db_pool,
+            settings.no_show_threshold_minutes,
+            settings.advisory_lock_key,
+            settings.scheduler_interval_seconds,
+        )
+    )
     try:
         yield
     finally:
         app.state.shutting_down = True
+        await _cancel(app.state.scheduler_task)
         await _cancel(app.state.listener_task)
         await _cancel(app.state.poller_task)
         await app.state.db_pool.close()
