@@ -882,3 +882,27 @@ under "Web app" above.
   on a real device). Email-code and Google sign-in themselves weren't re-tested end to end --
   same blocker the QA session already logged: no access to the test inbox or a real Google
   account.
+
+## Token status page: the live waiting screen (QueueTracker)
+
+- **What the patient sees.** A delivery-app style tracker on `/t/[id]`: a ring showing how much
+  of the first wait estimate has passed, with the minutes in the middle; a lane with one dot
+  per person still ahead (up to 8, then "+N"), the patient's own dot in cyan, and the counter
+  at the end; a five-step bar (Booked, Waiting, You're next, Called, Done); and "Now serving
+  OPD-041" at the bottom.
+- **Every value is real.** The component only draws what it is given. People-ahead is the page's
+  existing count query, the minutes come from the ML `/predict` service (marked "rough" when the
+  service returned its fallback), "now serving" is the service's last called token from the
+  same public board table the TV screen reads, and the step comes straight from the token's
+  database status. Nothing moves on a timer of its own: if nobody is called, nothing changes.
+- **Fairness is visible.** When someone is called, the front dot leaves toward the counter and
+  everyone steps forward. If the count goes up, that can only be a priority or emergency token
+  ordered ahead (the database's queue order puts those lanes first), so a dot drops in at the
+  front with a "Priority patient added" note instead of the number silently jumping.
+- **Honest states.** Skipped, no-show and cancelled grey the bar and turn the last step red with
+  a plain explanation. "Called" lights the step and says which counter to go to; no full-screen
+  takeover.
+- **Accessibility.** The ring and lane have text descriptions, the steps are a real ordered list
+  with the current one marked, and a polite live region announces each new step. With reduced
+  motion the same states show without movement. The lane logic has a small `node --test` check
+  (`src/components/motion/queue-lane.test.mjs`).
