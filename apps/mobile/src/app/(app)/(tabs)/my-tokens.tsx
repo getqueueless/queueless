@@ -71,9 +71,12 @@ function ActiveTokenCard({ tokenId, onPress }: { tokenId: string; onPress: () =>
   );
 }
 
+const ACTIVE_APPOINTMENT_STATUSES = ['pending_payment', 'booked'];
+
 type ActiveAppointmentRow = {
   id: string;
   service_id: string;
+  status: string;
   appointment_slots: Embed<{ starts_at: string }>;
   doctors: Embed<{ name: string }>;
   services: Embed<{ name: string }>;
@@ -84,18 +87,26 @@ function formatSlot(startsAt: string) {
   return `${d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-function ActiveAppointmentCard({ appt, onCheckIn }: { appt: ActiveAppointmentRow; onCheckIn: () => void }) {
+function ActiveAppointmentCard({ appt, onCheckIn, onPayNow }: { appt: ActiveAppointmentRow; onCheckIn: () => void; onPayNow: () => void }) {
   const startsAt = one(appt.appointment_slots)?.starts_at ?? null;
   const doctorName = one(appt.doctors)?.name ?? null;
   const serviceName = one(appt.services)?.name ?? 'Appointment';
-  const canCheckIn = startsAt ? isCheckInWindow(new Date(startsAt), new Date()) : false;
+  const pendingPayment = appt.status === 'pending_payment';
+  const canCheckIn = !pendingPayment && startsAt ? isCheckInWindow(new Date(startsAt), new Date()) : false;
 
   return (
     <Card style={styles.apptCard}>
-      <UIText variant="bodyStrong">{serviceName}</UIText>
+      <View style={styles.apptHeaderRow}>
+        <UIText variant="bodyStrong">{serviceName}</UIText>
+        {pendingPayment ? <StatusChip status="pending" label="Payment pending" /> : null}
+      </View>
       {doctorName ? <UIText variant="secondary">Dr. {doctorName}</UIText> : null}
       <UIText variant="body">{startsAt ? formatSlot(startsAt) : 'Time to be confirmed'}</UIText>
-      {canCheckIn ? <Button label="Check in" size="md" onPress={onCheckIn} /> : null}
+      {pendingPayment ? (
+        <Button label="Pay now" size="md" onPress={onPayNow} />
+      ) : canCheckIn ? (
+        <Button label="Check in" size="md" onPress={onCheckIn} />
+      ) : null}
     </Card>
   );
 }
@@ -115,9 +126,9 @@ function ActiveTab() {
       supabase.from('tokens').select('id, service_id').eq('patient_id', patientId).in('status', ACTIVE_TOKEN_STATUSES).order('created_at', { ascending: false }),
       supabase
         .from('appointments')
-        .select('id, service_id, appointment_slots(starts_at), doctors(name), services(name)')
+        .select('id, service_id, status, appointment_slots(starts_at), doctors(name), services(name)')
         .eq('patient_id', patientId)
-        .eq('status', 'booked'),
+        .in('status', ACTIVE_APPOINTMENT_STATUSES),
     ]);
 
     if (tokenRes.error) {
@@ -179,7 +190,12 @@ function ActiveTab() {
             />
           ))}
           {appointments?.map((a) => (
-            <ActiveAppointmentCard key={a.id} appt={a} onCheckIn={() => handleCheckIn(a.id)} />
+            <ActiveAppointmentCard
+              key={a.id}
+              appt={a}
+              onCheckIn={() => handleCheckIn(a.id)}
+              onPayNow={() => router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: a.id } })}
+            />
           ))}
         </>
       )}
@@ -335,6 +351,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   activeHeader: { gap: 2, marginBottom: 4 },
   apptCard: { gap: 4, alignItems: 'flex-start' },
+  apptHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch', gap: 8 },
   pastRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   pastChips: { alignItems: 'flex-end', gap: 4 },
 });
