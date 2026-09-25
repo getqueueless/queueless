@@ -13,6 +13,8 @@ select plan(1);
 --   cash_report_by_staff/cash_report_by_doctor(from,to) -- admin-only reporting range on the
 --                                                           caller's own org, not a per-patient
 --                                                           abuse-prevention check
+--   payments_ledger_report(from,to)                  -- same admin-only reporting range, over
+--                                                        the unified online+cash ledger
 select is_empty(
   $$
   select p.oid::regprocedure::text
@@ -25,7 +27,8 @@ select is_empty(
       'public.admin_generate_doctor_slots(uuid,date,date)'::regprocedure,
       'public.staff_register_walkin(text,text,date,public.gender,text,uuid,uuid,public.lane,boolean,int)'::regprocedure,
       'public.cash_report_by_staff(date,date)'::regprocedure,
-      'public.cash_report_by_doctor(date,date)'::regprocedure
+      'public.cash_report_by_doctor(date,date)'::regprocedure,
+      'public.payments_ledger_report(date,date)'::regprocedure
     )
     and exists (
       select 1 from unnest(p.proargtypes) as at(oid)

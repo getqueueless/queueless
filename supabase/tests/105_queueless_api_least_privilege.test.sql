@@ -10,9 +10,9 @@ select set_eq(
        and has_schema_privilege('queueless_api', n.oid, 'USAGE')
        and has_any_column_privilege('queueless_api', c.oid, 'SELECT') $$,
   array[
-    'private.token_notifications', 'public.board_services', 'public.notifications',
-    'public.ops_summaries', 'public.profiles', 'public.push_tokens', 'public.services',
-    'public.tokens'
+    'private.razorpay_webhook_events', 'private.token_notifications', 'public.board_services',
+    'public.notifications', 'public.ops_summaries', 'public.payments', 'public.profiles',
+    'public.push_tokens', 'public.services', 'public.tokens'
   ],
   'queueless_api can read exactly these tables and nothing else'
 );
@@ -23,15 +23,20 @@ select set_eq(
   array['pushed_at'], 'pushed_at is the only notifications column queueless_api can update'
 );
 -- 0029's per-schema default-privilege revoke is a no-op in Postgres, so every new function needs its own revoke.
--- private.write_audit is the one deliberate door (0036): queueless_api logs its own actions into
--- audit_log through it, with no raw table grant on audit_log itself. analytics.* functions (0033)
--- live in their own schema and are covered separately in tests/110.
+-- private.write_audit is the original deliberate door (0036): queueless_api logs its own actions
+-- into audit_log through it, with no raw table grant on audit_log itself. 0052 (payments) added
+-- five more narrow doors the same way, never a raw table grant for the writes they guard.
+-- analytics.* functions (0033) live in their own schema and are covered separately in tests/110.
 select set_eq(
   $$ select p.oid::regprocedure::text from pg_proc p
      where p.pronamespace in ('public'::regnamespace, 'private'::regnamespace)
        and has_function_privilege('queueless_api', p.oid, 'EXECUTE') $$,
-  array['private.write_audit(uuid,text,uuid,text,jsonb,jsonb)'],
-  'queueless_api can execute exactly one function in public or private: private.write_audit'
+  array[
+    'confirm_payment(text,text,integer)', 'mark_payment_failed(text,text)',
+    'private.doctor_leave_refund_candidates()', 'private.write_audit(uuid,text,uuid,text,jsonb,jsonb)',
+    'record_order(uuid,text,integer)', 'record_refund(uuid,text,text,uuid)'
+  ],
+  'queueless_api can execute exactly these functions in public or private'
 );
 select is(has_schema_privilege('queueless_api', 'auth', 'usage'), false, 'queueless_api has no usage on schema auth');
 select trigger_is(
