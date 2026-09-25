@@ -1,16 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Routes anyone can reach without a session: the landing page, the
-// patient-status QR link, the counter/TV display board, the walk-in kiosk,
-// and the login page itself.
+import { getMyProfile } from "./get-role";
+
+// Routes anyone can reach without a session: the landing page, the staff/
+// patient login surface and its OAuth callback, the patient-status QR link,
+// the TV display board. /kiosk is a signed-in staff device now (it mints
+// cash walk-ins), not public.
 const PUBLIC_PATH_PATTERNS = [
   /^\/$/,
   /^\/login$/,
+  /^\/staff$/,
+  /^\/auth\/callback$/,
   /^\/display\/[^/]+$/,
   /^\/t\/[^/]+$/,
-  /^\/kiosk$/,
 ];
+
+// Staff-only device screens -- a signed-in patient must never land here.
+const STAFF_ONLY_PATH_PATTERNS = [/^\/counter$/, /^\/kiosk$/];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
@@ -18,6 +25,10 @@ function isPublicPath(pathname: string): boolean {
 
 function isAdminPath(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
+}
+
+function isStaffOnlyPath(pathname: string): boolean {
+  return STAFF_ONLY_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
 }
 
 export async function updateSession(request: NextRequest) {
@@ -56,31 +67,29 @@ export async function updateSession(request: NextRequest) {
   const userId = data?.claims.sub ?? null;
 
   if (!userId) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/staff", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAdminPath(pathname)) {
-    // Real schema (supabase/migrations/0002_organizations_profiles.sql) has
-    // no separate `staff` table -- role lives on `profiles.role`
-    // ('patient' | 'staff' | 'admin'), keyed by `profiles.id = auth.users.id`.
-    // No RLS policy letting a user read their own profiles row has landed
-    // yet, so any lookup failure denies admin access rather than granting it.
-    let role: string | null = null;
-    try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle();
-      role = profile?.role ?? null;
-    } catch {
-      role = null;
+  if (isAdminPath(pathname) || isStaffOnlyPath(pathname)) {
+    // `profile` is null whenever the read fails -- including the profiles
+    // grant/RLS gap this app currently runs under, see get-role.ts. That
+    // makes both branches below effectively no-ops until the DB side ships
+    // the grant: /admin already failed closed before this change (unchanged
+    // behavior), and /counter + /kiosk have never had a role check before
+    // now, so "can't confirm the role" continuing to let a signed-in user
+    // through them is not a new hole -- it only starts telling patients and
+    // staff apart once the read actually works, same day admin gating starts
+    // working too.
+    const profile = await getMyProfile(supabase, userId);
+
+    if (isAdminPath(pathname) && profile?.role !== "admin") {
+      return NextResponse.redirect(new URL("/counter", request.url));
     }
 
-    if (role !== "admin") {
-      return NextResponse.redirect(new URL("/counter", request.url));
+    if (isStaffOnlyPath(pathname) && profile?.role === "patient") {
+      return NextResponse.redirect(new URL("/my", request.url));
     }
   }
 
