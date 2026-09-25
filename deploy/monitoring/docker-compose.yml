@@ -8,12 +8,30 @@
 # under-provisioning anything below what it needs to actually run.
 name: queueless-monitoring
 
+# Every host port below binds 127.0.0.1 only -- Prometheus and Alertmanager have no
+# login of their own, so 0.0.0.0 would put them straight on the public internet on a
+# shared VPS. Grafana additionally joins the external `mcbots_bots` network (the same
+# one ql-api/ql-web already use, see deploy/api/deploy.sh) so Caddy can reverse-proxy
+# it at an admin-only URL without any host port at all; its 127.0.0.1 bind stays too,
+# for a plain SSH-tunnel fallback. postgres_exporter and alertmanager publish no host
+# port -- nothing outside this compose project needs to reach them directly, only
+# Prometheus does, over the default project network every service here already
+# shares.
+networks:
+  mcbots_bots:
+    external: true
+  queueless_default:
+    external: true
+
 services:
   prometheus:
     image: prom/prometheus:v3.0.1
     container_name: queueless-prometheus
     restart: unless-stopped
     mem_limit: 180m
+    networks:
+      - default
+      - mcbots_bots   # to scrape ql-api:8000, see prometheus.yml's QL_API_TARGET
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
@@ -24,7 +42,7 @@ services:
       - --storage.tsdb.retention.time=7d
       - --web.enable-lifecycle
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
       interval: 15s
@@ -36,14 +54,15 @@ services:
     container_name: queueless-postgres-exporter
     restart: unless-stopped
     mem_limit: 24m
+    networks:
+      - default
+      - queueless_default   # to reach supabase-db:5432
     environment:
       # Read-only role, not queueless_api and not postgres -- see
       # docs/DECISIONS.md for the exact CREATE ROLE/GRANT the DB agent needs
       # to add. DATA_SOURCE_NAME is never committed; set it in this
       # directory's own .env (gitignored) or the deploy session's secrets.
       DATA_SOURCE_NAME: ${POSTGRES_EXPORTER_DSN}
-    ports:
-      - "${POSTGRES_EXPORTER_PORT:-9187}:9187"
 
   alertmanager:
     image: prom/alertmanager:v0.28.0
@@ -62,8 +81,6 @@ services:
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO}
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
-    ports:
-      - "${ALERTMANAGER_PORT:-9093}:9093"
 
   grafana:
     image: grafana/grafana-oss:11.4.0
@@ -72,6 +89,9 @@ services:
     mem_limit: 150m
     depends_on:
       - prometheus
+    networks:
+      - default
+      - mcbots_bots   # so Caddy can proxy queueless-grafana:3000 directly
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
@@ -84,7 +104,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     ports:
-      - "${GRAFANA_PORT:-3001}:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
       interval: 15s

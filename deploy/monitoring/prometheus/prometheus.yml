@@ -14,13 +14,13 @@ scrape_configs:
   - job_name: ql-api
     metrics_path: /metrics
     static_configs:
-      # apps/api's own container/host is not part of this compose project --
-      # point this at wherever it actually runs. host.docker.internal works
-      # for "API runs on the same host, outside this compose network" (the
-      # common case for a single-VPS deploy); override via QL_API_TARGET in
-      # this directory's .env for anything else (a Docker network alias, a
-      # different host, etc).
-      - targets: ["${QL_API_TARGET:-host.docker.internal:8000}"]
+      # ql-api (deploy/api/deploy.sh) publishes no host port at all -- it's
+      # only reachable by container name on the `mcbots_bots` network, which
+      # this prometheus container now joins too (docker-compose.yml). Real
+      # default for the real VPS topology; override via QL_API_TARGET in
+      # this directory's .env for anything else (local dev, a different
+      # host).
+      - targets: ["${QL_API_TARGET:-ql-api:8000}"]
 
   - job_name: postgres
     static_configs:
