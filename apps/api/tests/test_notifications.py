@@ -55,7 +55,7 @@ async def test_poll_tick_notifies_almost_turn_and_called(db_pool):
             base + timedelta(seconds=i),
         )
         await db_pool.execute(
-            "INSERT INTO push_tokens(user_id, device_id, token) VALUES ($1, 'd1', $2)",
+            "INSERT INTO push_tokens(user_id, expo_token, platform) VALUES ($1, $2, 'ios')",
             pid,
             f"ExponentPushToken[{i}]",
         )
@@ -70,7 +70,7 @@ async def test_poll_tick_notifies_almost_turn_and_called(db_pool):
         called_patient,
     )
     await db_pool.execute(
-        "INSERT INTO push_tokens(user_id, device_id, token) VALUES ($1, 'd1', $2)",
+        "INSERT INTO push_tokens(user_id, expo_token, platform) VALUES ($1, $2, 'ios')",
         called_patient,
         "ExponentPushToken[called]",
     )

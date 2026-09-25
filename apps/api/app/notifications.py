@@ -1,6 +1,5 @@
 import asyncio
 import json
-from typing import Annotated
 from uuid import UUID
 
 import asyncpg
@@ -11,7 +10,6 @@ from exponent_server_sdk import (
     PushMessage,
     PushTicketError,
 )
-from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 
 from app.config import Settings
 from app.db import get_direct_connection
@@ -19,37 +17,11 @@ from app.metrics import queue_depth
 
 log = structlog.get_logger()
 
-DeviceId = Annotated[str, StringConstraints(min_length=1, max_length=120, pattern=r"^[\w-]+$")]
-
-
-class PushTokenIn(BaseModel):
-    model_config = ConfigDict(strict=True, extra="forbid")
-
-    token: str
-    device_id: DeviceId
-
-    @field_validator("token")
-    @classmethod
-    def token_must_be_exponent(cls, value: str) -> str:
-        if not PushClient.is_exponent_push_token(value):
-            raise ValueError("not a valid Expo push token")
-        return value
-
-
-async def upsert_push_token(pool: asyncpg.Pool, user_id: UUID, device_id: str, token: str) -> None:
-    # The same physical token can be re-registered by a different user after
-    # a reinstall, so the token itself -- not (user_id, device_id) -- is the key.
-    await pool.execute(
-        """
-        INSERT INTO push_tokens (user_id, device_id, token)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (token) DO UPDATE
-        SET user_id = EXCLUDED.user_id, device_id = EXCLUDED.device_id
-        """,
-        user_id,
-        device_id,
-        token,
-    )
+# push_tokens (supabase/migrations/0016) is owned and written by the client
+# (web/mobile via the Supabase SDK) under RLS policy push_tokens_owner --
+# apps/api's `queueless_api` role only has SELECT/DELETE on it (migration
+# 0018), so there is no registration write path here. apps/api only reads it
+# to send pushes and deletes a row once Expo reports it as unregistered.
 
 
 async def record_and_push(
@@ -80,17 +52,17 @@ async def record_and_push(
 
 
 async def send_push(pool: asyncpg.Pool, user_id: UUID, body: str) -> None:
-    rows = await pool.fetch("SELECT token FROM push_tokens WHERE user_id = $1", user_id)
+    rows = await pool.fetch("SELECT expo_token FROM push_tokens WHERE user_id = $1", user_id)
     if not rows:
         return
-    messages = [PushMessage(to=row["token"], body=body) for row in rows]
+    messages = [PushMessage(to=row["expo_token"], body=body) for row in rows]
     tickets = await asyncio.to_thread(PushClient().publish_multiple, messages)
     for ticket in tickets:
         try:
             ticket.validate_response()
         except DeviceNotRegisteredError:
             await pool.execute(
-                "DELETE FROM push_tokens WHERE token = $1", ticket.push_message.to
+                "DELETE FROM push_tokens WHERE expo_token = $1", ticket.push_message.to
             )
         except PushTicketError as exc:
             log.warning("push_ticket_error", token=ticket.push_message.to, error=str(exc))

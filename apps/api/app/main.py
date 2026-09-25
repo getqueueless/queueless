@@ -16,7 +16,7 @@ from app.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.ml_runtime import load as load_ml
 from app.notifications import listen_task, poller_task
 from app.rate_limit import limiter
-from app.routes import health, predict, push_tokens
+from app.routes import health, predict
 from app.scheduler import scheduler_loop
 
 configure_logging()
@@ -81,7 +81,6 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
-app.include_router(push_tokens.router)
 app.include_router(predict.router)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)

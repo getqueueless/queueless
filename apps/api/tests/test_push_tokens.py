@@ -1,65 +1,75 @@
+"""push_tokens (supabase/migrations/0016) is owned by the client (web/mobile
+via the Supabase SDK, RLS policy push_tokens_owner) -- apps/api has no
+registration endpoint, only SELECT/DELETE (migration 0018). These tests seed
+rows directly, as the client would have, and exercise apps/api's read/delete
+path (app.notifications.send_push)."""
+
 import uuid
 
-from tests.conftest import make_token
+from exponent_server_sdk import PushTicket
 
-VALID_EXPO_TOKEN = "ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]"
-
-
-def test_register_valid_token(client):
-    token = make_token()
-    resp = client.post(
-        "/push-tokens",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"token": VALID_EXPO_TOKEN, "device_id": "device-1"},
-    )
-    assert resp.status_code == 204
+import app.notifications as notifications_module
+from app.notifications import send_push
 
 
-def test_register_rejects_non_expo_token(client):
-    token = make_token()
-    resp = client.post(
-        "/push-tokens",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"token": "not-a-push-token", "device_id": "device-1"},
-    )
-    assert resp.status_code == 422
-
-
-def test_register_rejects_extra_field(client):
-    token = make_token()
-    resp = client.post(
-        "/push-tokens",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"token": VALID_EXPO_TOKEN, "device_id": "device-1", "role": "admin"},
-    )
-    assert resp.status_code == 422
-
-
-def test_register_requires_auth(client):
-    resp = client.post(
-        "/push-tokens", json={"token": VALID_EXPO_TOKEN, "device_id": "device-1"}
-    )
-    assert resp.status_code == 401
-
-
-async def test_reregistering_same_token_reassigns_owner(client, db_pool):
-    first_user = make_token(sub=str(uuid.uuid4()))
-    client.post(
-        "/push-tokens",
-        headers={"Authorization": f"Bearer {first_user}"},
-        json={"token": VALID_EXPO_TOKEN, "device_id": "device-1"},
+async def _seed_push_token(db_pool, user_id, expo_token, platform="ios"):
+    await db_pool.execute(
+        "INSERT INTO push_tokens(user_id, expo_token, platform) VALUES ($1, $2, $3)",
+        user_id,
+        expo_token,
+        platform,
     )
 
-    second_user_id = uuid.uuid4()
-    second_user = make_token(sub=str(second_user_id))
-    resp = client.post(
-        "/push-tokens",
-        headers={"Authorization": f"Bearer {second_user}"},
-        json={"token": VALID_EXPO_TOKEN, "device_id": "device-1"},
-    )
-    assert resp.status_code == 204
+
+async def test_send_push_reads_real_expo_token_column(db_pool, monkeypatch):
+    sent_to = []
+
+    def fake_publish_multiple(self, messages):
+        sent_to.extend(m.to for m in messages)
+        return [PushTicket(m, "ok", None, None, None) for m in messages]
+
+    monkeypatch.setattr(notifications_module.PushClient, "publish_multiple", fake_publish_multiple)
+
+    user_id = uuid.uuid4()
+    await _seed_push_token(db_pool, user_id, "ExponentPushToken[aaa]")
+
+    await send_push(db_pool, user_id, "hello")
+
+    assert sent_to == ["ExponentPushToken[aaa]"]
+
+
+async def test_send_push_with_no_tokens_is_a_noop(db_pool, monkeypatch):
+    def fake_publish_multiple(self, messages):
+        raise AssertionError("should never be called with zero tokens")
+
+    monkeypatch.setattr(notifications_module.PushClient, "publish_multiple", fake_publish_multiple)
+
+    await send_push(db_pool, uuid.uuid4(), "hello")
+
+
+async def test_send_push_deletes_stale_token_by_expo_token(db_pool, monkeypatch):
+    def fake_publish_multiple(self, messages):
+        return [
+            PushTicket(m, "error", None, {"error": "DeviceNotRegistered"}, None)
+            for m in messages
+        ]
+
+    monkeypatch.setattr(notifications_module.PushClient, "publish_multiple", fake_publish_multiple)
+
+    user_id = uuid.uuid4()
+    stale_token = "ExponentPushToken[stale]"
+    await _seed_push_token(db_pool, user_id, stale_token)
+
+    await send_push(db_pool, user_id, "hello")
 
     row = await db_pool.fetchrow(
-        "SELECT user_id FROM push_tokens WHERE token = $1", VALID_EXPO_TOKEN
+        "SELECT 1 FROM push_tokens WHERE expo_token = $1", stale_token
     )
-    assert row["user_id"] == second_user_id
+    assert row is None
+
+
+async def test_registration_endpoint_no_longer_exists(client):
+    resp = client.post(
+        "/push-tokens", json={"token": "ExponentPushToken[x]", "device_id": "d1"}
+    )
+    assert resp.status_code == 404

@@ -2,9 +2,9 @@
 
 Mirrors the REAL landed schema in supabase/migrations for the columns apps/api
 actually queries (profiles.id, tokens.patient_id/service_id, the real
-`notifications` table), as a compatible subset -- not the full FK graph to
-auth.users/organizations/counters, which is the DB team's own concern to test.
-`push_tokens` is apps/api's own table; it isn't in supabase/migrations yet.
+`notifications` and `push_tokens` tables), as a compatible subset -- not the
+full FK graph to auth.users/organizations/counters, which is the DB team's
+own concern to test.
 """
 
 import asyncio
@@ -55,9 +55,10 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 CREATE TABLE IF NOT EXISTS push_tokens (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL,
-    device_id text NOT NULL,
-    token text PRIMARY KEY,
+    expo_token text NOT NULL UNIQUE,
+    platform text NOT NULL CHECK (platform IN ('ios', 'android', 'web')),
     created_at timestamptz NOT NULL DEFAULT now()
 );
 """
