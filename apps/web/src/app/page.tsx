@@ -54,10 +54,13 @@ export default async function Home() {
 
   // Same query /kiosk uses to list services. `services` is readable by anon
   // (supabase/migrations/0030_rls_public_tables.sql), so no session needed.
-  const [{ data: services, error: servicesError }, board] = await Promise.all([
-    supabase.from("services").select("id, name, code").eq("is_open", true).order("name"),
+  const [{ data: allServices, error: servicesError }, board] = await Promise.all([
+    supabase.from("services").select("id, name, code, org_id").eq("is_open", true).order("name"),
     loadBoard(supabase),
   ])
+  // Only the demo hospital's services; another org on the same database
+  // (the load-test org) must not show up here.
+  const services = allServices?.filter((service) => !board?.orgId || service.org_id === board.orgId)
 
   return (
     <>

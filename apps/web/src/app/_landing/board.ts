@@ -15,6 +15,8 @@ export type BoardStats = {
 }
 
 export type Board = {
+  /** The demo hospital's organizations.id; the page scopes its service list to it. */
+  orgId: string | null
   stats: BoardStats
   /** Latest rolling average per service, for the service cards. */
   avgSecsByService: Record<string, number>
@@ -22,8 +24,14 @@ export type Board = {
   waitingByService: Record<string, number>
 }
 
+// ponytail: one public org per deployment (the demo preset). Other orgs on
+// the same database (the load-test org) must never reach these numbers.
+// Make this an env var if a second real org ever shares the site.
+const ORG_SLUG = "city-hospital"
+
 type BoardServiceRow = {
   service_id: string
+  org_id: string
   day: string
   waiting_count: number
   served_count: number
@@ -35,22 +43,24 @@ export async function loadBoard(supabase: SupabaseClient): Promise<Board | null>
     const [services, counters, links, org] = await Promise.all([
       supabase
         .from("board_services")
-        .select("service_id, day, waiting_count, served_count, avg_service_secs")
+        .select("service_id, org_id, day, waiting_count, served_count, avg_service_secs")
         .order("day", { ascending: false })
         .limit(100),
-      supabase.from("board_counters").select("counter_id, state"),
+      supabase.from("board_counters").select("counter_id, org_id, state"),
       supabase.from("counter_services").select("counter_id, service_id"),
-      supabase.from("organizations").select("timezone").limit(1).maybeSingle(),
+      supabase.from("organizations").select("id, timezone").eq("slug", ORG_SLUG).maybeSingle(),
     ])
     if (services.error || counters.error) return null
 
     // Board rows are per service per service-day, and the service day is the
     // org's local date (private.service_day). No row for today means nobody
     // has taken a token yet today, so today's counts are genuinely zero.
-    const timeZone = (org.data as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata"
+    const orgRow = org.data as { id: string; timezone: string } | null
+    const orgId = orgRow?.id ?? null
+    const timeZone = orgRow?.timezone ?? "Asia/Kolkata"
     const today = new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date())
 
-    const rows = (services.data ?? []) as BoardServiceRow[]
+    const rows = ((services.data ?? []) as BoardServiceRow[]).filter((row) => !orgId || row.org_id === orgId)
     const avgSecsByService: Record<string, number> = {}
     const waitingByService: Record<string, number> = {}
     let waiting = 0
@@ -71,7 +81,9 @@ export async function loadBoard(supabase: SupabaseClient): Promise<Board | null>
     const avgServiceMins = avgs.length
       ? Math.max(1, Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length / 60))
       : null
-    const counterRows = (counters.data ?? []) as { counter_id: string; state: string }[]
+    const counterRows = ((counters.data ?? []) as { counter_id: string; org_id: string; state: string }[]).filter(
+      (c) => !orgId || c.org_id === orgId,
+    )
     const openIds = new Set(counterRows.filter((c) => c.state === "open").map((c) => c.counter_id))
     const countersOpen = openIds.size
     const openByService: Record<string, number> = {}
@@ -83,6 +95,7 @@ export async function loadBoard(supabase: SupabaseClient): Promise<Board | null>
       : estimateWaitMins(rows.filter((row) => row.day === today), openByService)
 
     return {
+      orgId,
       stats: { waiting, servedToday, countersOpen, avgServiceMins, waitNowMins },
       avgSecsByService,
       waitingByService,
