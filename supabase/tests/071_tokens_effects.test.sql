@@ -10,11 +10,6 @@ values ('bbbbbbbb-0000-0000-0000-0000000000a1', '44444444-4444-4444-4444-4444444
 insert into public.counters (id, org_id, name, state)
 values ('cccccccc-0000-0000-0000-0000000000a1', '44444444-4444-4444-4444-444444444480', 'Desk 1', 'open');
 
--- normally created by the (not-yet-built) counters-insert trigger; seeded directly here since
--- this file tests tokens_after_write's own behavior, not board_counters row creation
-insert into public.board_counters (counter_id, org_id, counter_name, state)
-values ('cccccccc-0000-0000-0000-0000000000a1', '44444444-4444-4444-4444-444444444480', 'Desk 1', 'open');
-
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-0000000000a1', 'p071patient@queueless.test');
 
 -- walk-in mint: board_services row appears immediately, defaulted avg_service_secs, no notification (no patient)
