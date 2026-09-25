@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { LogoMark } from "@/components/brand/Logo"
+import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { createClient } from "@/lib/supabase/client"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import {
@@ -34,6 +36,10 @@ const STATUS_BADGE_CLASS: Record<TokenRow["status"], string> = {
   no_show: styles.badgeNoShow,
   cancelled: styles.badgeNoShow,
 }
+
+// The happy path drawn as a 01-04 progress track. Skipped / no-show /
+// cancelled leave it, so the track is hidden for those.
+const STEPS = ["waiting", "called", "serving", "done"] as const
 
 // Live refresh cadence for the derived, not-realtime-pushed numbers (position
 // and ETA change as OTHER tokens move, and the realtime channel below is
@@ -134,27 +140,59 @@ export function StatusView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token.status, serviceId])
 
+  const step = (STEPS as readonly string[]).indexOf(token.status)
+
   return (
-    <main className={styles.page}>
-      <div className={styles.card}>
+    <main id="main" className={styles.page}>
+      <div className={styles.band}>
+        <LogoMark size={300} className={styles.bandMark} />
+        <TwoToneHeading as="h1" lead="Your" accent="token" onDark align="center" />
+      </div>
+      <div className={styles.card} data-status={token.status}>
         <p className={styles.eyebrow}>{service?.name ?? "Queueless"}</p>
         <div className={styles.tokenNumber}>{token.code}</div>
         <span className={`${styles.badge} ${STATUS_BADGE_CLASS[token.status]}`}>
           {STATUS_LABEL[token.status]}
         </span>
 
+        {step >= 0 && (
+          <ol className={styles.steps} aria-label="Progress">
+            {STEPS.map((key, i) => (
+              <li
+                key={key}
+                className={styles.step}
+                data-state={i < step ? "past" : i === step ? "current" : "next"}
+                aria-current={i === step ? "step" : undefined}
+              >
+                <span className={styles.stepNum} aria-hidden="true">
+                  {`0${i + 1}`}
+                </span>
+                {STATUS_LABEL[key]}
+              </li>
+            ))}
+          </ol>
+        )}
+
         {token.status === "waiting" && (
           <div className={styles.body}>
             <p className={styles.line}>
-              {queueAhead === null
-                ? "Position in queue is unavailable right now."
-                : queueAhead === 0
-                  ? "You're next."
-                  : `${queueAhead} ${queueAhead === 1 ? "person" : "people"} ahead of you.`}
+              {queueAhead === null ? (
+                "Position in queue is unavailable right now."
+              ) : queueAhead === 0 ? (
+                <strong className={`${styles.stat} ${styles.next}`}>You&apos;re next.</strong>
+              ) : (
+                <>
+                  <strong className={styles.stat}>{queueAhead}</strong>{" "}
+                  {queueAhead === 1 ? "person" : "people"} ahead of you.
+                </>
+              )}
             </p>
             {predictedWaitMinutes !== null && (
               <p className={styles.eta}>
-                Estimated wait: ~{Math.max(0, Math.round(predictedWaitMinutes))} min
+                Estimated wait:{" "}
+                <strong className={styles.stat}>
+                  ~{Math.max(0, Math.round(predictedWaitMinutes))} min
+                </strong>
                 {predictedIsFallback && <span className={styles.etaNote}> (rough estimate)</span>}
               </p>
             )}
@@ -166,7 +204,11 @@ export function StatusView({
             <p className={styles.lineUrgent}>
               {token.status === "called" ? "You're being called now." : "You're being served."}
             </p>
-            {displayCounter && <p className={styles.line}>Go to {displayCounter.name}.</p>}
+            {displayCounter && (
+              <p className={styles.line}>
+                Go to <strong className={styles.counterName}>{displayCounter.name}</strong>.
+              </p>
+            )}
           </div>
         )}
 

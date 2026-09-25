@@ -1,5 +1,9 @@
 import type { Metadata } from "next"
 
+import { LogoMark } from "@/components/brand/Logo"
+import { PublicFooter } from "@/components/site/PublicFooter"
+import { PublicHeader } from "@/components/site/PublicHeader"
+import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { createClient } from "@/lib/supabase/server"
 import {
   countOpenCounters,
@@ -19,15 +23,22 @@ export const metadata: Metadata = {
 
 function NotFoundCard() {
   return (
-    <main className={styles.page}>
-      <div className={styles.card}>
-        <h1 className={styles.title}>Token not found</h1>
-        <p className={styles.subtitle}>
-          This link may have expired, or the token was already cleared for the day. Check the
-          QR code on your slip and try again, or ask the counter for help.
-        </p>
-      </div>
-    </main>
+    <>
+      <PublicHeader current="status" />
+      <main id="main" className={styles.page}>
+        <div className={styles.band}>
+          <LogoMark size={300} className={styles.bandMark} />
+          <TwoToneHeading as="h1" lead="Token not" accent="found" onDark align="center" />
+        </div>
+        <div className={styles.card}>
+          <p className={styles.subtitle}>
+            This link may have expired, or the token was already cleared for the day. Check the
+            QR code on your slip and try again, or ask the counter for help.
+          </p>
+        </div>
+      </main>
+      <PublicFooter />
+    </>
   )
 }
 
@@ -65,14 +76,18 @@ export default async function TokenStatusPage({ params }: { params: Promise<{ id
   }
 
   return (
-    <StatusView
-      tokenId={id}
-      initialToken={token}
-      service={service}
-      initialCounter={counter}
-      initialQueueAhead={queueAhead}
-      initialPredictedWaitMinutes={predictedWaitMinutes}
-      initialPredictedIsFallback={predictedIsFallback}
-    />
+    <>
+      <PublicHeader current="status" />
+      <StatusView
+        tokenId={id}
+        initialToken={token}
+        service={service}
+        initialCounter={counter}
+        initialQueueAhead={queueAhead}
+        initialPredictedWaitMinutes={predictedWaitMinutes}
+        initialPredictedIsFallback={predictedIsFallback}
+      />
+      <PublicFooter />
+    </>
   )
 }
