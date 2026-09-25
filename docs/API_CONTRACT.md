@@ -79,6 +79,65 @@ Staff/admin-only, DeepSeek-backed. `{"text": "<1-1000 chars>", "target_lang": "h
 `profiles.language`/`set_my_language` (migration `0035`) let a patient set a language preference,
 but full-app translation via this endpoint is a larger follow-up, not built in this pass.
 
+## Realtime topics (DB-side broadcast, not `apps/api`)
+
+`postgres_changes` never fires for anyone on this stack: the self-hosted `supabase_realtime`
+publication has zero member tables (nothing ever added one), so subscribing to `tokens`,
+`board_services`, or `board_counters` directly silently receives nothing — this is why `/t/<id>`
+(opened from a slip QR) and the TV display board don't update live. Fixing the publication alone
+still wouldn't work for an anonymous viewer: `postgres_changes` needs a per-row RLS check against
+the subscriber's role, and `public.tokens` carries columns (`patient_id`, `walkin_patient_id`)
+that must never reach an unauthenticated client.
+
+Fix (migration `0044`): `private.tokens_after_write` — the trigger that already runs after every
+`insert`/`update` on `public.tokens` — calls Realtime's Broadcast-from-Database function,
+`realtime.send()`, with `private = false`, to two topics per write:
+
+- `service:<service_id>` — anyone watching the whole queue for a service (the display board).
+- `token:<token_id>` — the single patient on `/t/<id>`, watching their own ticket.
+
+Both topics get the same event name and payload:
+
+- Event: `token_update`
+- Payload (exactly these 5 fields, plus `id`, which Realtime auto-injects into every broadcast
+  payload that doesn't already have one — that `id` is the message id, not the token id):
+  ```json
+  {
+    "token_id": "<tokens.id>",
+    "number": "<tokens.number>",
+    "status": "<tokens.status>",
+    "counter_id": "<tokens.counter_id, or null>",
+    "updated_at": "<timestamptz of this broadcast, not a tokens column>"
+  }
+  ```
+- Deliberately excluded: patient name, phone, any user id, the token's own `code`, lane/priority.
+  A subscriber that needs a counter's display name already has to look it up separately (same as
+  today's initial page load) — `counter_id` is enough to trigger that lookup.
+
+Subscribe on the anon (or any) Supabase client with:
+
+```ts
+supabase.channel(`token:${tokenId}`)
+  .on("broadcast", { event: "token_update" }, ({ payload }) => { /* ... */ })
+  .subscribe()
+```
+
+No RLS or table grant is needed to receive these — `private = false` makes the topic public by
+design, since the payload has nothing worth protecting.
+
+**Still on `postgres_changes` today, unaffected by this fix:** `apps/web`'s display board
+(`board_services`/`board_counters`) and the landing page's live stats. Those tables are public-read
+already (0030), so once/if they're added to the `supabase_realtime` publication, `postgres_changes`
+would work for them without a broadcast rewrite — that's a smaller follow-up than tokens was,
+since there's no PII to strip. Not done here; flagging it so **Hackathon frontend** knows the gap
+still exists on the board's own realtime path if they don't switch those two listeners over to
+`service:<service_id>` and re-fetch on receipt.
+
+**Consumers to update** (this migration only changes the DB): **Hackathon frontend**
+(`apps/web/src/lib/realtime/useResilientChannel.ts` and its 4 call sites currently pass
+`table: "tokens"` — none of them will receive anything until they switch to `.channel(topic).on("broadcast", ...)`
+against the topics above), **Hackathon mobile app**, and **Mobile patients feature**.
+
 ## Local dev
 
 Mobile assumes `apps/api` is reachable at `http://<laptop LAN IP>:8001` in dev
