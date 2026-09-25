@@ -16,6 +16,13 @@ export type ErrorCode =
   | "counter_closed"
   | "illegal_transition"
   | "not_found"
+  | "profile_incomplete"
+  | "invalid_profile"
+  | "invalid_phone"
+  | "invalid_date_of_birth"
+  | "phone_in_use"
+  | "invalid_status"
+  | "invalid_language"
   | "PGRST003"
   | "PGRST202"
   | "network_error";
@@ -44,6 +51,13 @@ export const ERRORS: Record<ErrorCode, ErrorInfo> = {
   counter_closed: { http: 409, message: "That desk is closed", retryable: false },
   illegal_transition: { http: 409, message: "That ticket can't change state right now", retryable: false },
   not_found: { http: 404, message: "We couldn't find that", retryable: false },
+  profile_incomplete: { http: 403, message: "Please finish your profile first", retryable: false },
+  invalid_profile: { http: 400, message: "Fill in your name and city", retryable: false },
+  invalid_phone: { http: 400, message: "Enter a 10-digit Indian mobile number", retryable: false },
+  invalid_date_of_birth: { http: 400, message: "Enter a valid date of birth", retryable: false },
+  phone_in_use: { http: 409, message: "That phone number is already registered", retryable: false },
+  invalid_status: { http: 400, message: "That's not a valid status", retryable: false },
+  invalid_language: { http: 400, message: "That language isn't supported", retryable: false },
   PGRST003: { http: 504, message: "Busy, try again", retryable: true },
   PGRST202: { http: 404, message: "Server updating, retry shortly", retryable: true },
   network_error: { http: 0, message: "Couldn't reach the server", retryable: true },

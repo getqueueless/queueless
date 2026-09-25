@@ -31,6 +31,10 @@ function isStaffOnlyPath(pathname: string): boolean {
   return STAFF_ONLY_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
 }
 
+function isPatientPath(pathname: string): boolean {
+  return pathname === "/my" || pathname.startsWith("/my/");
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -72,16 +76,20 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAdminPath(pathname) || isStaffOnlyPath(pathname)) {
+  if (isAdminPath(pathname) || isStaffOnlyPath(pathname) || isPatientPath(pathname)) {
     // `profile` is null whenever the read fails -- including the profiles
     // grant/RLS gap this app currently runs under, see get-role.ts. That
-    // makes both branches below effectively no-ops until the DB side ships
-    // the grant: /admin already failed closed before this change (unchanged
-    // behavior), and /counter + /kiosk have never had a role check before
-    // now, so "can't confirm the role" continuing to let a signed-in user
-    // through them is not a new hole -- it only starts telling patients and
-    // staff apart once the read actually works, same day admin gating starts
-    // working too.
+    // makes the role checks below effectively no-ops until the DB side
+    // ships the grant: /admin already failed closed before this change
+    // (unchanged behavior), and /counter + /kiosk have never had a role
+    // check before now, so "can't confirm the role" continuing to let a
+    // signed-in user through them is not a new hole -- it only starts
+    // telling patients and staff apart once the read actually works, same
+    // day admin gating starts working too. The profile-completeness check
+    // below degrades the same way: no profile row readable means no gate,
+    // not a lockout -- issue_token/book_appointment enforce it for real
+    // server-side (0037_mandatory_profile.sql's require_complete_profile)
+    // regardless of whether this redirect fires.
     const profile = await getMyProfile(supabase, userId);
 
     if (isAdminPath(pathname) && profile?.role !== "admin") {
@@ -90,6 +98,10 @@ export async function updateSession(request: NextRequest) {
 
     if (isStaffOnlyPath(pathname) && profile?.role === "patient") {
       return NextResponse.redirect(new URL("/my", request.url));
+    }
+
+    if (isPatientPath(pathname) && pathname !== "/my/profile" && profile && !profile.profileCompletedAt) {
+      return NextResponse.redirect(new URL("/my/profile", request.url));
     }
   }
 
