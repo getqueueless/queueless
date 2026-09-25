@@ -10,6 +10,7 @@ import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
+import { useLiveRefresh } from '@/lib/use-live-refresh';
 import { useRole } from '@/lib/use-role';
 import { useSession } from '@/lib/use-session';
 
@@ -74,6 +75,7 @@ export default function AdminCounters() {
     setLoadError(null);
     setLoading(false);
   }, [orgId]);
+  useLiveRefresh(refetch);
 
   // One channel covering counters + the join table, same shape as counter.tsx: the subscribe
   // callback's SUBSCRIBED case fires the initial load, not a separate bare effect.

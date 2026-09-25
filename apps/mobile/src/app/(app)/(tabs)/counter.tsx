@@ -11,6 +11,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { todayDateString } from '@/lib/service-day';
 import { supabase } from '@/lib/supabase';
+import { useLiveRefresh } from '@/lib/use-live-refresh';
 import { useRole } from '@/lib/use-role';
 import { useSession } from '@/lib/use-session';
 
@@ -147,6 +148,7 @@ export default function Counter() {
       setQueue([]);
     }
   }, [selectedCounterId, orgId]);
+  useLiveRefresh(refetch);
 
   // One effect drives both the initial/counter-switch load and the realtime subscription,
   // mirroring Home's pattern: the subscribe callback's SUBSCRIBED case is the trigger, not a

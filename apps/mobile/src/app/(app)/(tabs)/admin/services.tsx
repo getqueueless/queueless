@@ -10,6 +10,7 @@ import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
+import { useLiveRefresh } from '@/lib/use-live-refresh';
 import { useRole } from '@/lib/use-role';
 import { useSession } from '@/lib/use-session';
 
@@ -102,6 +103,7 @@ export default function AdminServices() {
     setLoadError(null);
     setLoading(false);
   }, [orgId]);
+  useLiveRefresh(refetch);
 
   // Same shape as counter.tsx: one channel, initial load fired from the subscribe callback's
   // SUBSCRIBED case rather than a separate bare effect.

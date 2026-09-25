@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { todayDateString } from '@/lib/service-day';
 import { supabase } from '@/lib/supabase';
+import { useLiveRefresh } from '@/lib/use-live-refresh';
 import { useRole } from '@/lib/use-role';
 import { useSession } from '@/lib/use-session';
 
@@ -133,6 +134,7 @@ export default function AdminDashboard() {
     setLoadError(null);
     setLoading(false);
   }, [orgId]);
+  useLiveRefresh(refetch);
 
   // One channel covering board_services/board_counters/tokens for this org — same shape as
   // counter.tsx: the subscribe callback's SUBSCRIBED case fires the initial load, not a bare
