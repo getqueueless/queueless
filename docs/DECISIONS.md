@@ -170,3 +170,19 @@ One line per deviation from the plan/spec, with why.
   entirely on `Platform.OS === 'web'` (the browser already has a native `localStorage`,
   `expo-sqlite`'s polyfill is redundant there) -- untried, flagged for whoever needs
   `expo start --web` working next.
+- 2026-09-26 (apps/api): **`queueless_api` can't actually read `board_services` in prod --
+  DB agent action needed.** `0018_queueless_api_role.sql` granted `select on public.board_services
+  to queueless_api` at the table level, but `0030_rls_public_tables.sql` (landed later) enabled
+  RLS on that table with `create policy board_services_read ... to anon, authenticated using
+  (true)` -- `queueless_api` isn't in that role list, so RLS silently filters every one of its
+  selects to zero rows regardless of the `WHERE` clause. This was masked locally because
+  `apps/api/scripts/dev_db.py`'s test fixture has no RLS at all. `apps/api`'s own `/predict`
+  existence check degrades gracefully today (returns 404, doesn't crash), but it's a false 404 on
+  every real service_id in prod right now. Needed, either one:
+  ```sql
+  create policy board_services_api_read on public.board_services
+    for select to queueless_api using (true);
+  ```
+  or add `queueless_api` to the existing `board_services_read` policy's role list. Same class of
+  gap likely applies to any other table where a later RLS-enabling migration didn't re-check
+  `0018`'s role list -- worth an explicit pass, not just this one table.
