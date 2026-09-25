@@ -1,9 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Routes anyone can reach without a session: the patient-status QR link, the
-// counter/TV display board, the walk-in kiosk, and the login page itself.
-const PUBLIC_PATH_PATTERNS = [/^\/login$/, /^\/display\/[^/]+$/, /^\/t\/[^/]+$/, /^\/kiosk$/];
+// Routes anyone can reach without a session: the landing page, the
+// patient-status QR link, the counter/TV display board, the walk-in kiosk,
+// and the login page itself.
+const PUBLIC_PATH_PATTERNS = [
+  /^\/$/,
+  /^\/login$/,
+  /^\/display\/[^/]+$/,
+  /^\/t\/[^/]+$/,
+  /^\/kiosk$/,
+];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
