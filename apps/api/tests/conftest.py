@@ -62,11 +62,19 @@ async def _staff_only(user=Depends(require_role("staff", "admin"))):
     return {"user_id": str(user.user_id)}
 
 
+_test_router_included = False
+
+
 @pytest.fixture
 def client(postgres):
+    global _test_router_included
     from app.main import app
+    from app.rate_limit import limiter
 
-    app.include_router(test_router)
+    limiter.reset()
+    if not _test_router_included:
+        app.include_router(test_router)
+        _test_router_included = True
     with TestClient(app) as c:
         yield c
 

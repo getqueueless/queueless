@@ -1,9 +1,10 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.ml_runtime import predict_with_fallback
+from app.rate_limit import limiter
 
 router = APIRouter()
 
@@ -22,8 +23,18 @@ class PredictIn(BaseModel):
     counters_open: Annotated[int, Field(ge=1, le=50)]
 
 
-@router.post("/predict")
-async def predict(body: PredictIn, request: Request) -> dict:
+@limiter.limit("60/minute")
+async def _predict_rate_limit(request: Request, response: Response) -> None:
+    # Route-level dependency, not applied to the endpoint itself -- see the
+    # matching comment in app/routes/push_tokens.py for why: a limit on the
+    # endpoint's own function only runs after FastAPI has already parsed and
+    # validated the request body, so a flood of invalid bodies would never
+    # be counted.
+    return None
+
+
+@router.post("/predict", dependencies=[Depends(_predict_rate_limit)])
+async def predict(request: Request, body: PredictIn) -> dict:
     return predict_with_fallback(
         request.app.state.ml_model,
         request.app.state.ml_meta,
