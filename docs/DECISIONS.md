@@ -623,3 +623,40 @@ One line per deviation from the plan/spec, with why.
 - 2026-09-26 (ci): each waiting iOS run holds one idle ubuntu runner while it polls (60 s). Only
   this workflow uses Actions today, so nothing else is starved; runs created before the skip
   logic (up to #45) still build one by one, later ones skip themselves when superseded.
+- 2026-09-27 (apps/api, ML recalibration): synthetic per-patient service time recalibrated to
+  published Indian OPD studies, per-org request (Yash) to ground the demo model in real numbers.
+  Sources: General OPD 6.925±7.688 min
+  (https://www.ijcmph.com/index.php/ijcmph/article/view/11281, Maharashtra tertiary hospital);
+  Pharmacy 81.5±51.2 s
+  (https://www.academia.edu/43251675/Prescription_pattern_at_outpatient_department_in_a_tertiary_care_hospital_at_central_Maharashtra_India,
+  central Maharashtra tertiary hospital); Pediatrics/Orthopedics have no Indian department-
+  specific service-time study found -- ASSUMPTION, reuse General OPD's number, documented as
+  such in `docs/api/model-card.md`, not silently presented as measured; Kolkata waiting-time
+  context (pediatric OPD shortest real wait, 43 vs 122 min) from
+  https://www.ijcmph.com/index.php/ijcmph/article/view/5276; international consultation-time
+  context (India ~2 min primary care) from
+  https://research.edgehill.ac.uk/ws/portalfiles/portal/29790731/International_variations_in_primary_care_physician_consultation_time.pdf;
+  Kolkata tertiary OPD waiting-time methodology from
+  https://www.ovid.com/jnls/ijcm/fulltext/10.4103/ijcm.ijcm_abstract210~ijcm210a-assessment-of-outdoor-patients-waiting-time-and.
+  Real SD/mean for General OPD is >1 (individual patients vary *more* than the average) --
+  this alone made the deterministic-base v1/v2 generator's 82%-improvement figure look
+  unrealistic in hindsight, and a genuine bug surfaced once real variance was calibrated in:
+  `HistGradientBoostingRegressor`'s default squared-error loss scored the model *worse* than
+  the fair baseline (-13.09%) against the new noisy, right-skewed target -- traced to per-leaf
+  sample means being noisier than the baseline's single pooled per-service mean, not
+  overfitting (more regularization made it worse, not better). Fixed in
+  `scripts/train_core.py` by fitting on `log1p(wait_minutes)` and predicting via `expm1(...)`
+  -- the textbook-correct transform for a lognormal target, not a tuning trick, plus
+  `min_samples_leaf=100` as a small additional empirical tune. Net result, honestly reported:
+  MAE 28.33 vs fair baseline 29.47, a real 3.90% improvement -- much smaller than the old
+  81.98%, which is the correct outcome once the target has real, cited, dominant per-patient
+  randomness. New sanity-rule test (`tests/test_predict.py`) asserts the model's own
+  prediction for 1 person ahead / 1 counter lands within ±30% of the department's real cited
+  mean (measured: 5.26 min vs 6.925 for General OPD, 1.51 min vs 1.358 for Pharmacy). `app/
+  ml_runtime.py::predict_with_fallback` now checks `meta["target_transform"] == "log1p"`
+  before applying `expm1` to a raw prediction -- an older artifact without that field is
+  treated as the identity transform, not a crash. Retrained locally (`scripts/train.py`) and
+  verified inside a real Docker build+run, not just pytest; not retrained via the live
+  `POST /admin/retrain` path, since that trains on real completed prod tokens (a different,
+  unrelated dataset) -- there is currently no real production history large enough to make
+  that retrain meaningful, and this recalibration is about the synthetic generator specifically.

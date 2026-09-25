@@ -279,3 +279,57 @@ def test_predict_with_fallback_handles_service_unseen_by_model():
     assert result["fallback"] is True
     assert result["reason"] == "unknown_to_model"
     assert result["predicted_wait_minutes"] == 3 * 10.0 / 2
+
+
+# Real, cited per-patient consultation means (scripts/generate_training_data.py's
+# SERVICE_TIME_STATS_MINUTES) -- the sanity rule: for 1 person ahead and 1 open
+# counter, the model's own prediction (not the fallback formula) should land near
+# the department's real mean service time, before peak/doctor/day adjustments.
+GENERAL_OPD_MEAN_MINUTES = 6.925
+PHARMACY_MEAN_MINUTES = 81.5 / 60
+
+
+async def test_predict_sanity_rule_one_ahead_one_counter_general_opd(client, db_pool):
+    await _seed_board_service(db_pool, day=date.today())
+    # hour=4 is off-peak (PEAK_HOURS={9,10,11,14,15}), weekday=2 is not Monday --
+    # keeps the expected value close to the raw calibrated mean, not inflated by
+    # the peak/Monday multipliers.
+    resp = client.post(
+        "/predict",
+        json={
+            "service_id": GENERAL_OPD_ID,
+            "hour": 4,
+            "weekday": 2,
+            "queue_len_ahead": 1,
+            "counters_open": 1,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["fallback"] is False
+    predicted = body["predicted_wait_minutes"]
+    assert GENERAL_OPD_MEAN_MINUTES * 0.7 <= predicted <= GENERAL_OPD_MEAN_MINUTES * 1.3, (
+        f"{predicted} not within +-30% of the real cited mean {GENERAL_OPD_MEAN_MINUTES}"
+    )
+
+
+async def test_predict_sanity_rule_one_ahead_one_counter_pharmacy(client, db_pool):
+    pharmacy_id = SERVICE_IDS["Pharmacy"]
+    await _seed_board_service(db_pool, service_id=pharmacy_id, day=date.today())
+    resp = client.post(
+        "/predict",
+        json={
+            "service_id": pharmacy_id,
+            "hour": 4,
+            "weekday": 2,
+            "queue_len_ahead": 1,
+            "counters_open": 1,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["fallback"] is False
+    predicted = body["predicted_wait_minutes"]
+    assert PHARMACY_MEAN_MINUTES * 0.7 <= predicted <= PHARMACY_MEAN_MINUTES * 1.3, (
+        f"{predicted} not within +-30% of the real cited mean {PHARMACY_MEAN_MINUTES}"
+    )

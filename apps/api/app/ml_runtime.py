@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 from fastapi import FastAPI
 
@@ -80,5 +81,9 @@ def predict_with_fallback(
     if doctor_trained:
         row_dict["doctor"] = pd.Categorical([doctor_category], categories=list(meta["avg_service_time_by_doctor"]))[0]
     row = pd.DataFrame([row_dict])
-    prediction = float(model.predict(row)[0])
+    raw_prediction = model.predict(row)[0]
+    # Older artifacts (predating log1p-target training) have no
+    # target_transform field at all -- treat absence as the identity
+    # transform, not a crash.
+    prediction = float(np.expm1(raw_prediction) if meta.get("target_transform") == "log1p" else raw_prediction)
     return {"predicted_wait_minutes": prediction, "fallback": False, "reason": None, "doctor_used": doctor_used}

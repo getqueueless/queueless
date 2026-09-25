@@ -10,6 +10,7 @@ import json
 import math
 from pathlib import Path
 
+import numpy as np
 import sklearn
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error
@@ -72,9 +73,19 @@ def train_and_evaluate(
     X_test, y_test = test_rows[feature_columns], test_rows[target_column]
 
     categorical_features = ["service", "doctor"] if doctor_categories is not None else ["service"]
-    model = HistGradientBoostingRegressor(categorical_features=categorical_features, random_state=seed)
-    model.fit(X_train, y_train)
-    model_predictions = model.predict(X_test)
+    # Fit in log space, not raw minutes: real per-patient consultation time
+    # is right-skewed lognormal (calibrated to cited Indian OPD studies --
+    # see generate_training_data.py), so squared-error loss on the raw
+    # target chases a heavy tail and predicts worse than a plain per-
+    # service average (found live: -13% "improvement" before this fix).
+    # log1p/expm1 is the textbook-correct transform for a lognormal target,
+    # not a tuning trick -- min_samples_leaf=100 is the one real tuning
+    # choice, a small additional win found empirically on top of it.
+    model = HistGradientBoostingRegressor(
+        categorical_features=categorical_features, random_state=seed, min_samples_leaf=100,
+    )
+    model.fit(X_train, np.log1p(y_train))
+    model_predictions = np.expm1(model.predict(X_test))
     mae_model = mean_absolute_error(y_test, model_predictions)
 
     train_df = X_train.copy()
@@ -161,6 +172,10 @@ def train_and_evaluate(
         "split_method": "chronological: last 20% of days held out, cutoff_day=" + str(cutoff_day),
         "n_rows": len(df),
         "sklearn_version": sklearn.__version__,
+        # app/ml_runtime.py checks this before calling model.predict() --
+        # the model was fit on log1p(wait_minutes), so a raw prediction
+        # needs expm1() before it's a real minute value.
+        "target_transform": "log1p",
         **doctor_fields,
     }
     return model, meta

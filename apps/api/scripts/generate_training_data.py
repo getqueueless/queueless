@@ -2,30 +2,56 @@
 
 This is synthetic data, not real patient data. Generating assumptions (also
 documented verbatim in docs/api/model-card.md):
-  - Per-service base minutes, keyed by the real demo org's service_id (no
-    human-readable name is available to apps/api at query time -- its DB
-    role has SELECT on board_services but not on services, per
-    supabase/migrations/0018_queueless_api_role.sql):
-    General OPD=8, Pediatrics=10, Orthopedics=14, Pharmacy=4.
+  - Per-service per-patient consultation time is now calibrated to
+    published Indian OPD studies, not an arbitrary constant, drawn per row
+    from a right-skewed lognormal fit to each study's real (mean, SD):
+      * General OPD: mean 6.925 min, SD 7.688 min -- tertiary care
+        hospital, Maharashtra (IJCMPH: "Prescribing Pattern... Outpatient
+        Department"), https://www.ijcmph.com/index.php/ijcmph/article/view/11281
+      * Pharmacy: mean 81.5s (1.358 min), SD 51.2s (0.853 min) -- central
+        Maharashtra tertiary hospital dispensing time,
+        https://www.academia.edu/43251675/Prescription_pattern_at_outpatient_department_in_a_tertiary_care_hospital_at_central_Maharashtra_India
+      * Pediatrics, Orthopedics: no Indian department-specific service-time
+        study was found -- ASSUMPTION: reuses General OPD's calibration
+        (mean 6.925, SD 7.688). A Kolkata tertiary-care study (waiting time,
+        not service time -- https://www.ijcmph.com/index.php/ijcmph/article/view/5276)
+        shows pediatric OPD has the shortest real wait (43 min vs 122 min
+        overall), which this generator does NOT model -- it only has a
+        service-time assumption, not a queue-composition one, for these two.
+    Context for how these compare internationally: the BMJ Open 2017
+    systematic review (Irving et al., 67 countries,
+    https://research.edgehill.ac.uk/ws/portalfiles/portal/29790731/International_variations_in_primary_care_physician_consultation_time.pdf)
+    puts India's primary-care consultation at ~2 min; a Kolkata tertiary
+    study (Ovid IJCM,
+    https://www.ovid.com/jnls/ijcm/fulltext/10.4103/ijcm.ijcm_abstract210~ijcm210a-assessment-of-outdoor-patients-waiting-time-and)
+    reports government super-speciality clinics at ~2 min for 200+
+    patients/day -- private/tertiary OPDs (what this demo models) run
+    longer, ~6-7 min, which is what General OPD's calibration above uses.
   - Peak-hour multiplier ~1.4x for hour in {9, 10, 11, 14, 15}.
   - Monday multiplier ~1.2x for weekday == 0.
   - A shared per-day busy/slow multiplier (mean 1.0, std 0.08) so a
     chronological train/test split (scripts/train.py) has a real day-level
     signal to hold out, instead of nothing to leak across.
   - Doctor-level (v2): 2 seeded doctors per service, each with a fixed speed
-    multiplier relative to their service's base (one faster, one slower) --
-    real, per-doctor variance in service time exists in the real system
-    (supabase/migrations/0038-0040: doctors, schedules, `tokens.doctor_id`,
-    `analytics.doctor_service_time`), and the real DB honestly has no
-    open-counters-style live signal to reconstruct historically, but per-
-    doctor speed IS directly observable in `tokens.finished_at - serving_at`
-    once real doctor-attributed tokens exist. 40% of rows are attributed to
-    a specific doctor (doctor != "none"); the rest are generic/unattributed
-    walk-ins, matching how doctor tracking rolled out on top of an existing
-    doctor-less queue rather than replacing it.
-  - wait_minutes = base * doctor_mult * peak_mult * monday_mult * daily_mult
-    * queue_len_ahead / counters_open, plus right-skewed noise via
-    rng.gamma (not Gaussian), clipped at 0.
+    multiplier relative to their service's calibrated mean (one faster, one
+    slower) -- real, per-doctor variance in service time exists in the real
+    system (supabase/migrations/0038-0040: doctors, schedules,
+    `tokens.doctor_id`, `analytics.doctor_service_time`), and the real DB
+    honestly has no open-counters-style live signal to reconstruct
+    historically, but per-doctor speed IS directly observable in
+    `tokens.finished_at - serving_at` once real doctor-attributed tokens
+    exist. 40% of rows are attributed to a specific doctor (doctor !=
+    "none"); the rest are generic/unattributed walk-ins, matching how
+    doctor tracking rolled out on top of an existing doctor-less queue
+    rather than replacing it.
+  - wait_minutes = per_patient_service_time * doctor_mult * peak_mult *
+    monday_mult * daily_mult * queue_len_ahead / counters_open, clipped at
+    0 -- the lognormal draw above IS the noise source now (real, cited
+    variance), no separate additive noise term on top of it. This directly
+    satisfies the sanity rule tests/test_generate_training_data.py checks:
+    one patient takes ~X min (the calibrated mean), so the person behind
+    them (queue_len_ahead=1, counters_open=1) waits ~X min too, before
+    peak/doctor/day adjustments.
 
 No supabase/scripts/seed.sh exists yet (checked as of this writing -- only
 migrate.sh/reset.sh/smoke.sh/test.sh are present), so there is no live demo
@@ -45,13 +71,30 @@ SERVICE_IDS = {
     "Orthopedics": "10000000-0000-0000-0000-000000000003",
     "Pharmacy": "10000000-0000-0000-0000-000000000004",
 }
-BASE_MINUTES = {
-    SERVICE_IDS["General OPD"]: 8,
-    SERVICE_IDS["Pediatrics"]: 10,
-    SERVICE_IDS["Orthopedics"]: 14,
-    SERVICE_IDS["Pharmacy"]: 4,
+
+# (mean_minutes, sd_minutes) per service -- the real, cited numbers above.
+# Pediatrics/Orthopedics are explicitly the General OPD ASSUMPTION, not
+# their own measured study.
+SERVICE_TIME_STATS_MINUTES = {
+    SERVICE_IDS["General OPD"]: (6.925, 7.688),
+    SERVICE_IDS["Pediatrics"]: (6.925, 7.688),   # ASSUMPTION: no Indian pediatric-OPD service-time study found
+    SERVICE_IDS["Orthopedics"]: (6.925, 7.688),  # ASSUMPTION: no Indian orthopedic-OPD service-time study found
+    SERVICE_IDS["Pharmacy"]: (81.5 / 60, 51.2 / 60),
 }
-SERVICES = list(BASE_MINUTES)
+SERVICES = list(SERVICE_TIME_STATS_MINUTES)
+
+
+def _lognormal_params(mean: float, sd: float) -> tuple[float, float]:
+    """The (mu, sigma) of the underlying normal that makes
+    np.random.lognormal produce draws with the given real-world (mean, sd)
+    -- lognormal is parameterized by the underlying normal's params, not
+    the distribution's own mean/sd directly."""
+    sigma_sq = np.log(1 + (sd / mean) ** 2)
+    mu = np.log(mean) - sigma_sq / 2
+    return mu, np.sqrt(sigma_sq)
+
+
+LOGNORMAL_PARAMS = {service: _lognormal_params(*stats) for service, stats in SERVICE_TIME_STATS_MINUTES.items()}
 PEAK_HOURS = {9, 10, 11, 14, 15}
 PEAK_MULTIPLIER = 1.4
 MONDAY_MULTIPLIER = 1.2
@@ -107,7 +150,13 @@ def generate_training_data(n_rows: int = 20_000, seed: int = 42, n_days: int = 1
         "none",
     )
 
-    base = np.array([BASE_MINUTES[s] for s in service], dtype=float)
+    # Per-patient consultation time, drawn per row from each service's real,
+    # cited (mean, sd) as a right-skewed lognormal -- this IS the noise
+    # source now (real-world variance), not a separate additive term.
+    mu_arr = np.array([LOGNORMAL_PARAMS[s][0] for s in service])
+    sigma_arr = np.array([LOGNORMAL_PARAMS[s][1] for s in service])
+    per_patient_service_time = rng.lognormal(mean=mu_arr, sigma=sigma_arr)
+
     doctor_mult = np.array([DOCTOR_MULTIPLIER.get(d, 1.0) for d in doctor], dtype=float)
     peak_mult = np.where(np.isin(hour, list(PEAK_HOURS)), PEAK_MULTIPLIER, 1.0)
     monday_mult = np.where(weekday == 0, MONDAY_MULTIPLIER, 1.0)
@@ -115,9 +164,8 @@ def generate_training_data(n_rows: int = 20_000, seed: int = 42, n_days: int = 1
     # model feature -- a raw day index would just let the model memorize it.
     daily_mult = rng.normal(1.0, DAILY_NOISE_STD, size=n_days)[day]
 
-    signal = base * doctor_mult * peak_mult * monday_mult * daily_mult * queue_len_ahead / counters_open
-    noise = rng.gamma(shape=2.0, scale=3.0, size=n_rows)
-    wait_minutes = np.clip(signal + noise, a_min=0, a_max=None)
+    signal = per_patient_service_time * doctor_mult * peak_mult * monday_mult * daily_mult
+    wait_minutes = np.clip(signal * queue_len_ahead / counters_open, a_min=0, a_max=None)
 
     return pd.DataFrame(
         {

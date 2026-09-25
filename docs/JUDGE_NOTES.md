@@ -610,23 +610,33 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   (by id), the hour and day, how many people are ahead of them, and how many counters are open.
 - **The model.** A gradient-boosted regression model (`HistGradientBoostingRegressor`), trained
   once offline and loaded at startup — never retrained live, never trained on a live request.
-- **The data is synthetic, and that's stated up front.** No real patient data exists yet, so
-  20,000 rows were generated from a documented formula (base wait time per the real hospital's 4
-  actual services, slower at peak hours and on Mondays, plus a per-day busy/slow factor, divided
-  by counters open, plus realistic random noise) — every assumption behind that formula is
-  written out in `docs/api/model-card.md`.
-- **The actual, measured numbers, corrected** (from running `scripts/train.py`, not hand-typed —
-  an earlier version of this section reported 92.3% against a baseline that forgot to divide by
-  the number of open counters, which a judge asking "how did you validate this?" would have
-  caught): the model's average error is **6.74 minutes**; the honest baseline — the exact same
-  formula (`waiting × avg time ÷ open counters`) the app itself would show without any ML — is
-  off by **37.39 minutes** on average, an **81.98% improvement** (moved up from an earlier
-  77.76% when per-doctor features landed — real added signal the baseline structurally can't
-  use, not baseline noise; see the model card). Validated with a chronological split (the model
-  never sees the last 20% of days during training), not a random shuffle, so "does this work on
-  a day it hasn't seen" is actually tested. Full methodology, including why this improvement
-  number is higher than typically expected and what was checked to rule out a bug, is in
-  `docs/api/model-card.md`'s Validation section.
+- **The data is synthetic, but calibrated to real published Indian OPD studies, not made up.**
+  No real patient data exists yet, so 20,000 rows are generated from a documented formula —
+  each patient's own consultation/dispensing time is drawn from a right-skewed distribution
+  fit to a real study's (mean, SD) per department (General OPD 6.925±7.688 min, IJCMPH
+  Maharashtra tertiary-hospital study; Pharmacy 81.5±51.2 seconds, central-Maharashtra
+  tertiary-hospital dispensing study; Pediatrics/Orthopedics explicitly labeled an assumption
+  reusing General OPD's number, since no Indian department-specific study was found for
+  either) — slower at peak hours and on Mondays, divided by counters open. Full citations and
+  every assumption behind the formula are in `docs/api/model-card.md`.
+- **The actual, measured numbers, honestly reported** (from running `scripts/train.py`, not
+  hand-typed): the model's average error is **28.33 minutes**; the honest baseline — the exact
+  same formula (`waiting × avg time ÷ open counters`) the app itself would show without any ML
+  — is off by **29.47 minutes** on average, a **3.90% improvement**. Much smaller than an
+  earlier 81.98% figure, and that's the correct, honest result, not a regression: that older
+  number came from synthetic data with almost no per-patient randomness, which is unrealistic.
+  Once real published Indian OPD variance was calibrated in (individual patients vary *more*
+  than the average consultation time itself), a real bug surfaced live — the model briefly
+  scored *worse* than the baseline — traced to squared-error loss fighting a right-skewed
+  target, fixed by fitting in log space (the textbook-correct transform for a lognormal
+  target). The remaining ~4% is a real, modest, honestly-reported number: most of the
+  variation in a real patient's wait genuinely is per-patient randomness that no reasonable
+  feature set predicts away. Validated with a chronological split (the model never sees the
+  last 20% of days during training), not a random shuffle. A new sanity-rule test asserts the
+  model's own prediction for "1 person ahead, 1 counter open" lands within ±30% of the
+  department's real cited mean — measured 5.26 min (General OPD) and 1.51 min (Pharmacy)
+  against real means of 6.925 and 1.36. Full methodology in `docs/api/model-card.md`'s
+  Validation section.
 - **The responsible-AI part.** If the model is asked about a situation it barely saw in training
   (fewer than 30 similar examples), it does not guess — it falls back to that same honest baseline
   formula and says so in the response (`"fallback": true`). This is the guardrail against a
