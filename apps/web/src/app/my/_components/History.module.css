@@ -88,7 +88,7 @@
 .quiet,
 .danger {
   flex: none;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 var(--space-md);
   border-radius: var(--radius-sm);
   font: inherit;
@@ -157,7 +157,7 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 var(--space-md);
   border-radius: var(--radius-sm);
   background: var(--color-primary);
