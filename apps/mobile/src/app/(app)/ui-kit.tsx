@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import {
   Button,
   Card,
+  CheckoutSummary,
   DeptTile,
   DoctorCard,
   EmptyState,
@@ -39,6 +40,7 @@ export default function UiKit() {
   const [loading, setLoading] = useState(false);
   const [wait, setWait] = useState(12);
   const barHeight = useStickyBottomBarHeight();
+  const [holdExpiresAt] = useState(() => new Date(Date.now() + 10 * 60_000));
 
   return (
     <ThemedView type="canvasSoft" style={styles.flex}>
@@ -143,6 +145,17 @@ export default function UiKit() {
           </Card>
         </Section>
 
+        <Section title="CheckoutSummary (fills its screen; framed here)">
+          <View style={[styles.frame, { borderColor: '#88888855' }]}>
+            <CheckoutSummary
+              doctor={{ name: 'Dr. Rajesh Iyer', department: 'General OPD' }}
+              lines={[{ label: 'Consultation fee', amountInr: 250 }]}
+              holdExpiresAt={holdExpiresAt}
+              onProceed={() => {}}
+            />
+          </View>
+        </Section>
+
         <Section title="StatusChip">
           <View style={styles.wrap}>
             {CHIPS.map((s) => (
@@ -164,6 +177,7 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   cell: { width: '47%', flexGrow: 1 },
+  frame: { height: 520, borderWidth: 1, borderRadius: 20, overflow: 'hidden' },
   skeletonRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   skeletonText: { flex: 1, gap: 8 },
 });

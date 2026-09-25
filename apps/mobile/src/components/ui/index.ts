@@ -1,7 +1,9 @@
 // The redesign's shared kit. Import from '@/components/ui'.
 export { BottomSheet } from './BottomSheet';
+export { Avatar } from './Avatar';
 export { Button, type ButtonProps } from './Button';
 export { Card, type CardProps } from './Card';
+export { CheckoutSummary, type CheckoutSummaryProps } from './CheckoutSummary';
 export { Chip } from './Chip';
 export { DeptTile, type DeptTileProps } from './DeptTile';
 export { DoctorCard, type DoctorCardProps } from './DoctorCard';

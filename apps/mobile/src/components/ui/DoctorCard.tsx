@@ -1,14 +1,13 @@
 import { StyleSheet, View } from 'react-native';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFee } from '@/lib/doctors';
 
+import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { AnimatedPressable, usePressScale } from './press';
 import { Card } from './Card';
 import { StatusChip } from './StatusChip';
-import { Tones, gradient, toneFor } from './tokens';
 import { UIText } from './UIText';
 
 export type DoctorCardProps = {
@@ -30,16 +29,6 @@ export type DoctorCardProps = {
   onPress?: () => void;
 };
 
-function initials(name: string) {
-  return name
-    .replace(/^dr\.?\s+/i, '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('');
-}
-
 export function DoctorCard({
   name,
   department,
@@ -53,8 +42,6 @@ export function DoctorCard({
   onPress,
 }: DoctorCardProps) {
   const theme = useTheme();
-  const dark = useColorScheme() === 'dark';
-  const tone = Tones[toneFor(name)][dark ? 'dark' : 'light'];
   const fee = feeInr === null ? null : formatFee(feeInr);
   const press = usePressScale(0.98);
 
@@ -68,11 +55,7 @@ export function DoctorCard({
         accessibilityRole={onPress ? 'button' : undefined}
         accessibilityHint={onPress ? 'Opens the doctor’s page' : undefined}
         style={[styles.top, press.style]}>
-        <View style={[styles.avatar, gradient(tone.from, tone.to)]} accessibilityElementsHidden importantForAccessibility="no">
-          <UIText variant="title3" style={{ color: tone.icon }}>
-            {initials(name)}
-          </UIText>
-        </View>
+        <Avatar name={name} />
         <View style={styles.info}>
           <UIText variant="bodyStrong" numberOfLines={2}>
             {name}
@@ -106,7 +89,6 @@ export function DoctorCard({
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', gap: 14 },
-  avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   info: { flex: 1, gap: 4 },
   bottom: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 12, borderTopWidth: 1 },
   slot: { flex: 1 },
