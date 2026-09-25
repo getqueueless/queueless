@@ -790,6 +790,13 @@
   color: var(--color-on-slate-muted);
 }
 
+/* ---------- Mobile CTA bar (phones only) ---------- */
+
+.ctaBar,
+.ctaSpacer {
+  display: none;
+}
+
 /* ---------- Dark theme: shadows vanish on #0b1517, so cards get an edge ---------- */
 
 :global(:root[data-theme="dark"]) .lookupCard {
@@ -826,6 +833,41 @@
 @media (max-width: 767px) {
   .main {
     --overlap: 64px;
+  }
+
+  /* Tucked below the fold until the hero buttons scroll away. */
+  .ctaBar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md) calc(var(--space-sm) + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-hairline);
+    background: var(--color-surface);
+    box-shadow: 0 -12px 28px -16px rgba(26, 50, 55, 0.35);
+    translate: 0 calc(100% + 16px);
+    visibility: hidden;
+  }
+
+  .ctaBar[data-shown] {
+    translate: 0 0;
+    visibility: visible;
+  }
+
+  .ctaBar .btn {
+    min-height: 48px;
+    padding: 0 var(--space-sm);
+  }
+
+  /* The bar's height, under the footer, so the footer's last line clears it. */
+  .ctaSpacer {
+    display: block;
+    height: calc(72px + env(safe-area-inset-bottom));
+    background: var(--color-slate-deep);
   }
 
   .container {
@@ -976,6 +1018,18 @@
 @media (max-width: 339px) {
   .slipFigure {
     zoom: 0.78;
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  .ctaBar {
+    transition:
+      translate 300ms var(--ease-out),
+      visibility 0s linear 300ms;
+  }
+
+  .ctaBar[data-shown] {
+    transition: translate 300ms var(--ease-out);
   }
 }
 

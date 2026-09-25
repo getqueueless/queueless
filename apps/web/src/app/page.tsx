@@ -12,6 +12,7 @@ import corridor from "../../public/images/opd-corridor.jpg"
 import { loadBoard } from "./_landing/board"
 import { ExampleSlip } from "./_landing/ExampleSlip"
 import { LiveStats } from "./_landing/LiveStats"
+import { MobileCta } from "./_landing/MobileCta"
 import { StatusLookup } from "./_landing/StatusLookup"
 import styles from "./page.module.css"
 
@@ -219,6 +220,7 @@ export default async function Home() {
           </>
         }
       />
+      <MobileCta watch="hero-ctas" />
     </>
   )
 }
