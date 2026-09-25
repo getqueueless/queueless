@@ -87,6 +87,12 @@ function GoogleButton({ next }: { next: string }) {
 
 function SignInView({ next, onSwitch }: { next: string; onSwitch: (view: View) => void }) {
   const [state, formAction, pending] = useActionState(signInWithPassword, initialPasswordState)
+  // Controlled, not defaultValue: a Server Action's native form submission
+  // clears uncontrolled fields once it completes, which would wipe the
+  // email/password on every failed sign-in. Keeping the typed values here
+  // instead is what makes an error round-trip without losing them.
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
 
   return (
     <>
@@ -106,6 +112,8 @@ function SignInView({ next, onSwitch }: { next: string; onSwitch: (view: View) =
             autoComplete="username"
             spellCheck={false}
             required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             aria-invalid={state.fieldErrors.email ? "true" : undefined}
             aria-describedby={state.fieldErrors.email ? "email-error" : undefined}
             className={styles.input}
@@ -132,6 +140,8 @@ function SignInView({ next, onSwitch }: { next: string; onSwitch: (view: View) =
             type="password"
             autoComplete="current-password"
             required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             aria-invalid={state.fieldErrors.password ? "true" : undefined}
             aria-describedby={state.fieldErrors.password ? "password-error" : undefined}
             className={styles.input}
@@ -172,6 +182,8 @@ function OtpView({ next, onBack }: { next: string; onBack: () => void }) {
   const [step, setStep] = useState<"request" | "verify">("request")
   const [requestState, requestAction, requestPending] = useActionState(requestSignInCode, initialOtpRequestState)
   const [verifyState, verifyAction, verifyPending] = useActionState(verifySignInCode, initialOtpVerifyState)
+  const [email, setEmail] = useState("")
+  const [code, setCode] = useState("")
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- advances the step after the request action's state settles, see react.dev/learn/you-might-not-need-an-effect#fetching-data
@@ -203,6 +215,8 @@ function OtpView({ next, onBack }: { next: string; onBack: () => void }) {
             pattern="\d{6}"
             maxLength={6}
             required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
             aria-invalid={verifyState.fieldErrors.code ? "true" : undefined}
             aria-describedby={verifyState.fieldErrors.code ? "otp-code-error" : undefined}
             className={`${styles.input} ${styles.otpInput}`}
@@ -235,7 +249,17 @@ function OtpView({ next, onBack }: { next: string; onBack: () => void }) {
         <label htmlFor="otp-email" className={styles.label}>
           Email
         </label>
-        <input id="otp-email" name="email" type="email" autoComplete="email" spellCheck={false} required className={styles.input} />
+        <input
+          id="otp-email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          spellCheck={false}
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={styles.input}
+        />
       </div>
 
       <button type="submit" disabled={requestPending} className={styles.submit}>
@@ -253,6 +277,10 @@ function SignUpView({ next, onBack }: { next: string; onBack: () => void }) {
   const [step, setStep] = useState<"request" | "verify">("request")
   const [requestState, requestAction, requestPending] = useActionState(signUp, initialSignUpState)
   const [verifyState, verifyAction, verifyPending] = useActionState(verifySignUp, initialOtpVerifyState)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [code, setCode] = useState("")
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- advances the step after the signUp action's state settles, see react.dev/learn/you-might-not-need-an-effect#fetching-data
@@ -284,6 +312,8 @@ function SignUpView({ next, onBack }: { next: string; onBack: () => void }) {
             pattern="\d{6}"
             maxLength={6}
             required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
             aria-invalid={verifyState.fieldErrors.code ? "true" : undefined}
             aria-describedby={verifyState.fieldErrors.code ? "signup-code-error" : undefined}
             className={`${styles.input} ${styles.otpInput}`}
@@ -317,6 +347,8 @@ function SignUpView({ next, onBack }: { next: string; onBack: () => void }) {
           autoComplete="username"
           spellCheck={false}
           required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           aria-invalid={requestState.fieldErrors.email ? "true" : undefined}
           className={styles.input}
         />
@@ -333,6 +365,8 @@ function SignUpView({ next, onBack }: { next: string; onBack: () => void }) {
           type="password"
           autoComplete="new-password"
           required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           aria-invalid={requestState.fieldErrors.password ? "true" : undefined}
           className={styles.input}
         />
@@ -349,6 +383,8 @@ function SignUpView({ next, onBack }: { next: string; onBack: () => void }) {
           type="password"
           autoComplete="new-password"
           required
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
           aria-invalid={requestState.fieldErrors.confirmPassword ? "true" : undefined}
           className={styles.input}
         />
@@ -371,6 +407,10 @@ function ForgotView({ next, onBack }: { next: string; onBack: () => void }) {
   const [requestState, requestAction, requestPending] = useActionState(requestPasswordReset, initialOtpRequestState)
   const [verifyState, verifyAction, verifyPending] = useActionState(verifyPasswordReset, initialPasswordResetVerifyState)
   const [newPasswordState, newPasswordAction, newPasswordPending] = useActionState(setNewPassword, initialNewPasswordState)
+  const [email, setEmail] = useState("")
+  const [code, setCode] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- advances the step after the request action's state settles, see react.dev/learn/you-might-not-need-an-effect#fetching-data
@@ -399,6 +439,8 @@ function ForgotView({ next, onBack }: { next: string; onBack: () => void }) {
             type="password"
             autoComplete="new-password"
             required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             aria-invalid={newPasswordState.fieldErrors.password ? "true" : undefined}
             className={styles.input}
           />
@@ -415,6 +457,8 @@ function ForgotView({ next, onBack }: { next: string; onBack: () => void }) {
             type="password"
             autoComplete="new-password"
             required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             aria-invalid={newPasswordState.fieldErrors.confirmPassword ? "true" : undefined}
             className={styles.input}
           />
@@ -454,6 +498,8 @@ function ForgotView({ next, onBack }: { next: string; onBack: () => void }) {
             pattern="\d{6}"
             maxLength={6}
             required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
             aria-invalid={verifyState.fieldErrors.code ? "true" : undefined}
             className={`${styles.input} ${styles.otpInput}`}
           />
@@ -475,7 +521,17 @@ function ForgotView({ next, onBack }: { next: string; onBack: () => void }) {
         <label htmlFor="reset-email" className={styles.label}>
           Email
         </label>
-        <input id="reset-email" name="email" type="email" autoComplete="username" spellCheck={false} required className={styles.input} />
+        <input
+          id="reset-email"
+          name="email"
+          type="email"
+          autoComplete="username"
+          spellCheck={false}
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={styles.input}
+        />
       </div>
 
       <button type="submit" disabled={requestPending} className={styles.submit}>
