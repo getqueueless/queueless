@@ -51,6 +51,10 @@ alter table public.payments enable row level security;
 -- through the validated, idempotent, amount-checked path.
 revoke all on public.payments from public, anon, authenticated;
 grant select on public.payments to queueless_api;
+-- The grant alone is not enough -- RLS on with no matching policy silently filters every row
+-- for every role except the table owner (same trap 0031's board_services_api_read/
+-- services_api_read policies exist to avoid; test 105 documents the same gotcha for tokens).
+create policy payments_api_read on public.payments for select to queueless_api using (true);
 
 -- Dedupes Razorpay webhook deliveries (it retries on anything but a 2xx). `private` is never
 -- exposed over PostgREST, so a plain table grant is enough -- same pattern as 0018's

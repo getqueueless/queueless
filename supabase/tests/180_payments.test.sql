@@ -9,7 +9,8 @@ insert into public.services (id, org_id, code, name, is_open, max_tokens_per_day
 insert into public.doctors (id, org_id, service_id, name, specialty, fee_inr, active) values
   ('f0000000-0000-0000-0000-000000000180', 'a0000000-0000-0000-0000-000000000180', 'c0000000-0000-0000-0000-000000000180', 'Dr. Paid', 'Gen', 500, true),
   ('f0000000-0000-0000-0000-000000000181', 'a0000000-0000-0000-0000-000000000180', 'c0000000-0000-0000-0000-000000000180', 'Dr. Free', 'Gen', 0, true),
-  ('f0000000-0000-0000-0000-000000000182', 'a0000000-0000-0000-0000-000000000180', 'c0000000-0000-0000-0000-000000000180', 'Dr. Away', 'Gen', 500, true);
+  ('f0000000-0000-0000-0000-000000000182', 'a0000000-0000-0000-0000-000000000180', 'c0000000-0000-0000-0000-000000000180', 'Dr. Away', 'Gen', 500, true),
+  ('f0000000-0000-0000-0000-000000000183', 'a0000000-0000-0000-0000-000000000180', 'c0000000-0000-0000-0000-000000000180', 'Dr. Hold', 'Gen', 500, true);
 -- from_date/to_date must match the org's own service_day (Asia/Kolkata), not bare UTC
 -- current_date -- start_paid_booking checks private.service_day(org, now()), and the two can
 -- disagree on which calendar date "today" is for several hours around UTC midnight.
@@ -72,11 +73,16 @@ reset role;
 -- PostgREST, so they return null on rejection instead of raising private.fail (see 0052's
 -- header comment) -- asserted with `ok(... is null, ...)` (pgTAP's `is` has no
 -- payments-vs-null overload for a whole composite row), not throws_ok.
+-- postgres holds only ADMIN on queueless_api, not SET; and pgTAP itself lives in schema
+-- extensions, which queueless_api has no USAGE on by default -- without it, pgTAP's own
+-- ok()/is() are invisible to queueless_api's own overload resolution ("does not exist", not a
+-- permission error). Same two grants test 105 uses, rolled back at the end same as there.
 grant queueless_api to postgres with set true;
+grant usage on schema extensions to queueless_api;
 set local role queueless_api;
 
 select ok(
-  public.record_order((select id from hold180), 'order_bad', 499) is null,
+  (select public.record_order((select id from hold180), 'order_bad', 499)) is null,
   'record_order rejects an amount that does not match the token''s fee'
 );
 create temp table ord180 as select * from public.record_order((select id from hold180), 'order_180', 500);
@@ -84,7 +90,7 @@ grant select on ord180 to public;
 select is((select status from ord180), 'created'::public.payment_status, 'record_order creates a payments row in created status');
 
 select ok(
-  public.confirm_payment('order_180', 'pay_180', 499) is null,
+  (select public.confirm_payment('order_180', 'pay_180', 499)) is null,
   'confirm_payment rejects a tampered amount -- the order stays uncaptured'
 );
 create temp table cap180 as select * from public.confirm_payment('order_180', 'pay_180', 500);
@@ -102,7 +108,7 @@ select is(
 );
 
 select ok(
-  public.mark_payment_failed('order_180', 'late webhook') is null,
+  (select public.mark_payment_failed('order_180', 'late webhook')) is null,
   'a late failure webhook cannot clobber an already-captured payment'
 );
 select is((select status from public.payments where razorpay_order_id = 'order_180'), 'captured'::public.payment_status, 'still captured after the no-op failure attempt');
@@ -126,16 +132,19 @@ select is(
   0, 'a refunded payment drops off the candidate list on its own'
 );
 select ok(
-  public.record_refund((select id from cap180), 'rfnd_again', 'retry', null) is null,
+  (select public.record_refund((select id from cap180), 'rfnd_again', 'retry', null)) is null,
   'a payment already refunded cannot be refunded again'
 );
 reset role;
 
--- housekeeping releases an unpaid hold once it expires, never one still inside its window
+-- housekeeping releases an unpaid hold once it expires, never one still inside its window.
+-- A fresh doctor (f183, never touched above) -- f180 is on leave from the block just above, and
+-- hold180 is still a live 'waiting' ticket on the SAME service (tokens_one_active is keyed by
+-- service, not doctor), so it has to be cleared first or the new hold is blocked as already_active.
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000180', 'role', 'authenticated')::text, true);
-select public.cancel_token((select id from hold180)); -- clear the now-'waiting' first booking so a new hold is legal
-create temp table hold180b as select * from public.start_paid_booking('f0000000-0000-0000-0000-000000000180');
+select public.cancel_token((select id from hold180));
+create temp table hold180b as select * from public.start_paid_booking('f0000000-0000-0000-0000-000000000183');
 grant select on hold180b to public;
 reset role;
 
