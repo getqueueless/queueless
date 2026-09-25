@@ -2,6 +2,24 @@ packages:
   - apps/*
   - packages/*
 
+allowBuilds:
+  unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - '@supabase/auth-js@2.117.2'
+  - '@supabase/functions-js@2.117.2'
+  - '@supabase/postgrest-js@2.117.2'
+  - '@supabase/realtime-js@2.117.2'
+  - '@supabase/storage-js@2.117.2'
+  - '@supabase/supabase-js@2.117.2'
+  - '@turbo/darwin-64@2.11.4'
+  - '@turbo/darwin-arm64@2.11.4'
+  - '@turbo/linux-64@2.11.4'
+  - '@turbo/linux-arm64@2.11.4'
+  - '@turbo/windows-64@2.11.4'
+  - '@turbo/windows-arm64@2.11.4'
+  - turbo@2.11.4
+
 nodeLinker: hoisted
 
 overrides:
