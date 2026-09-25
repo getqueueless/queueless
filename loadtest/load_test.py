@@ -44,9 +44,29 @@ JWT_SECRET = os.environ["SUPABASE_JWT_SECRET"]
 
 N_LOW = int(os.environ.get("LOADTEST_N_LOW", "200"))
 N_HIGH = int(os.environ.get("LOADTEST_N_HIGH", "1000"))
+# Setup (user creation + profile completion) isn't the measured part --
+# found live against prod: firing 300 GoTrue admin/users POSTs at once
+# exhausted GoTrue's own DB pool ("couldn't start a new transaction:
+# context canceled", a 500). Bounded + retried; the measured issue_token/
+# call_next phase below stays at full concurrency.
+SETUP_CONCURRENCY = int(os.environ.get("LOADTEST_SETUP_CONCURRENCY", "8"))
+RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 
 ORG_SLUG = "loadtest-org"
 SERVICE_HEADERS = {"apikey": SERVICE_ROLE_KEY, "Authorization": f"Bearer {SERVICE_ROLE_KEY}"}
+
+
+async def _post_with_retry(client: httpx.AsyncClient, url: str, *, retries: int = 4, **kwargs) -> httpx.Response:
+    """Setup-phase POSTs only -- retries a 429/5xx with linear backoff,
+    never masks a real 4xx (those are real validation/auth failures, not
+    transient capacity issues)."""
+    resp = None
+    for attempt in range(retries):
+        resp = await client.post(url, **kwargs)
+        if resp.status_code not in RETRYABLE_STATUSES:
+            return resp
+        await asyncio.sleep(0.5 * (attempt + 1))
+    return resp
 
 
 def mint_jwt(user_id: str) -> str:
@@ -64,19 +84,31 @@ def mint_jwt(user_id: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 
-async def create_test_user(client: httpx.AsyncClient, label: str, index: int) -> str:
+async def create_test_user(
+    client: httpx.AsyncClient, label: str, index: int, semaphore: asyncio.Semaphore, created_ids: list
+) -> str:
     """POST /auth/v1/admin/users -- service-role only. Returns the new
     user's real id. Autoconfirmed so no OTP round trip is needed. Every
     created email shares the @loadtest.invalid domain -- README.md's
-    cleanup command matches on exactly that."""
-    email = f"loadtest-{label}-{uuid.uuid4().hex[:10]}-{index}@loadtest.invalid"
-    resp = await client.post(
-        f"{SUPABASE_URL}/auth/v1/admin/users",
-        headers=SERVICE_HEADERS,
-        json={"email": email, "email_confirm": True},
-    )
-    resp.raise_for_status()
-    return resp.json()["id"]
+    cleanup command matches on exactly that.
+
+    Bounded by `semaphore` and retried on 429/5xx (setup isn't the
+    measured phase -- found live: 300 of these at once exhausted GoTrue's
+    own DB pool). Appends to `created_ids` the moment the id exists, not
+    after this coroutine returns -- found live: a sibling task's raise_for_
+    status() failure inside the same asyncio.gather() call loses every
+    still-pending task's return value, so only tracking ids from gather's
+    result silently drops already-created accounts from cleanup."""
+    async with semaphore:
+        email = f"loadtest-{label}-{uuid.uuid4().hex[:10]}-{index}@loadtest.invalid"
+        resp = await _post_with_retry(
+            client, f"{SUPABASE_URL}/auth/v1/admin/users",
+            headers=SERVICE_HEADERS, json={"email": email, "email_confirm": True},
+        )
+        resp.raise_for_status()
+        user_id = resp.json()["id"]
+        created_ids.append(user_id)
+        return user_id
 
 
 async def delete_org_and_dependents(client: httpx.AsyncClient, org_id: str) -> None:
@@ -166,7 +198,7 @@ async def create_counters(client: httpx.AsyncClient, org_id: str, service_id: st
     return counter_ids
 
 
-async def create_staff(client: httpx.AsyncClient, org_id: str) -> tuple[str, str]:
+async def create_staff(client: httpx.AsyncClient, org_id: str, created_ids: list) -> tuple[str, str]:
     """A real staff profile scoped to the loadtest org -- call_next checks
     `profiles.org_id = counters.org_id and role in ('staff','admin')`, so
     this can't be a stranger to the org the way the auth-only checks
@@ -174,7 +206,8 @@ async def create_staff(client: httpx.AsyncClient, org_id: str) -> tuple[str, str
     'patient'/null on signup (private.handle_new_user); PATCH them
     directly via the service role, which bypasses RLS same as every other
     write in this script."""
-    user_id = await create_test_user(client, "staff", 0)
+    semaphore = asyncio.Semaphore(1)
+    user_id = await create_test_user(client, "staff", 0, semaphore, created_ids)
     resp = await client.patch(
         f"{SUPABASE_URL}/rest/v1/profiles", headers=SERVICE_HEADERS,
         params={"id": f"eq.{user_id}"}, json={"org_id": org_id, "role": "staff"},
@@ -183,22 +216,23 @@ async def create_staff(client: httpx.AsyncClient, org_id: str) -> tuple[str, str
     return user_id, mint_jwt(user_id)
 
 
-async def complete_profile(client: httpx.AsyncClient, jwt_token: str, index: int) -> None:
+async def complete_profile(client: httpx.AsyncClient, jwt_token: str, index: int, semaphore: asyncio.Semaphore) -> None:
     # +91 6/7/8/9-prefixed 10-digit number, unique per patient, matching
     # profiles_phone_e164_in's real check constraint.
-    phone = f"+91{6_000_000_000 + index}"
-    resp = await client.post(
-        f"{SUPABASE_URL}/rest/v1/rpc/complete_my_profile",
-        headers={"apikey": ANON_KEY, "Authorization": f"Bearer {jwt_token}"},
-        json={
-            "p_full_name": f"Load Test Patient {index}",
-            "p_phone": phone,
-            "p_date_of_birth": "1990-01-01",
-            "p_gender": "other",
-            "p_city": "Load Test City",
-        },
-    )
-    resp.raise_for_status()
+    async with semaphore:
+        phone = f"+91{6_000_000_000 + index}"
+        resp = await _post_with_retry(
+            client, f"{SUPABASE_URL}/rest/v1/rpc/complete_my_profile",
+            headers={"apikey": ANON_KEY, "Authorization": f"Bearer {jwt_token}"},
+            json={
+                "p_full_name": f"Load Test Patient {index}",
+                "p_phone": phone,
+                "p_date_of_birth": "1990-01-01",
+                "p_gender": "other",
+                "p_city": "Load Test City",
+            },
+        )
+        resp.raise_for_status()
 
 
 async def issue_token_once(client: httpx.AsyncClient, jwt_token: str, service_id: str) -> tuple[bool, float, dict | None]:
@@ -286,11 +320,26 @@ async def cleanup(client: httpx.AsyncClient, org_id: str | None, user_ids: list[
     """Order matters -- found live: profiles -> tokens has no cascade
     either (no cascade on tokens_patient_id_fkey), so deleting a patient's
     auth.users row while their token still exists 409s too. Org (and its
-    notifications) must go first."""
+    notifications) must go first.
+
+    Sweeps by email pattern too, not just `user_ids` -- found live: a
+    partial-setup failure (GoTrue 500s under concurrent load) can leave
+    accounts this run created but never got to track (a task that raised
+    before appending to `created_ids`, or a run that crashed before
+    reaching here at all from an earlier version of this script)."""
     if org_id:
         await delete_org_and_dependents(client, org_id)
 
-    for user_id in user_ids:
+    known_ids = set(user_ids)
+    resp = await client.get(f"{SUPABASE_URL}/auth/v1/admin/users", headers=SERVICE_HEADERS)
+    if resp.status_code < 400:
+        for u in resp.json().get("users", []):
+            if u.get("email", "").endswith("@loadtest.invalid"):
+                known_ids.add(u["id"])
+    else:
+        print(f"WARNING: could not list users for cleanup sweep, got {resp.status_code}: {resp.text[:200]}")
+
+    for user_id in known_ids:
         resp = await client.delete(
             f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}", headers=SERVICE_HEADERS,
         )
@@ -309,24 +358,40 @@ async def main() -> int:
             org_id = await create_org(client)
             service_id = await create_service(client, org_id)
             counter_ids = await create_counters(client, org_id, service_id)
-            staff_id, staff_jwt = await create_staff(client, org_id)
-            all_user_ids.append(staff_id)
+            staff_id, staff_jwt = await create_staff(client, org_id, all_user_ids)
 
-            print(f"Creating {total_patients} test patients via GoTrue admin API...")
-            patient_ids = await asyncio.gather(
-                *(create_test_user(client, "patient", i) for i in range(total_patients))
+            print(f"Creating {total_patients} test patients via GoTrue admin API (bounded to {SETUP_CONCURRENCY} at once)...")
+            setup_semaphore = asyncio.Semaphore(SETUP_CONCURRENCY)
+            patient_results = await asyncio.gather(
+                *(create_test_user(client, "patient", i, setup_semaphore, all_user_ids) for i in range(total_patients)),
+                return_exceptions=True,
             )
-            all_user_ids.extend(patient_ids)
-            jwts = [mint_jwt(uid) for uid in patient_ids]
+            patient_ids = [r for r in patient_results if isinstance(r, str)]
+            failed_creates = len(patient_results) - len(patient_ids)
+            if failed_creates:
+                print(f"WARNING: {failed_creates} patient creations failed even after retries -- caught by cleanup's email sweep")
+            jwts_by_id = {uid: mint_jwt(uid) for uid in patient_ids}
 
-            print(f"Completing {total_patients} patient profiles (real complete_my_profile RPC)...")
-            await asyncio.gather(*(complete_profile(client, j, i) for i, j in enumerate(jwts)))
+            print(f"Completing {len(patient_ids)} patient profiles (real complete_my_profile RPC, bounded to {SETUP_CONCURRENCY} at once)...")
+            profile_semaphore = asyncio.Semaphore(SETUP_CONCURRENCY)
+            profile_results = await asyncio.gather(
+                *(complete_profile(client, jwts_by_id[uid], i, profile_semaphore) for i, uid in enumerate(patient_ids)),
+                return_exceptions=True,
+            )
+            ready_ids = [uid for uid, r in zip(patient_ids, profile_results) if not isinstance(r, Exception)]
+            failed_profiles = len(patient_ids) - len(ready_ids)
+            if failed_profiles:
+                print(f"WARNING: {failed_profiles} profile completions failed even after retries -- those patients are excluded from the waves below")
+            jwts = [jwts_by_id[uid] for uid in ready_ids]
 
         report: dict = {"waves": []}
         # Disjoint slices -- reusing a patient across waves hits issue_token's
         # real already_active 409 (one active ticket per service), which is
         # correct RPC behavior, not something a load test should trip over.
-        low_jwts, high_jwts = jwts[:N_LOW], jwts[N_LOW:N_LOW + N_HIGH]
+        # Sliced off however many patients actually made it through setup,
+        # not blindly assumed to be exactly N_LOW/N_HIGH.
+        actual_low = min(N_LOW, len(jwts))
+        low_jwts, high_jwts = jwts[:actual_low], jwts[actual_low:actual_low + N_HIGH]
         for wave_jwts, label in ((low_jwts, f"{N_LOW}_concurrent"), (high_jwts, f"{N_HIGH}_concurrent")):
             print(f"Firing {len(wave_jwts)} concurrent issue_token calls...")
             wave = await run_issue_token_wave(wave_jwts, service_id, label)
