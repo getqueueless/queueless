@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SignOutButton } from '@/components/sign-out-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
@@ -268,6 +269,9 @@ export default function Counter() {
           <ThemedText type="displayMd" style={styles.title}>
             Counter
           </ThemedText>
+          <View style={styles.toolbar}>
+            <SignOutButton />
+          </View>
 
           {counters.length === 0 ? (
             <ThemedText type="body" themeColor="inkMuted">
@@ -501,6 +505,7 @@ export default function Counter() {
 }
 
 const styles = StyleSheet.create({
+  toolbar: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: -Spacing.sm },
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   safeArea: { flex: 1, paddingHorizontal: Spacing.lg },

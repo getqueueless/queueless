@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 
+import { SignOutButton } from '@/components/sign-out-button';
 import { useTheme } from '@/hooks/use-theme';
 
 // The Admin tab is itself a small stack (dashboard, services, counters, staff, priority, AI
@@ -13,6 +14,7 @@ export default function AdminLayout() {
         headerStyle: { backgroundColor: theme.surface },
         headerTintColor: theme.ink,
         headerShadowVisible: false,
+        headerRight: () => <SignOutButton />,
       }}>
       <Stack.Screen name="index" options={{ title: 'Admin' }} />
       <Stack.Screen name="services" options={{ title: 'Services' }} />

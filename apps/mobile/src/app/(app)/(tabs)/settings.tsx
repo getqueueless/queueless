@@ -6,8 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mapAuthError } from '@/lib/errors';
-import { unregisterPushTokenAsync } from '@/lib/notifications';
+import { signOut } from '@/lib/sign-out';
 import { supabase } from '@/lib/supabase';
 import {
   getLanguagePreference,
@@ -35,16 +34,11 @@ export default function Settings() {
   async function handleSignOut() {
     setError(null);
     setSigningOut(true);
-    // Before signOut: once signed out, RLS can't see the row and the delete would match 0 rows.
-    await unregisterPushTokenAsync();
-    // Local scope: sign out this device only, matching the push cleanup above. The default
-    // ('global') would sign out the patient's other devices while their push rows lived on.
-    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
-    // No manual redirect on success — (app)/_layout.tsx watches the session and redirects
-    // to (auth) once it goes null. On failure, stop spinning and let the patient retry.
-    if (signOutError) {
+    // On failure, stop spinning and let the user retry; success redirects via (app)/_layout.
+    const message = await signOut();
+    if (message) {
       setSigningOut(false);
-      setError(mapAuthError({ code: signOutError.code, message: signOutError.message }));
+      setError(message);
     }
   }
 
