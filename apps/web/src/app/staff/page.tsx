@@ -44,7 +44,7 @@ export default async function StaffPage({ searchParams }: PageProps<"/staff">) {
 
   return (
     <>
-      <PublicHeader current="login" />
+      <PublicHeader />
       <main id="main" className={styles.page}>
         <div className={styles.band}>
           <span className={styles.bandMark} aria-hidden="true">

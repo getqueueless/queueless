@@ -12,7 +12,7 @@ import {
 } from "./state"
 import styles from "./staff.module.css"
 
-type Tab = "google" | "otp" | "password"
+export type Tab = "google" | "otp" | "password"
 
 function ErrorSummary({ text }: { text: string }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -91,6 +91,7 @@ function OtpPanel({ next }: { next: string }) {
   )
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- advances the step after the request action's state settles, see react.dev/learn/you-might-not-need-an-effect#fetching-data
     if (requestState.sentTo) setStep("verify")
   }, [requestState.sentTo])
 
@@ -228,19 +229,31 @@ function PasswordPanel({ next }: { next: string }) {
   )
 }
 
-const TABS: { key: Tab; label: string }[] = [
+const ALL_TABS: { key: Tab; label: string }[] = [
   { key: "google", label: "Google" },
   { key: "otp", label: "Email code" },
   { key: "password", label: "Staff password" },
 ]
 
-export function LoginTabs({ next, initialTab }: { next: string; initialTab: Tab }) {
-  const [tab, setTab] = useState<Tab>(initialTab)
+// `tabs` restricts which methods render -- e.g. /login (patients) leaves out
+// "password", /staff (staff/admin) offers all three. Order always follows
+// ALL_TABS, so callers list which to include, not the order.
+export function LoginTabs({
+  next,
+  initialTab,
+  tabs = ["google", "otp", "password"],
+}: {
+  next: string
+  initialTab: Tab
+  tabs?: Tab[]
+}) {
+  const available = ALL_TABS.filter((t) => tabs.includes(t.key))
+  const [tab, setTab] = useState<Tab>(tabs.includes(initialTab) ? initialTab : available[0].key)
 
   return (
     <div>
       <div role="tablist" aria-label="Sign-in method" className={styles.tabs}>
-        {TABS.map((t) => (
+        {available.map((t) => (
           <button
             key={t.key}
             type="button"

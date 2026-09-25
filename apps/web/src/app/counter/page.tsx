@@ -46,7 +46,11 @@ export default async function CounterPage() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect("/login?next=/counter")
+    // /counter is staff-only -- /login is now the patient-only sign-in page
+    // (Google/email code, no password tab), so a bounced staff member needs
+    // /staff instead (same target proxy.ts's own middleware gate already
+    // uses for this path).
+    redirect("/staff?next=/counter")
   }
 
   // Real schema (0002_organizations_profiles.sql) has no `staff` table --

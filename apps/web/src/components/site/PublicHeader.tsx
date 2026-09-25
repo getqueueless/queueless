@@ -18,7 +18,7 @@ const NAV = [
 
 type PublicHeaderProps = {
   /** The nav item for the page being shown; gets aria-current="page". */
-  current?: "home" | "how" | "status" | "login";
+  current?: "home" | "how" | "status" | "signin";
   /** "surface" = white bar, ink text. "slate" = transparent, white text, for sitting on the hero overlay. */
   tone?: "surface" | "slate";
 };
@@ -57,8 +57,8 @@ export async function PublicHeader({ current, tone = "surface" }: PublicHeaderPr
               <SignOutButton className={styles.signOut} redirectTo="/" />
             </>
           ) : (
-            <Link href="/staff?tab=password" aria-current={page("login")} className={styles.login}>
-              Staff login
+            <Link href="/login" aria-current={page("signin")} className={styles.login}>
+              Sign in
             </Link>
           )}
         </nav>
