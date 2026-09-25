@@ -74,17 +74,22 @@ export function StatusView({
 
   const serviceId = service?.id ?? null
 
-  // Param left untyped -- contextually inferred as the hook's own `any`
-  // (see useResilientChannel's note); narrowed to TokenRow right here instead.
-  const onEvent = useCallback((payload: { new?: TokenRow | null }) => {
-    const next = payload.new
-    if (next) setToken(next)
+  // docs/API_CONTRACT.md "Realtime topics" (migration 0044): postgres_changes never
+  // fired on this stack at all (the publication has zero member tables), so this used
+  // to receive nothing. The real path is a DB-side broadcast on topic `token:<id>`,
+  // event `token_update`, carrying only {token_id, number, status, counter_id,
+  // updated_at} -- deliberately not the full row (no code/lane/priority/patient
+  // fields), so this merges into the existing token instead of replacing it. The
+  // counter-name lookup effect below already keys off `token.counter_id` changing,
+  // so it fires correctly off this merged value with no further changes needed.
+  const onEvent = useCallback((payload: { status?: TokenRow["status"]; counter_id?: string | null }) => {
+    if (!payload.status) return
+    setToken((prev) => ({ ...prev, status: payload.status!, counter_id: payload.counter_id ?? null }))
   }, [])
 
   useResilientChannel({
-    channelName: `token-status-${tokenId}`,
-    table: "tokens",
-    filter: `id=eq.${tokenId}`,
+    channelName: `token:${tokenId}`,
+    broadcastEvent: "token_update",
     onEvent,
   })
 

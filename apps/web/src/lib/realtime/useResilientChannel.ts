@@ -16,14 +16,24 @@ const supabase = createBrowserClient(
   { realtime: { worker: true } },
 )
 
-// ponytail: onEvent's payload is `any` on purpose -- the 4 pages calling this
-// hook each narrow it to their own row shape (TokenRow, BoardCounter, ...)
-// with their own inline type on the callback param, contextually typed at
-// each call site. Giving the hook itself a real generic would need every
-// existing caller's own annotation rewritten to match; not worth it for one
-// shared plumbing file.
-export function useResilientChannel({ channelName, table, filter, onEvent }: {
-  channelName: string; table: string; filter?: string
+// ponytail: onEvent's payload is `any` on purpose -- the callers of this hook
+// each narrow it to their own row/payload shape with their own inline type on
+// the callback param, contextually typed at each call site. Giving the hook
+// itself a real generic would need every existing caller's own annotation
+// rewritten to match; not worth it for one shared plumbing file.
+//
+// broadcastEvent switches this channel from a `postgres_changes` listener
+// (table/filter, the original mode -- still what most callers use) to a
+// `broadcast` listener instead. Needed because postgres_changes never fires
+// on this stack at all: the self-hosted supabase_realtime publication has
+// zero member tables (see docs/API_CONTRACT.md's "Realtime topics"), so no
+// caller of this hook actually receives anything from that mode. Migration
+// 0044 adds real DB-side broadcasts instead, on topics named `token:<id>`
+// and `service:<id>` (channelName IS the topic name for this mode -- pass
+// one of those, not an arbitrary label), both firing a `token_update` event.
+// `table`/`filter` are ignored when broadcastEvent is set.
+export function useResilientChannel({ channelName, table, filter, broadcastEvent, onEvent }: {
+  channelName: string; table?: string; filter?: string; broadcastEvent?: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onEvent: (payload: any) => void
 }) {
@@ -42,19 +52,23 @@ export function useResilientChannel({ channelName, table, filter, onEvent }: {
     function connect() {
       if (!mountedRef.current) return
       teardown()
-      const channel = supabase
-        .channel(channelName)
-        .on('postgres_changes', { event: '*', schema: 'public', table, filter }, onEvent)
-        .subscribe((status) => {
-          if (!mountedRef.current) return
-          if (status === 'SUBSCRIBED') { retryRef.current = 0; return }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            const attempt = retryRef.current++
-            const delay = Math.min(1000 * 2 ** attempt, 30_000) + Math.random() * 500
-            clearTimer()
-            timerRef.current = setTimeout(connect, delay)
-          }
-        })
+      const channel = broadcastEvent
+        ? supabase
+            .channel(channelName)
+            .on('broadcast', { event: broadcastEvent }, ({ payload }) => onEvent(payload))
+        : supabase
+            .channel(channelName)
+            .on('postgres_changes', { event: '*', schema: 'public', table: table!, filter }, onEvent)
+      channel.subscribe((status) => {
+        if (!mountedRef.current) return
+        if (status === 'SUBSCRIBED') { retryRef.current = 0; return }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          const attempt = retryRef.current++
+          const delay = Math.min(1000 * 2 ** attempt, 30_000) + Math.random() * 500
+          clearTimer()
+          timerRef.current = setTimeout(connect, delay)
+        }
+      })
       channelRef.current = channel
     }
     connect()
@@ -68,5 +82,5 @@ export function useResilientChannel({ channelName, table, filter, onEvent }: {
       window.removeEventListener('online', handleOnline)
       teardown()
     }
-  }, [channelName, table, filter, onEvent])
+  }, [channelName, table, filter, broadcastEvent, onEvent])
 }
