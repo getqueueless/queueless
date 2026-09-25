@@ -80,9 +80,10 @@
   outline-color: var(--color-on-slate);
 }
 
-/* MedWin READ MORE. */
+/* MedWin READ MORE. Transparent, so a <button> doesn't keep the UA grey. */
 .btnOutline {
   border-color: var(--color-hairline-strong);
+  background: transparent;
   color: var(--color-ink);
 }
 
@@ -791,6 +792,132 @@
   color: var(--color-on-slate-muted);
 }
 
+/* ---------- Get the app ---------- */
+
+.getApp {
+  padding: 0 0 clamp(64px, 8vw, 104px);
+  scroll-margin-top: var(--space-lg);
+}
+
+.appCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-lg);
+  margin-top: var(--space-xxl);
+}
+
+.appCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+:global(:root[data-theme="dark"]) .appCard {
+  border: 1px solid var(--color-hairline);
+}
+
+.appName {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* White in both themes: a QR needs a light quiet zone to scan. */
+.appQr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+
+.appQr > span {
+  display: block;
+  width: 168px;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+}
+
+.appQr :global(svg) {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.appButton {
+  min-height: 48px;
+}
+
+.appVersion {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-secondary);
+}
+
+.appNote2 {
+  max-width: 34ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+}
+
+.appSteps {
+  align-self: stretch;
+  display: grid;
+  gap: var(--space-sm);
+  padding-left: 1.4em;
+  text-align: left;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-ink-secondary);
+}
+
+.appSteps a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sourceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xxs);
+}
+
+.sourceRow code {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--color-surface-sunken);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.copyButton {
+  flex: none;
+  min-width: 72px;
+  min-height: 48px;
+  padding: 0 var(--space-sm);
+}
+
+/* A phone only needs its own platform, and no QR to scan off its own screen. */
+.appCards[data-platform="android"] [data-os="ios"],
+.appCards[data-platform="ios"] [data-os="android"] {
+  display: none;
+}
+
 /* ---------- QR scanner sheet ---------- */
 
 .scanIcon {
@@ -986,6 +1113,24 @@
 
   .lookupRow {
     flex-direction: column;
+  }
+
+  .appCards {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+    margin-top: var(--space-xl);
+  }
+
+  .appCard {
+    padding: var(--space-lg);
+  }
+
+  .appQr {
+    display: none;
+  }
+
+  .appButton {
+    align-self: stretch;
   }
 
   .scanner {

@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server"
 import corridor from "../../public/images/opd-corridor.jpg"
 import { loadBoard } from "./_landing/board"
 import { ExampleSlip } from "./_landing/ExampleSlip"
+import { GetApp } from "./_landing/GetApp"
 import { LiveStats } from "./_landing/LiveStats"
 import { MobileCta } from "./_landing/MobileCta"
 import { StatusLookup } from "./_landing/StatusLookup"
@@ -209,6 +210,10 @@ export default async function Home() {
             </ol>
           </div>
         </section>
+
+        <div className={styles.container}>
+          <GetApp />
+        </div>
       </main>
 
       <PublicFooter
