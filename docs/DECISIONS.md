@@ -152,3 +152,21 @@ One line per deviation from the plan/spec, with why.
   on white). Fixed in place as part of the restyle per the brief's own non-negotiable
   accessibility rule, not filed as separate "noticed, not touched" items, since the rule that
   would have required touching them anyway was explicit in every agent's own instructions.
+- 2026-09-25 (mobile): `pnpm --filter mobile exec expo start --web` fails to bundle at all --
+  pre-existing, unrelated to the redesign, verified by direct testing while trying to take the
+  screenshots this task asked for. Two layers: (1) `expo-sqlite`'s web worker imports a `.wasm`
+  file directly and Metro's default `resolver.assetExts` doesn't include `wasm` -- fixed with a
+  new `apps/mobile/metro.config.js` pushing `'wasm'` onto that list, a standard, narrowly-scoped
+  fix. (2) Underneath that, Expo Router's static-page serializer throws `AssertionError: Worker
+  chunk not found for: .../expo-sqlite/web/worker.ts` while resolving the same web worker -- this
+  is deeper (Metro's chunk-graph/serializer, not a config value) and didn't get fixed;
+  `apps/mobile/src/lib/supabase.ts` imports `expo-sqlite/localStorage/install` unconditionally on
+  every platform including web, and every screen transitively imports it, so this blocks
+  `expo start --web` entirely, on any route. Did not chase it further -- pre-existing dependency/
+  tooling incompatibility, not a redesign concern, and no real device or emulator is available in
+  this environment either. Net effect: could not produce live screenshots for this task's final
+  report; said so plainly rather than fabricating them. A real fix, if this matters later, is
+  most likely a web-specific `localStorage` shim in `lib/supabase.ts` that skips `expo-sqlite`
+  entirely on `Platform.OS === 'web'` (the browser already has a native `localStorage`,
+  `expo-sqlite`'s polyfill is redundant there) -- untried, flagged for whoever needs
+  `expo start --web` working next.
