@@ -23,6 +23,8 @@ DATABASE_URL_DIRECT=$DB
 CORS_ALLOW_ORIGINS=["https://lpu.lol","https://www.lpu.lol"]
 ENVIRONMENT=production
 ENV
+# DeepSeek credentials live in their own 600 file, written by hand on the VPS.
+[ -f /opt/queueless-deploy/ai.env ] && cat /opt/queueless-deploy/ai.env >> "$ENV_OUT"
 chmod 600 "$ENV_OUT"
 
 docker rm -f ql-api >/dev/null 2>&1 || true
