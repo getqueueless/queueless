@@ -11,10 +11,10 @@ export function safeNextPath(value: string | FormDataEntryValue | null | undefin
 
 // Patient-first: lpu.lol's default landing for anyone we can't confirm a
 // role for is /my, not the staff console. `methodHint` is the one exception
-// -- the password tab is staff/admin-only (patients have no password), so a
-// successful password sign-in lands on /counter even while the profiles-read
-// gap (see get-role.ts) makes `profile` come back null. Once that gap is
-// fixed this argument stops mattering: a real profile.role always wins.
+// -- the password tab is staff/admin-only (patients have no password, though
+// see docs/JUDGE_NOTES.md/QA#8 on that not being enforced), so a successful
+// password sign-in falls back to /counter on the rare case `profile` comes
+// back null from a genuine read error. A real profile.role always wins.
 export function roleLandingPath(
   profile: ProfileSummary | null,
   methodHint?: "password",

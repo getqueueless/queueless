@@ -82,19 +82,16 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (isAdminPath(pathname) || isStaffOnlyPath(pathname) || isPatientPath(pathname)) {
-    // `profile` is null whenever the read fails -- including the profiles
-    // grant/RLS gap this app currently runs under, see get-role.ts. That
-    // makes the role checks below effectively no-ops until the DB side
-    // ships the grant: /admin already failed closed before this change
-    // (unchanged behavior), and /counter + /kiosk have never had a role
-    // check before now, so "can't confirm the role" continuing to let a
-    // signed-in user through them is not a new hole -- it only starts
-    // telling patients and staff apart once the read actually works, same
-    // day admin gating starts working too. The profile-completeness check
-    // below degrades the same way: no profile row readable means no gate,
-    // not a lockout -- issue_token/book_appointment enforce it for real
-    // server-side (0037_mandatory_profile.sql's require_complete_profile)
-    // regardless of whether this redirect fires.
+    // `profile` is null only if the read genuinely errors (network, no row).
+    // The `profiles` table itself has no RLS and Postgres's default grants
+    // to `anon`/`authenticated` were never revoked (docs/DECISIONS.md,
+    // "Live RLS gap, narrowing but not closed"), so this read succeeds for
+    // any signed-in caller -- verified live 2026-09-26, this is not the
+    // stale "no grant, always null" state some older comments here assumed.
+    // The profile-completeness check below still only ever gates a patient
+    // (see the role check on it) -- issue_token/book_appointment enforce it
+    // for real server-side either way (0037_mandatory_profile.sql's
+    // require_complete_profile) regardless of whether this redirect fires.
     const profile = await getMyProfile(supabase, userId);
 
     if (isAdminPath(pathname) && profile?.role !== "admin") {
@@ -105,7 +102,11 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(new URL("/my", request.url));
     }
 
-    if (isPatientPath(pathname) && pathname !== "/my/profile" && profile && !profile.profileCompletedAt) {
+    // Only a patient is ever forced through the profile-completion form --
+    // staff/admin have no reason to fill in a mobile number/DOB/gender to do
+    // their job, and their own profiles may never have profile_completed_at
+    // set at all.
+    if (isPatientPath(pathname) && pathname !== "/my/profile" && profile?.role === "patient" && !profile.profileCompletedAt) {
       return NextResponse.redirect(new URL("/my/profile", request.url));
     }
   }

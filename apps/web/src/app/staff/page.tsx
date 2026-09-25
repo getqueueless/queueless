@@ -16,9 +16,15 @@ export const metadata: Metadata = {
 const TABS = ["google", "otp", "password"] as const
 type Tab = (typeof TABS)[number]
 
+// Empty (not "/my") when the caller didn't ask for a specific page: an empty
+// `next` is what tells the sign-in actions "no explicit request, use the
+// signed-in user's own role to pick /admin, /counter or /my" (see
+// lib/auth/redirect.ts's roleLandingPath). Defaulting this to "/my" here
+// would bake that default into the hidden form field before the role is
+// even known, and permanently hide the role-based landing behind it.
 function safeNextPath(value: string | string[] | undefined): string {
   const path = Array.isArray(value) ? value[0] : value
-  if (!path || !path.startsWith("/") || path.startsWith("//")) return "/my"
+  if (!path || !path.startsWith("/") || path.startsWith("//")) return ""
   return path
 }
 
