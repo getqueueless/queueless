@@ -292,7 +292,7 @@ export function PayView({
 
       <div className={styles.card}>
         <p className={styles.testBanner} role="note">
-          Test payments — no real money moves. Use UPI ID <code>success@razorpay</code> to
+          Test payments. No real money moves. Use UPI ID <code>success@razorpay</code> to
           simulate a successful payment.
         </p>
 
