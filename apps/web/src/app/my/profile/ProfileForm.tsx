@@ -13,11 +13,20 @@ export type ProfileFormState = {
   values: ProfileFieldValues | null
 }
 
-export function ProfileForm({ next }: { next: string }) {
+export function ProfileForm({
+  next,
+  initialValues = null,
+}: {
+  next: string
+  // P2 fix: prefills "Edit profile" from the saved row (page.tsx) instead of a blank form --
+  // seeded once as the useActionState initial state, so it flows through the exact same
+  // state.values -> defaultValue wiring an error-recovery re-render already uses below.
+  initialValues?: ProfileFieldValues | null
+}) {
   const [state, formAction, pending] = useActionState<ProfileFormState, FormData>(completeProfile, {
     error: null,
     fieldErrors: {},
-    values: null,
+    values: initialValues,
   })
   const errorRef = useRef<HTMLDivElement>(null)
   const v = state.values
