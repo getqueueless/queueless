@@ -66,6 +66,7 @@ export function CounterConsole({
   // something to time.
   useEffect(() => {
     if (!current?.called_at) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- first tick right after mount, see the `now` comment above for why it can't run during render
     setNow(Date.now())
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
