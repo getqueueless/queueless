@@ -83,6 +83,12 @@ services:
       GOTRUE_MAILER_OTP_LENGTH: "6"
       GOTRUE_RATE_LIMIT_EMAIL_SENT: "30/1h"                      # abuse cap; also below Namecheap's own daily send limit
       GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "{{ .Token }} is your Queueless code"
+      # API_EXTERNAL_URL already ends in /auth/v1, and GoTrue resolves these as absolute
+      # paths against it, so the default "/verify" lands on sb.lpu.lol/verify (no Kong route).
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: "/auth/v1/verify"
+      GOTRUE_MAILER_URLPATHS_INVITE: "/auth/v1/verify"
+      GOTRUE_MAILER_URLPATHS_RECOVERY: "/auth/v1/verify"
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: "/auth/v1/verify"
       # Google sign-in. Register https://sb.lpu.lol/auth/v1/callback (derived from
       # SUPABASE_PUBLIC_URL, Kong's public URL -- NOT API_EXTERNAL_URL, which already has
       # /auth/v1 in it) as an authorized redirect URI on the Google Cloud OAuth client; that's a
