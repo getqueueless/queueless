@@ -1,106 +1,288 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useId, useMemo, useState } from "react"
 import { errorInfo } from "@queueless/db"
 
 import { createClient } from "@/lib/supabase/client"
 import { BookAndPayButton } from "../pay/BookAndPayButton"
-import styles from "./my.module.css"
+import type { DashboardDoctor, Slot } from "./_components/data"
+import styles from "./_components/Doctors.module.css"
+import { AVAILABILITY_TONE, initials } from "./_components/format"
+import { CalendarIcon, ClockIcon, SearchIcon } from "./_components/icons"
+import ui from "./_components/ui.module.css"
 
-type DoctorRow = {
-  id: string
-  service_id: string
-  name: string
-  specialty: string
-  fee_inr: number
+const FIRST_SLOTS = 6
+
+// "Today, 5:00 PM" -> ["Today", "5:00 PM"]; slots arrive soonest first, so
+// consecutive runs share a day.
+function byDay(slots: Slot[]): { day: string; slots: (Slot & { time: string })[] }[] {
+  const days: { day: string; slots: (Slot & { time: string })[] }[] = []
+  for (const slot of slots) {
+    const cut = slot.label.lastIndexOf(", ")
+    const day = slot.label.slice(0, cut)
+    if (days.at(-1)?.day !== day) days.push({ day, slots: [] })
+    days.at(-1)!.slots.push({ ...slot, time: slot.label.slice(cut + 2) })
+  }
+  return days
 }
 
-type Slot = { id: string; starts_at: string; capacity: number; booked: number }
-
-function formatSlot(startsAt: string): string {
-  const d = new Date(startsAt)
-  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) +
-    " · " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-}
-
-function DoctorCard({ doctor }: { doctor: DoctorRow }) {
+function DoctorCard({ doctor: d }: { doctor: DashboardDoctor }) {
+  const router = useRouter()
   const [supabase] = useState(() => createClient())
-  const [slots, setSlots] = useState<Slot[] | null>(null)
-  const [pendingSlot, setPendingSlot] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const [more, setMore] = useState(false)
+  const [pending, setPending] = useState<string | null>(null)
+  const [booked, setBooked] = useState<Slot | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [booked, setBooked] = useState(false)
+  const panelId = useId()
+  const a = d.availability
+  const off = !a.bookable
+  const next = d.slots[0]
 
-  useEffect(() => {
-    let cancelled = false
-    supabase
-      .from("appointment_slots")
-      .select("id, starts_at, capacity, booked")
-      .eq("doctor_id", doctor.id)
-      .gt("starts_at", new Date().toISOString())
-      .order("starts_at", { ascending: true })
-      .limit(5)
-      .then(({ data }) => {
-        if (!cancelled) setSlots((data as Slot[] | null) ?? [])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [supabase, doctor.id])
-
-  async function handleBook(slotId: string) {
+  async function book(slot: Slot) {
     setError(null)
-    setPendingSlot(slotId)
-    const { error: rpcError } = await supabase.rpc("book_appointment", { p_slot: slotId })
-    setPendingSlot(null)
+    setPending(slot.id)
+    const { error: rpcError } = await supabase.rpc("book_appointment", { p_slot: slot.id })
+    setPending(null)
     if (rpcError) {
       setError(errorInfo(rpcError.code || rpcError.message).message)
       return
     }
-    setBooked(true)
+    setBooked(slot)
+    setOpen(false)
+    router.refresh()
   }
 
   return (
-    <li className={styles.doctorCard}>
-      <div>
-        <p className={styles.doctorCardName} translate="no">{doctor.name}</p>
-        <p className={styles.doctorCardMeta}>{doctor.specialty} · ₹{doctor.fee_inr}</p>
+    <li className={styles.card} data-off={off || undefined}>
+      <div className={styles.top}>
+        <span className={styles.avatar} aria-hidden="true">
+          {initials(d.name)}
+        </span>
+        <div className={styles.who}>
+          <h3 className={styles.name} translate="no">
+            {d.name}
+          </h3>
+          <p className={styles.spec}>
+            {d.specialty}
+            {d.specialty !== d.serviceName && d.serviceName ? `, ${d.serviceName}` : ""}
+          </p>
+        </div>
+        <p className={styles.fee}>
+          <span className={ui.srOnly}>Fee </span>₹{d.feeInr}
+        </p>
       </div>
-      <BookAndPayButton doctorId={doctor.id} className={styles.claimSubmit}>Take a token</BookAndPayButton>
-      {slots === null ? null : slots.length === 0 ? (
-        <p className={styles.empty}>No upcoming slots.</p>
-      ) : booked ? (
-        <p className={styles.line}>Appointment booked.</p>
-      ) : (
-        <ul className={styles.slotList}>
-          {slots.filter((s) => s.booked < s.capacity).map((s) => (
-            <li key={s.id}>
-              <button
-                type="button"
-                className={styles.slotButton}
-                disabled={pendingSlot === s.id}
-                onClick={() => handleBook(s.id)}
-              >
-                {pendingSlot === s.id ? "Booking…" : formatSlot(s.starts_at)}
-              </button>
-            </li>
-          ))}
-        </ul>
+
+      <div className={styles.status}>
+        <span className={ui.chip} data-tone={AVAILABILITY_TONE[a.kind]}>
+          {a.label}
+        </span>
+        {d.room && <span className={styles.room}>Room {d.room}</span>}
+      </div>
+
+      <dl className={styles.facts}>
+        <div>
+          <dt>
+            <ClockIcon />
+            Today
+          </dt>
+          <dd>{d.hours || "No clinic hours"}</dd>
+        </div>
+        <div>
+          <dt>
+            <CalendarIcon size={16} />
+            Next free
+          </dt>
+          <dd>{off ? "Not today" : (next?.label ?? "No open slots soon")}</dd>
+        </div>
+      </dl>
+
+      {off && <p className={styles.reason}>{a.kind === "leave" ? `Reason: ${a.reason}` : a.reason}</p>}
+      {booked && (
+        <p className={styles.booked} role="status">
+          Booked for {booked.label}. It is in your appointments below.
+        </p>
       )}
-      {error && <p role="alert" className={styles.claimError}>{error}</p>}
+
+      <div className={styles.actions}>
+        {off ? (
+          <button type="button" className={styles.primary} disabled>
+            Take token
+          </button>
+        ) : (
+          <BookAndPayButton doctorId={d.id} className={styles.primary}>
+            Take token
+          </BookAndPayButton>
+        )}
+        <button
+          type="button"
+          className={styles.secondary}
+          aria-expanded={open}
+          aria-controls={panelId}
+          disabled={off || d.slots.length === 0}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "Hide times" : "Book slot"}
+        </button>
+      </div>
+
+      <div id={panelId} className={styles.slots} hidden={!open}>
+        {byDay(more ? d.slots : d.slots.slice(0, FIRST_SLOTS)).map((group) => (
+          <div key={group.day} role="group" aria-label={group.day}>
+            <p className={styles.day}>{group.day}</p>
+            <ul className={styles.pills}>
+              {group.slots.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    className={styles.pill}
+                    disabled={pending !== null}
+                    aria-label={`Book ${s.label}`}
+                    onClick={() => book(s)}
+                  >
+                    {pending === s.id ? "Booking…" : s.time}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {!more && d.slots.length > FIRST_SLOTS && (
+          <button type="button" className={styles.moreTimes} onClick={() => setMore(true)}>
+            More times
+          </button>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className={styles.error}>
+          {error}
+        </p>
+      )}
     </li>
   )
 }
 
-export function DoctorActions({ doctors }: { doctors: DoctorRow[] }) {
-  if (doctors.length === 0) return null
+export function DoctorActions({ doctors }: { doctors: DashboardDoctor[] }) {
+  const [dept, setDept] = useState("all")
+  const [query, setQuery] = useState("")
+
+  // The pills are the departments that actually have doctors, A to Z.
+  const departments = useMemo(() => {
+    const seen = new Map<string, { id: string; name: string; count: number }>()
+    for (const d of doctors) {
+      const row = seen.get(d.serviceId) ?? { id: d.serviceId, name: d.serviceName, count: 0 }
+      row.count++
+      seen.set(d.serviceId, row)
+    }
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [doctors])
+
+  const q = query.trim().toLowerCase()
+  // Doctors a patient can see today first; the sort is stable, so A to Z within each.
+  const shown = doctors
+    .filter(
+      (d) =>
+        (dept === "all" || d.serviceId === dept) &&
+        (!q || d.name.toLowerCase().includes(q) || d.specialty.toLowerCase().includes(q)),
+    )
+    .sort((a, b) => Number(b.availability.bookable) - Number(a.availability.bookable))
+  const seeing = doctors.filter((d) => d.availability.bookable).length
+  const deptName = departments.find((d) => d.id === dept)?.name
+
+  if (doctors.length === 0) {
+    return <p className={styles.none}>No doctors are listed yet. Ask at reception for today&apos;s clinics.</p>
+  }
+
   return (
-    <section className={styles.section} aria-labelledby="doctors-heading">
-      <h2 id="doctors-heading" className={styles.sectionTitle}>Take a token / book appointment</h2>
-      <ul className={styles.doctorList}>
-        {doctors.map((d) => (
-          <DoctorCard key={d.id} doctor={d} />
-        ))}
-      </ul>
-    </section>
+    <>
+      <div className={styles.toolbar}>
+        <div className={styles.filters} role="group" aria-label="Filter by department">
+          {[{ id: "all", name: "All", count: doctors.length }, ...departments].map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              className={styles.filter}
+              aria-pressed={dept === d.id}
+              onClick={() => setDept(d.id)}
+            >
+              {d.name}
+              <span className={styles.count}>{d.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className={styles.search}>
+          <label htmlFor="doctor-search" className={ui.srOnly}>
+            Search doctors by name or specialty
+          </label>
+          <SearchIcon />
+          <input
+            id="doctor-search"
+            type="search"
+            placeholder="Search by name or specialty"
+            autoComplete="off"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <p className={styles.summary} aria-live="polite">
+        {shown.length === doctors.length
+          ? `${seeing} of ${doctors.length} doctors seeing patients today`
+          : `${shown.length} of ${doctors.length} doctors shown`}
+      </p>
+
+      {shown.length === 0 ? (
+        <div className={styles.none}>
+          <p>
+            No doctor matches {q ? <>&ldquo;{query.trim()}&rdquo;</> : "that"}
+            {dept !== "all" && deptName ? ` in ${deptName}` : ""}.
+          </p>
+          <button
+            type="button"
+            className={styles.secondary}
+            onClick={() => {
+              setDept("all")
+              setQuery("")
+            }}
+          >
+            Show all doctors
+          </button>
+        </div>
+      ) : (
+        <ul className={styles.grid}>
+          {shown.map((d) => (
+            <DoctorCard key={d.id} doctor={d} />
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+export function DoctorsSkeleton() {
+  return (
+    <div role="status">
+      <span className={ui.srOnly}>Loading doctors</span>
+      <div aria-hidden="true">
+        <div className={styles.toolbar}>
+          <span className={`${ui.skel} ${styles.skelFilters}`} />
+          <span className={`${ui.skel} ${styles.skelSearch}`} />
+        </div>
+        <ul className={styles.grid}>
+          {Array.from({ length: 6 }, (_, i) => (
+            <li key={i} className={styles.card}>
+              <div className={styles.top}>
+                <span className={`${ui.skel} ${styles.avatar}`} />
+                <span className={`${ui.skel} ${styles.skelName}`} />
+              </div>
+              <span className={`${ui.skel} ${styles.skelFacts}`} />
+              <span className={`${ui.skel} ${styles.skelActions}`} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   )
 }

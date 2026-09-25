@@ -3,9 +3,17 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { AnimatedHeading } from "@/components/motion/AnimatedHeading"
 
-import { DoctorActions } from "../DoctorActions"
+import { DoctorActions, DoctorsSkeleton } from "../DoctorActions"
 import styles from "../my.module.css"
-import { loadActiveToken, loadDepartments, type ActiveToken, type Department, type Org } from "./data"
+import {
+  loadActiveToken,
+  loadDepartments,
+  loadDoctors,
+  type ActiveToken,
+  type DashboardDoctor,
+  type Department,
+  type Org,
+} from "./data"
 import { dayKey, firstName } from "./format"
 import { ArrowIcon, TicketIcon } from "./icons"
 import { LiveNow, LiveNowSkeleton } from "./LiveNow"
@@ -20,14 +28,13 @@ type DashboardProps = {
   fullName: string | null
   org: Org
   now: Date
-  doctors: { id: string; service_id: string; name: string; specialty: string; fee_inr: number }[]
 }
 
 // The /my body. page.tsx does the auth reads and hands them in. Every data
 // read starts here at once and streams into its own <Suspense>, so the hero
 // paints immediately and each section swaps its skeleton for real rows as
 // they land.
-export function Dashboard({ supabase, userId, fullName, org, now, doctors }: DashboardProps) {
+export function Dashboard({ supabase, userId, fullName, org, now }: DashboardProps) {
   const name = firstName(fullName)
   const today = now.toLocaleDateString("en-US", {
     timeZone: org.timeZone,
@@ -37,6 +44,7 @@ export function Dashboard({ supabase, userId, fullName, org, now, doctors }: Das
   })
   const token = userId ? loadActiveToken(supabase, userId) : Promise.resolve(null)
   const departments = loadDepartments(supabase)
+  const doctors = loadDoctors(supabase, org.timeZone, now)
 
   return (
     <div className={styles.page}>
@@ -82,9 +90,14 @@ export function Dashboard({ supabase, userId, fullName, org, now, doctors }: Das
           </Suspense>
         </section>
 
-        <div id="doctors" className={styles.full}>
-          <DoctorActions doctors={doctors} />
-        </div>
+        <section id="doctors" className={styles.full} aria-labelledby="doctors-title">
+          <div className={ui.sectionHead}>
+            <AnimatedHeading as="h2" id="doctors-title" lead="Find a" accent="doctor" />
+          </div>
+          <Suspense fallback={<DoctorsSkeleton />}>
+            <DoctorsSlot doctors={doctors} />
+          </Suspense>
+        </section>
       </div>
 
       <ClaimDialog />
@@ -94,6 +107,10 @@ export function Dashboard({ supabase, userId, fullName, org, now, doctors }: Das
 
 async function LiveSlot({ departments, day }: { departments: Promise<Department[]>; day: string }) {
   return <LiveNow departments={await departments} day={day} />
+}
+
+async function DoctorsSlot({ doctors }: { doctors: Promise<DashboardDoctor[]> }) {
+  return <DoctorActions doctors={await doctors} />
 }
 
 async function TokenSlot({ token }: { token: Promise<ActiveToken | null> }) {

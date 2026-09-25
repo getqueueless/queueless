@@ -9,14 +9,7 @@ export default async function MyHomePage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  const [profile, doctorsRes] = await Promise.all([
-    user ? getMyProfile(supabase, user.id) : Promise.resolve(null),
-    supabase
-      .from("doctors")
-      .select("id, service_id, name, specialty, fee_inr")
-      .eq("active", true)
-      .order("name"),
-  ])
+  const profile = user ? await getMyProfile(supabase, user.id) : null
   const org = await loadOrg(supabase, profile?.orgId ?? null)
 
   return (
@@ -26,7 +19,6 @@ export default async function MyHomePage() {
       fullName={profile?.fullName ?? null}
       org={org}
       now={new Date()}
-      doctors={doctorsRes.data ?? []}
     />
   )
 }
