@@ -48,3 +48,17 @@ class Settings(BaseSettings):
     daily_summary_lock_key: int = 612_004_337
     daily_summary_hour_ist: int = 21
     daily_summary_timezone: str = "Asia/Kolkata"
+
+    # Razorpay (test mode in prod today). key_secret/webhook_secret are Optional
+    # for the same reason deepseek_api_key is: every payment route must degrade
+    # to a clear 503 when unset, never crash the app at startup. Never logged --
+    # see app/payments/razorpay_client.py.
+    razorpay_key_id: str | None = None
+    razorpay_key_secret: str | None = None
+    razorpay_webhook_secret: str | None = None
+    razorpay_base_url: str = "https://api.razorpay.com/v1"
+    razorpay_timeout_seconds: float = 15.0
+
+    # Distinct from every other advisory lock key above -- same global keyspace.
+    doctor_leave_refund_lock_key: int = 733_501_294
+    doctor_leave_refund_interval_seconds: int = 60

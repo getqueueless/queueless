@@ -16,6 +16,9 @@ from app.logging_config import configure_logging
 from app.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.ml_runtime import load as load_ml
 from app.notifications import listen_task, poller_task
+from app.payments.razorpay_client import get_razorpay_client
+from app.payments.refund_job import doctor_leave_refund_loop
+from app.payments import routes as payments_routes
 from app.rate_limit import limiter
 from app.routes import admin, ai, health, predict, staff
 from app.summary import daily_summary_loop
@@ -49,6 +52,13 @@ async def lifespan(app: FastAPI):
         cache_size=settings.translate_cache_size,
     )
     app.state.db_pool = await create_pool(settings)
+    app.state.razorpay_client = get_razorpay_client(settings)
+    app.state.doctor_leave_refund_task = asyncio.create_task(
+        doctor_leave_refund_loop(
+            app.state.db_pool, app.state.razorpay_client,
+            settings.doctor_leave_refund_lock_key, settings.doctor_leave_refund_interval_seconds,
+        )
+    )
     app.state.listener_task = asyncio.create_task(
         listen_task(settings, app.state.db_pool, translate_deps=translate_deps)
     )
@@ -73,6 +83,9 @@ async def lifespan(app: FastAPI):
         await _cancel(app.state.listener_task)
         await _cancel(app.state.poller_task)
         await _cancel(app.state.daily_summary_task)
+        await _cancel(app.state.doctor_leave_refund_task)
+        if app.state.razorpay_client is not None:
+            await app.state.razorpay_client.aclose()
         await app.state.db_pool.close()
 
 
@@ -101,5 +114,6 @@ app.include_router(predict.router)
 app.include_router(admin.router)
 app.include_router(staff.router)
 app.include_router(ai.router)
+app.include_router(payments_routes.router)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)

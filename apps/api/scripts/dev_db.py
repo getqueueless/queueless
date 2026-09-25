@@ -59,9 +59,12 @@ CREATE TABLE IF NOT EXISTS tokens (
     status text NOT NULL,
     patient_id uuid,
     counter_id uuid,
-    -- Doesn't exist in the fixture until now -- real column since
-    -- supabase/migrations/0039_doctor_aware_slots_and_tokens.sql.
+    -- doctor_id/fee_inr/hold_expires_at: real columns from
+    -- supabase/migrations/0039 and 0050/0051 (online prepaid bookings) --
+    -- app/payments/routes.py reads fee_inr/hold_expires_at directly.
     doctor_id uuid,
+    fee_inr int,
+    hold_expires_at timestamptz,
     called_at timestamptz,
     serving_at timestamptz,
     finished_at timestamptz,
@@ -224,6 +227,133 @@ CREATE TABLE IF NOT EXISTS push_tokens (
     platform text NOT NULL CHECK (platform IN ('ios', 'android', 'web')),
     created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Real schema: supabase/migrations/0050-0052 (online prepaid bookings). Real
+-- SQL, not mocked, mirroring record_order/confirm_payment/mark_payment_failed/
+-- record_refund/doctor_leave_refund_candidates exactly (idempotency, the
+-- amount check, NULL-on-rejection) so app/payments/routes.py is genuinely
+-- exercised against real Postgres. Only Razorpay's own HTTP API is mocked.
+CREATE TABLE IF NOT EXISTS doctor_leaves (
+    doctor_id uuid NOT NULL,
+    from_date date NOT NULL,
+    to_date date NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id uuid,
+    token_id uuid NOT NULL,
+    razorpay_order_id text NOT NULL UNIQUE,
+    razorpay_payment_id text,
+    razorpay_refund_id text,
+    amount_inr int NOT NULL,
+    status text NOT NULL DEFAULT 'created',
+    failure_reason text,
+    refund_reason text,
+    captured_at timestamptz,
+    refunded_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE SCHEMA IF NOT EXISTS private;
+
+CREATE TABLE IF NOT EXISTS private.razorpay_webhook_events (
+    event_id text PRIMARY KEY,
+    received_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION record_order(p_token uuid, p_razorpay_order_id text, p_amount_inr int)
+RETURNS payments LANGUAGE plpgsql AS $$
+DECLARE
+  v_token RECORD;
+  v_payment payments;
+BEGIN
+  SELECT * INTO v_token FROM tokens WHERE id = p_token;
+  IF v_token.id IS NULL OR v_token.status <> 'pending_payment' THEN
+    RETURN NULL;
+  END IF;
+  IF v_token.fee_inr IS DISTINCT FROM p_amount_inr THEN
+    RETURN NULL;
+  END IF;
+
+  INSERT INTO payments (org_id, token_id, razorpay_order_id, amount_inr, status)
+  VALUES (v_token.org_id, p_token, p_razorpay_order_id, p_amount_inr, 'created')
+  RETURNING * INTO v_payment;
+  RETURN v_payment;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION confirm_payment(p_razorpay_order_id text, p_razorpay_payment_id text, p_amount_inr int)
+RETURNS payments LANGUAGE plpgsql AS $$
+DECLARE
+  v_payment payments;
+BEGIN
+  SELECT * INTO v_payment FROM payments WHERE razorpay_order_id = p_razorpay_order_id FOR UPDATE;
+  IF v_payment.id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  IF v_payment.status = 'captured' THEN
+    IF v_payment.razorpay_payment_id IS DISTINCT FROM p_razorpay_payment_id THEN
+      RETURN NULL;
+    END IF;
+    RETURN v_payment;
+  END IF;
+
+  IF v_payment.status <> 'created' THEN
+    RETURN NULL;
+  END IF;
+  IF v_payment.amount_inr IS DISTINCT FROM p_amount_inr THEN
+    RETURN NULL;
+  END IF;
+
+  UPDATE payments SET status = 'captured', razorpay_payment_id = p_razorpay_payment_id, captured_at = now()
+    WHERE id = v_payment.id
+    RETURNING * INTO v_payment;
+  UPDATE tokens SET status = 'waiting' WHERE id = v_payment.token_id AND status = 'pending_payment';
+  RETURN v_payment;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION mark_payment_failed(p_razorpay_order_id text, p_reason text DEFAULT NULL)
+RETURNS payments LANGUAGE plpgsql AS $$
+DECLARE
+  v_payment payments;
+BEGIN
+  UPDATE payments SET status = 'failed', failure_reason = p_reason
+    WHERE razorpay_order_id = p_razorpay_order_id AND status = 'created'
+    RETURNING * INTO v_payment;
+  RETURN v_payment;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION record_refund(
+    p_payment_id uuid, p_razorpay_refund_id text, p_reason text, p_initiated_by uuid DEFAULT NULL
+)
+RETURNS payments LANGUAGE plpgsql AS $$
+DECLARE
+  v_payment payments;
+BEGIN
+  UPDATE payments SET status = 'refunded', razorpay_refund_id = p_razorpay_refund_id,
+    refund_reason = p_reason, refunded_at = now()
+    WHERE id = p_payment_id AND status = 'captured'
+    RETURNING * INTO v_payment;
+  RETURN v_payment;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION doctor_leave_refund_candidates()
+RETURNS TABLE(payment_id uuid, token_id uuid, doctor_id uuid, org_id uuid, razorpay_payment_id text, amount_inr int)
+LANGUAGE sql STABLE AS $$
+  SELECT p.id, p.token_id, t.doctor_id, p.org_id, p.razorpay_payment_id, p.amount_inr
+  FROM payments p
+  JOIN tokens t ON t.id = p.token_id
+  WHERE p.status = 'captured'
+    AND EXISTS (
+      SELECT 1 FROM doctor_leaves dl
+      WHERE dl.doctor_id = t.doctor_id AND current_date BETWEEN dl.from_date AND dl.to_date
+    );
+$$;
 """
 
 

@@ -36,7 +36,8 @@ async def clean_tables(postgres):
     try:
         await conn.execute(
             "TRUNCATE profiles, services, board_services, tokens, push_tokens, "
-            "notifications, audit_log, ops_summaries"
+            "notifications, audit_log, ops_summaries, payments, doctor_leaves, "
+            "private.razorpay_webhook_events"
         )
     finally:
         await conn.close()
