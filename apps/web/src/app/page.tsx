@@ -2,6 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 
 import { LogoMark } from "@/components/brand/Logo"
+import { RolodexWord } from "@/components/motion/RolodexWord"
 import { PublicFooter } from "@/components/site/PublicFooter"
 import { PublicHeader } from "@/components/site/PublicHeader"
 import { TwoToneHeading } from "@/components/site/TwoToneHeading"
@@ -78,7 +79,12 @@ export default async function Home() {
           <div className={styles.heroShade} aria-hidden="true" />
           <div className={styles.heroInner}>
             <h1 id="hero-title" className={styles.heroTitle}>
-              <span>Take a token.</span> <span className={styles.heroAccent}>Leave the line.</span>
+              Skip the{" "}
+              <RolodexWord
+                words={["line.", "wait.", "crowd.", "queue."]}
+                hold={1200}
+                className={styles.heroAccent}
+              />
             </h1>
             <p className={styles.heroLead}>
               Your place in the queue is held. Wait wherever you like, and your phone shows when

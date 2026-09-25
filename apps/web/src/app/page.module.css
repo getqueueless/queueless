@@ -161,10 +161,6 @@
   text-wrap: balance;
 }
 
-.heroTitle span {
-  display: block;
-}
-
 .heroAccent {
   color: var(--color-accent);
 }
