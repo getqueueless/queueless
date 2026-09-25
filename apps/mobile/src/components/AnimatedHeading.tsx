@@ -20,6 +20,8 @@ const LETTER_MS = 420;
 const SIZES = {
   display: { min: 26, max: 34, perWidth: 0.075, base: 'ink', accent: 'primaryDisplay' },
   section: { min: 15, max: 18, perWidth: 0.043, base: 'inkSecondary', accent: 'primaryText' },
+  // The UI kit's SectionHeader: 22 bold is large text, so the display cyan still passes.
+  title: { min: 22, max: 22, perWidth: 0, base: 'ink', accent: 'primaryDisplay' },
 } as const;
 
 /**

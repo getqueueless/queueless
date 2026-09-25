@@ -6,7 +6,20 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ThemedView } from '@/components/themed-view';
-import { Button, Card, DeptTile, DoctorCard, StatusChip, UIText, type ChipStatus } from '@/components/ui';
+import {
+  Button,
+  Card,
+  DeptTile,
+  DoctorCard,
+  EmptyState,
+  SectionHeader,
+  Skeleton,
+  StatusChip,
+  StickyBottomBar,
+  UIText,
+  useStickyBottomBarHeight,
+  type ChipStatus,
+} from '@/components/ui';
 
 const DEPTS = ['General OPD', 'Orthopedics', 'Pharmacy', 'Pediatrics', 'Cardiology', 'ENT'];
 const CHIPS: ChipStatus[] = ['available', 'late', 'leave', 'paid', 'pending', 'refunded'];
@@ -25,11 +38,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export default function UiKit() {
   const [loading, setLoading] = useState(false);
   const [wait, setWait] = useState(12);
+  const barHeight = useStickyBottomBarHeight();
 
   return (
     <ThemedView type="canvasSoft" style={styles.flex}>
       <Stack.Screen options={{ title: 'UI kit' }} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: barHeight + 32 }]}>
         <View style={styles.row}>
           <UIText variant="title1">UI kit</UIText>
           <ThemeToggle />
@@ -100,6 +114,35 @@ export default function UiKit() {
           <DoctorCard name="Dr. Meera Iyer" department="Pediatrics" feeInr={0} status="leave" />
         </Section>
 
+        <Section title="SectionHeader">
+          <SectionHeader title="Your tokens" action={{ label: 'See all', onPress: () => {} }} />
+          <SectionHeader title="Departments" />
+        </Section>
+
+        <Section title="Skeleton">
+          <Card>
+            <View style={styles.skeletonRow} accessible accessibilityLabel="Loading doctor">
+              <Skeleton width={56} height={56} radius={28} />
+              <View style={styles.skeletonText}>
+                <Skeleton width="70%" height={18} />
+                <Skeleton width="45%" height={14} />
+              </View>
+            </View>
+            <Skeleton height={48} radius={12} />
+          </Card>
+        </Section>
+
+        <Section title="EmptyState">
+          <Card>
+            <EmptyState
+              icon={{ ios: 'ticket', android: 'confirmation_number', web: 'confirmation_number' }}
+              title="No tokens yet"
+              text="Take a token for any department and it will show up here with a live wait."
+              action={{ label: 'Take a token', onPress: () => {} }}
+            />
+          </Card>
+        </Section>
+
         <Section title="StatusChip">
           <View style={styles.wrap}>
             {CHIPS.map((s) => (
@@ -108,16 +151,19 @@ export default function UiKit() {
           </View>
         </Section>
       </ScrollView>
+      <StickyBottomBar total="₹300" cta="Pay & confirm" onPress={() => {}} />
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { padding: 20, gap: 32, paddingBottom: 160 },
+  content: { padding: 20, gap: 32 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   section: { gap: 12 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   cell: { width: '47%', flexGrow: 1 },
+  skeletonRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  skeletonText: { flex: 1, gap: 8 },
 });
