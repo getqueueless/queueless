@@ -320,6 +320,113 @@ Plain-English notes per feature: what was built, how it actually works, and why.
     open anon read policy, so each TV board lists every counter. After a validation or RPC error
     the kiosk form is reset by React 19's form action, so the chosen service and name are cleared.
 
+- **MedWin redesign (2026-09-25).** Every screen was restyled after the MedWin hospital template:
+  a white base, one cyan accent, dark slate-teal sections, near-black ink and bold uppercase
+  Poppins headings with a cyan second word. It was a presentation pass. RPC calls, data fetching
+  and validation are unchanged, and no npm dependency was added. It is still CSS Modules on top of
+  the `globals.css` tokens, and `DESIGN.md` is kept in sync.
+  - *Brand kit.* Queueless now has its own mark. It is a Q whose ring is the line and whose tail
+    is a token slip torn off along the baseline, drawn on an 18 x 16 grid. The same `Logo`
+    component is used in the public header, the counter app bar, the admin sidebar, the favicon
+    (`src/app/icon.svg`) and the printed slip. `apps/web/brand/BRAND.md` has the strategy,
+    construction and palette, and `brand/queueless-brandkit.png` is the 3x3 brand board rendered
+    from the real tokens.
+  - *Theme toggle.* Dark is no longer an OS auto-switch; it is a button in every header. Light is
+    the default and is applied literally: a first-time visitor gets light even when the OS prefers
+    dark. An inline script in `layout.tsx` sets `<html data-theme>` from localStorage before first
+    paint, so a stored choice never flashes. The TV board ignores the toggle and keeps its
+    slate-teal theme.
+  - *Font split.* Poppins is used for display type everywhere, and for body text on the public
+    screens (`/`, `/login`, `/kiosk`, `/t/[id]`). Inter stays the body font on `/counter` and
+    `/admin/**`, where dense tables and small labels read faster in it.
+  - *AA colour decisions.* MedWin's cyan `#0cb7d6` is 2.40:1 on white, and its grey `#898989` is
+    3.50:1, so neither is used as text on light backgrounds.
+    - Small cyan text and links on white use `#087589` (5.36:1).
+    - Large cyan heading words on white use `#0a95ae` (3.55:1, large text only).
+    - Bright cyan appears as text only on slate (5.63:1 or more).
+    - Filled cyan buttons carry ink `#252525` (6.39:1), not white.
+    - Muted text is `#6b6b6b` (5.33:1).
+    - `node apps/web/brand/contrast-check.mjs` checks every token pair in both themes and fails
+      below AA.
+  - *Landing (`/`) and login.* The landing is new; `/` used to be the create-next-app placeholder.
+    It has a photo hero with an overlapping status card, a live "Right now" strip, 01-04 service
+    cards read from Supabase, and a dark "How it works" stadium.
+    - The main patient button used to open `/kiosk`, a staff-only device. It now opens the status
+      lookup. A second button explains how tokens are issued at reception.
+    - The status card shows a printed example slip drawn in HTML and CSS, with callouts for where
+      to scan and what link to type. Its QR is real but harmless: it only says "Example slip
+      only". The lookup copy matches what a patient holds: scan the QR, or type the link printed
+      under it.
+    - Live numbers read as words at zero, and each service card shows how many people are waiting.
+    - The dark How it works section is a rounded stadium, as in MedWin, instead of running into the
+      footer.
+    - Login lost its decorative tabs and dots, and its error summary has a full border and an icon.
+    - Re-checked in the browser: keyboard order, visible focus, the skip link, labelled fields with
+      `aria-invalid`/`aria-describedby`/`role="alert"`, reduced motion, no horizontal overflow from
+      320 to 1440 px, and contrast for every pair in both themes, including over the hero photo.
+  - *Kiosk and status page.*
+    - The signed-out kiosk reads "Staff sign-in needed". A patient who arrived from "Get a token"
+      gets a way out: ask at the reception desk, or use the status lookup.
+    - Service choices lead with the service code (OPD, PED...), the prefix the printed token
+      carries. The issued screen shows the full code (PED-006), so staff, slip, TV board and patient
+      page all name a token the same way.
+    - On `/t/[id]`, being called turns the top of the card solid cyan with a larger "You're being
+      called now." line, and a screen reader announces it live.
+    - Directions read "Go to Counter OPD-1" in signage type, so a counter name no longer looks like
+      a token number.
+    - Known issue, left for a logic pass: if the kiosk form comes back with an error, React clears
+      the chosen service. Fixing it means changing how the form submits.
+  - *TV board (`/display/[service]`).*
+    - Each tile leads with the token in large mono type. The counter sits under it as "Counter
+      OPD-1" in smaller sentence-case Poppins, so it can't be mistaken for another token.
+    - Status chips use the same pill-and-dot system as the counter console and the brand board:
+      Now calling, Serving, Done, No-show, Skipped, Cancelled, Paused, Closed. The generic "Last
+      called" label and the large CLOSED/PAUSED words are gone.
+    - A calling tile turns solid cyan, and a cyan ring ripples out of it three times (4.5 s, under
+      the WCAG 5-second limit for automatic motion) and stops. Under reduced motion the solid tile
+      carries the signal alone.
+    - Values not known yet show a drawn placeholder bar instead of a dash.
+    - The board sets its own theme-color and dark color-scheme, so it stays slate-teal whatever the
+      visitor picked. Every text pair passes AA; the lowest chip is 5.68:1.
+    - Known limit, left for a DB change: `board_counters` is not scoped by service or org, so each
+      board lists every counter.
+  - *Counter console (`/counter`).* Decoration a staff console doesn't need was removed.
+    - There is no cyan strip on the app bar, no eyebrow above the desk name and no duplicate row of
+      keyboard hints.
+    - Skip is no longer red, because skipping a patient who did not come up is routine.
+    - The only cyan edge left is on the card for the token being served, because that card is the
+      token.
+    - Done is the widest button, since it ends almost every call.
+    - Messages appear under the card, so the buttons don't move under the operator's cursor.
+    - Screen readers hear "Done" and "Skip", with the shortcut in `aria-keyshortcuts`, instead of
+      "Done D". Keyboard users get a "Skip to console" link.
+    - The four actions, the N/D/S/R shortcuts and every RPC are unchanged.
+  - *Admin (`/admin` and its four sub-pages).*
+    - **Honest chart.** When the prediction service is down, the chart shows actual waits only,
+      with a banner saying why. It no longer draws a fake flat "0 minute" prediction line.
+    - **Readable empty values.** Missing values read "Unassigned", "None" or "No data yet" instead
+      of a dash. This exposed a real display bug: counters whose staff profiles have no name showed
+      as unassigned.
+    - **Screen readers.** Every page keeps a proper heading structure, error states included. Row
+      buttons name their row ("Edit OPD-1"), the role pickers are labelled, saves and chart notes
+      are announced, and Edit moves focus to the form it filled.
+    - **Contrast and motion.** All 28 colour pairs in the admin console pass AA in both themes.
+      The chart's grow-in animation is skipped under reduced motion.
+  - *Verification.* Every screen was screenshotted in light and dark at 1440 x 900 and 390 x 844
+    (the TV board in its one theme at 1920 x 1080 and 390 x 844). The theme was set through
+    localStorage, not OS emulation. The shots are under `apps/web/qa-screenshots/`, with
+    `compare-landing-vs-medwin.png` for the side-by-side.
+    - A computed-style scan of every rendered text element found no pair below AA. The only
+      flagged pairs sat on the hero photo and the example slip, whose backgrounds a style walk
+      can't see; both were computed by hand. White on the hero overlay is 8.15:1 even over a white
+      photo pixel.
+    - Stored theme is applied before hydration on every route and carries across routes. The TV
+      board renders the same with light or dark stored. N/D/S/R work from the keyboard. The kiosk
+      slip prints black on white from the dark theme.
+    - One regression was found and fixed: after the redesign made `/` public, the header's Staff
+      login sent a signed-in staff member back to the landing page. Sign-in now defaults to
+      `/admin`, and `proxy.ts` forwards non-admins to `/counter`.
+
 ## Backend
 
 - **What it is.** `apps/api` is a separate Python FastAPI service that runs beside Supabase, not

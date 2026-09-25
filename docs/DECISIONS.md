@@ -389,3 +389,22 @@ One line per deviation from the plan/spec, with why.
      the mobile session's entry above (same file, same conclusion, different feature). Needed:
      `alter table public.profiles add column language text;` (values `'hi'`/`'pa'`/null=English).
      `app/notifications.py`'s `_patient_language` degrades to "no translation" until it lands.
+- 2026-09-25 (web, MedWin redesign): **light is the default theme, applied literally.** A
+  first-time visitor with nothing stored gets light, even if the OS prefers dark. Tested with
+  colorScheme "dark": `data-theme` was absent and the body background was `rgb(255, 255, 255)`.
+  - **How it works.** The inline `THEME_SCRIPT` in `layout.tsx`'s `<head>` reads localStorage
+    `queueless-theme` and accepts only `"dark"` or `"light"`. It sets `<html data-theme>` before
+    first paint, and `<html>` has `suppressHydrationWarning`. `ThemeToggle` writes the same key.
+  - **Stored choice wins.** A returning visitor's choice applies everywhere, including pages
+    with no toggle. `/kiosk`, `/login` and `/` all stayed dark after hydration.
+  - **No OS seeding.** The brief allowed `prefers-color-scheme` as a first-visit default. It is not
+    used anywhere, so "light is the default" means exactly that. Recorded in `DESIGN.md`'s "Theme"
+    section.
+  - **The TV board is the exception.** It pins its own slate-teal palette, theme-color and dark
+    color-scheme, and ignores the stored theme.
+- 2026-09-25 (web, MedWin redesign): **font split.** Poppins (400/700, `--font-display`) is used for
+  headings everywhere and for body text on the public screens (`/`, `/login`, `/kiosk`, `/t/[id]`),
+  where sizes are large enough for it to read cleanly. Inter stays the body and UI font on
+  `/counter` and `/admin/**`, whose dense tables and 12-13px labels read faster in it. MedWin itself
+  is Poppins-only. Mono (JetBrains Mono) is kept for token codes so OPD-014 always has the same
+  shape.
