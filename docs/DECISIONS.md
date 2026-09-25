@@ -513,3 +513,28 @@ One line per deviation from the plan/spec, with why.
   `profiles`/etc. content. `deploy/monitoring/docker-compose.yml`'s `POSTGRES_EXPORTER_DSN` env
   var takes this role's connection string once it exists; documented as a placeholder until
   then, not silently assumed.
+- 2026-09-26 (apps/api, security hardening): recommended CSP for `lpu.lol` (`apps/web`), for the
+  deploy session to apply at Caddy -- not this session's to implement (`apps/web` is out of
+  scope). `pip-audit` on `apps/api` found nothing to react to here.
+  ```
+  Content-Security-Policy:
+    default-src 'self';
+    script-src 'self' 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: https:;
+    connect-src 'self' https://sb.lpu.lol https://api.lpu.lol;
+    frame-ancestors 'none';
+    base-uri 'self';
+    form-action 'self';
+    object-src 'none';
+  ```
+  Stated honestly, not oversold: `script-src 'self' 'unsafe-inline'` is a real weakening --
+  Next.js's own hydration bootstrap is an inline `<script>` tag, so a strict `script-src 'self'`
+  alone breaks the app on load unless Next is configured to emit a per-request nonce and every
+  inline script carries it (a real, larger change to `apps/web`'s own request pipeline, not a
+  Caddy-only header). `'unsafe-inline'` is the pragmatic default most Next.js deployments ship
+  with; nonce-based tightening is the real upgrade path if this matters more than the setup cost,
+  not something to silently promise here. `connect-src` is scoped to the two real backend hosts
+  this app actually talks to (`sb.lpu.lol`, `api.lpu.lol`) -- update it if `apps/web` starts
+  calling anything else. `frame-ancestors 'none'`/`object-src 'none'`/`base-uri 'self'`/
+  `form-action 'self'` have no such tradeoff and are safe to apply as-is.

@@ -10,7 +10,11 @@ from app.config import Settings
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "Content-Security-Policy": "default-src 'none'",
+    # frame-ancestors is its own CSP directive with its own default
+    # (unrestricted) when omitted -- default-src 'none' does NOT cover it,
+    # so it's named explicitly. X-Frame-Options above covers older browsers
+    # that don't respect CSP's frame-ancestors.
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
     "Referrer-Policy": "no-referrer",
     "Permissions-Policy": "geolocation=(), camera=(), microphone=()",
 }
@@ -42,7 +46,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             # Swagger UI needs its own CDN script/style; relax CSP only here.
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; script-src 'self' cdn.jsdelivr.net; "
-                "style-src 'self' cdn.jsdelivr.net 'unsafe-inline'; img-src 'self' data:"
+                "style-src 'self' cdn.jsdelivr.net 'unsafe-inline'; img-src 'self' data:; "
+                "frame-ancestors 'none'"
             )
         if self.settings.environment == "production":
             response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
