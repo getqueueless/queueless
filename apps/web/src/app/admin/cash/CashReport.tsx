@@ -51,31 +51,42 @@ export function CashReport() {
     setError(null)
     const supabase = createClient()
 
-    const [staffRes, doctorRes, ledgerRes] = await Promise.all([
-      getCashReportByStaff(supabase, { from, to }),
-      getCashReportByDoctor(supabase, { from, to }),
-      supabase
-        .from("payments")
-        .select("id, amount_inr, status, razorpay_payment_id, captured_at, tokens(code)")
-        .eq("status", "captured")
-        .gte("captured_at", from)
-        .lt("captured_at", `${to}T23:59:59`)
-        .order("captured_at", { ascending: false })
-        .limit(50),
-    ])
+    // A blocked/failed fetch (offline, CORS, DNS) rejects rather than
+    // resolving to an RpcResult/{error} -- without this the page was stuck
+    // on "Loading…" forever, since Promise.all rejecting uncaught here meant
+    // setLoading(false) below never ran.
+    try {
+      const [staffRes, doctorRes, ledgerRes] = await Promise.all([
+        getCashReportByStaff(supabase, { from, to }),
+        getCashReportByDoctor(supabase, { from, to }),
+        supabase
+          .from("payments")
+          .select("id, amount_inr, status, razorpay_payment_id, captured_at, tokens(code)")
+          .eq("status", "captured")
+          .gte("captured_at", from)
+          .lt("captured_at", `${to}T23:59:59`)
+          .order("captured_at", { ascending: false })
+          .limit(50),
+      ])
 
-    if (!staffRes.ok) {
-      setError("error" in staffRes ? staffRes.error : "Cash reporting isn't deployed yet.")
+      if (!staffRes.ok) {
+        setError("error" in staffRes ? staffRes.error : "Cash reporting isn't deployed yet.")
+        setByStaff(null)
+      } else {
+        setByStaff(staffRes.data)
+      }
+
+      if (doctorRes.ok) setByDoctor(doctorRes.data)
+
+      // Any error here just means "nothing to show yet" -- this section never
+      // surfaces its own error banner alongside the cash report's real one.
+      setOnlinePayments(ledgerRes.error ? null : (ledgerRes.data as unknown as OnlinePaymentRow[]))
+    } catch {
+      setError("Couldn't load the cash report. Try again.")
       setByStaff(null)
-    } else {
-      setByStaff(staffRes.data)
+      setByDoctor(null)
+      setOnlinePayments(null)
     }
-
-    if (doctorRes.ok) setByDoctor(doctorRes.data)
-
-    // Any error here just means "nothing to show yet" -- this section never
-    // surfaces its own error banner alongside the cash report's real one.
-    setOnlinePayments(ledgerRes.error ? null : (ledgerRes.data as unknown as OnlinePaymentRow[]))
 
     setLoading(false)
   }
