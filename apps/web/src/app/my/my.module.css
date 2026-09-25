@@ -190,6 +190,14 @@
   scroll-margin-top: var(--space-lg);
 }
 
+.wide {
+  grid-column: 1 / 8;
+}
+
+.narrow {
+  grid-column: 8 / -1;
+}
+
 @media (max-width: 960px) {
   .hero {
     --overhang: 72px;
@@ -223,6 +231,11 @@
   .body {
     grid-template-columns: minmax(0, 1fr);
     row-gap: var(--space-xxl);
+  }
+
+  .wide,
+  .narrow {
+    grid-column: 1;
   }
 }
 

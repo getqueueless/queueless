@@ -1,0 +1,314 @@
+/* Upcoming appointments and recent visits: two white panels of short rows,
+   side by side on desktop (7 / 5 columns), stacked on a phone. Then the
+   help card, the one slate block below the hero.
+
+   Contrast (light / dark): row text ink / ink-secondary on surface, AA both;
+   date tile primary on primary-soft 4.77 / 6.29; help copy white on slate
+   13.5 and on-slate-muted 7.62; help button ink on cyan 6.39. */
+
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.list {
+  padding: 0;
+  list-style: none;
+}
+
+.list > li + li {
+  border-top: 1px solid var(--color-hairline);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+}
+
+.when {
+  flex: none;
+  display: grid;
+  place-content: center;
+  width: 92px;
+  min-height: 60px;
+  padding: var(--space-xs);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  text-align: center;
+}
+
+.whenDay {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.whenTime {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.what {
+  flex: 1;
+  min-width: 0;
+}
+
+.primaryLine {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.secondaryLine {
+  color: var(--color-ink-secondary);
+  font-size: 14px;
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.quiet,
+.danger {
+  flex: none;
+  min-height: 38px;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 150ms var(--ease-out),
+    border-color 150ms var(--ease-out),
+    color 150ms var(--ease-out);
+}
+
+.quiet {
+  border: 1px solid var(--color-hairline-strong);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.quiet:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.danger {
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: var(--color-surface);
+}
+
+.quiet:disabled,
+.danger:disabled {
+  cursor: progress;
+}
+
+.quiet:focus-visible,
+.danger:focus-visible,
+.link:focus-visible,
+.visit:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.error {
+  margin-top: 4px;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+/* ---------- recent visits ---------- */
+
+.visit {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  color: var(--color-ink);
+  text-decoration: none;
+  transition: background-color 150ms var(--ease-out);
+}
+
+.visit:hover {
+  background: var(--color-canvas-soft);
+}
+
+.code {
+  grid-row: 1 / 3;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.visitDate {
+  color: var(--color-ink-muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+
+.visit > :last-child {
+  grid-column: 3;
+  grid-row: 1 / 3;
+}
+
+/* ---------- empty + skeleton ---------- */
+
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-xs);
+  padding: var(--space-xl) var(--space-lg);
+  color: var(--color-ink-secondary);
+}
+
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--space-xs);
+  border-radius: 50%;
+  background: var(--color-surface-sunken);
+  color: var(--color-ink-secondary);
+}
+
+.link {
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.skelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+}
+
+.skelTile {
+  width: 92px;
+  height: 60px;
+  border-radius: var(--radius-md);
+}
+
+.skelLines {
+  flex: 1;
+  height: 36px;
+}
+
+/* ---------- help card ---------- */
+
+.help {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: var(--space-xl) var(--space-xxl);
+  border-radius: var(--radius-xl);
+  background: var(--color-slate);
+  color: var(--color-on-slate);
+}
+
+.helpIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(12, 183, 214, 0.14);
+  color: var(--color-accent);
+}
+
+.helpText {
+  flex: 1;
+  min-width: 0;
+}
+
+.helpTitle {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.helpBody {
+  margin-top: 4px;
+  color: var(--color-on-slate-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.helpButton {
+  flex: none;
+  min-height: 48px;
+  padding: 0 var(--space-lg);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease-out);
+}
+
+.helpButton:hover {
+  background: var(--color-accent-hover);
+}
+
+.helpButton:focus-visible {
+  outline: 2px solid var(--color-focus-ring-on-slate);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .row,
+  .visit {
+    padding: var(--space-md);
+  }
+
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .when {
+    width: 80px;
+  }
+
+  .confirm {
+    flex-basis: 100%;
+  }
+
+  .help {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: var(--space-xl) var(--space-lg);
+  }
+
+  .helpButton {
+    align-self: stretch;
+  }
+}

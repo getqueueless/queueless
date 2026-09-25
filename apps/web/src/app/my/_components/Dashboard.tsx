@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { Suspense } from "react"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -5,19 +6,25 @@ import { AnimatedHeading } from "@/components/motion/AnimatedHeading"
 
 import { DoctorActions, DoctorsSkeleton } from "../DoctorActions"
 import styles from "../my.module.css"
+import { Appointments } from "./Appointments"
 import {
   loadActiveToken,
+  loadAppointments,
   loadDepartments,
   loadDoctors,
+  loadRecentVisits,
   type ActiveToken,
+  type Appointment,
   type DashboardDoctor,
   type Department,
   type Org,
+  type Visit,
 } from "./data"
-import { dayKey, firstName } from "./format"
-import { ArrowIcon, TicketIcon } from "./icons"
+import { dayKey, firstName, TOKEN_STATUS } from "./format"
+import h from "./History.module.css"
+import { ArrowIcon, PhoneOffIcon, TicketIcon } from "./icons"
 import { LiveNow, LiveNowSkeleton } from "./LiveNow"
-import { ClaimDialog, QuickActions } from "./QuickActions"
+import { ClaimButton, ClaimDialog, QuickActions } from "./QuickActions"
 import { TokenCard } from "./TokenCard"
 import t from "./TokenCard.module.css"
 import ui from "./ui.module.css"
@@ -45,6 +52,8 @@ export function Dashboard({ supabase, userId, fullName, org, now }: DashboardPro
   const token = userId ? loadActiveToken(supabase, userId) : Promise.resolve(null)
   const departments = loadDepartments(supabase)
   const doctors = loadDoctors(supabase, org.timeZone, now)
+  const appointments = userId ? loadAppointments(supabase, userId, org.timeZone, now) : Promise.resolve([])
+  const visits = userId ? loadRecentVisits(supabase, userId, org.timeZone) : Promise.resolve([])
 
   return (
     <div className={styles.page}>
@@ -98,6 +107,41 @@ export function Dashboard({ supabase, userId, fullName, org, now }: DashboardPro
             <DoctorsSlot doctors={doctors} />
           </Suspense>
         </section>
+
+        <section className={styles.wide} aria-labelledby="appointments-title">
+          <div className={ui.sectionHead}>
+            <AnimatedHeading as="h2" id="appointments-title" lead="Upcoming" accent="appointments" />
+          </div>
+          <div className={h.panel}>
+            <Suspense fallback={<RowsSkeleton label="Loading your appointments" />}>
+              <AppointmentsSlot appointments={appointments} />
+            </Suspense>
+          </div>
+        </section>
+
+        <section className={styles.narrow} aria-labelledby="visits-title">
+          <div className={ui.sectionHead}>
+            <AnimatedHeading as="h2" id="visits-title" lead="Recent" accent="visits" />
+          </div>
+          <div className={h.panel}>
+            <Suspense fallback={<RowsSkeleton label="Loading your visits" />}>
+              <VisitsSlot visits={visits} />
+            </Suspense>
+          </div>
+        </section>
+
+        <section className={`${styles.full} ${h.help}`} aria-labelledby="help-title">
+          <span className={h.helpIcon}>
+            <PhoneOffIcon size={30} />
+          </span>
+          <div className={h.helpText}>
+            <h2 id="help-title" className={h.helpTitle}>
+              At the hospital without a phone?
+            </h2>
+            <p className={h.helpBody}>Ask reception for a paper ticket and claim it here.</p>
+          </div>
+          <ClaimButton className={h.helpButton}>Claim a ticket</ClaimButton>
+        </section>
       </div>
 
       <ClaimDialog />
@@ -111,6 +155,61 @@ async function LiveSlot({ departments, day }: { departments: Promise<Department[
 
 async function DoctorsSlot({ doctors }: { doctors: Promise<DashboardDoctor[]> }) {
   return <DoctorActions doctors={await doctors} />
+}
+
+async function AppointmentsSlot({ appointments }: { appointments: Promise<Appointment[]> }) {
+  return <Appointments items={await appointments} />
+}
+
+async function VisitsSlot({ visits }: { visits: Promise<Visit[]> }) {
+  const rows = await visits
+  if (rows.length === 0) {
+    return (
+      <div className={h.empty}>
+        <span className={h.emptyIcon}>
+          <TicketIcon />
+        </span>
+        <p>No visits yet. Your tokens will show up here.</p>
+      </div>
+    )
+  }
+  return (
+    <ul className={h.list}>
+      {rows.map((v) => (
+        <li key={v.id}>
+          <Link href={`/t/${v.id}`} className={h.visit}>
+            <span className={h.code} translate="no">
+              {v.code}
+            </span>
+            <span className={h.primaryLine} translate="no">
+              {v.doctor ?? v.service}
+            </span>
+            <span className={h.visitDate}>
+              {v.doctor ? `${v.service}, ` : ""}
+              {v.date}
+            </span>
+            <span className={ui.chip} data-tone={TOKEN_STATUS[v.status].tone}>
+              {TOKEN_STATUS[v.status].label}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function RowsSkeleton({ label }: { label: string }) {
+  return (
+    <div role="status">
+      <span className={ui.srOnly}>{label}</span>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className={h.skelRow} aria-hidden="true">
+          <span className={`${ui.skel} ${h.skelTile}`} />
+          <span className={`${ui.skel} ${h.skelLines}`} />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 async function TokenSlot({ token }: { token: Promise<ActiveToken | null> }) {
