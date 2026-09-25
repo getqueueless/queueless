@@ -1,0 +1,336 @@
+.page {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: var(--color-canvas-soft);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+}
+
+.title {
+  margin: 0 0 var(--space-xs);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.subtitle {
+  margin: 0 0 var(--space-lg);
+  color: var(--color-ink-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.signInCta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.signInCta:hover {
+  background: var(--color-primary-hover);
+}
+
+/* Form */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-secondary);
+  padding: 0;
+}
+
+.serviceGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.serviceOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.serviceOption:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.serviceOption:has(input:focus-visible) {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.serviceName {
+  flex: 1;
+  font-size: 14px;
+}
+
+.serviceCode {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  color: var(--color-ink-muted);
+}
+
+.input {
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-hairline);
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-size: 14px;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+  border-color: var(--color-primary);
+}
+
+.errorSummary {
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: 14px;
+}
+
+.errorSummary:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.emptyState {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken, var(--color-canvas-soft));
+  color: var(--color-ink-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.submit {
+  min-height: 44px;
+  margin-top: var(--space-xs);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.submit:active:not(:disabled) {
+  background: var(--color-primary-press);
+}
+
+.submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.submit:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Issued token screen */
+
+.issued {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  text-align: center;
+}
+
+.issuedLabel {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink-secondary);
+}
+
+.tokenNumber {
+  margin: 0;
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 96px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  color: var(--color-ink);
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+.printSizeToggle {
+  display: flex;
+  gap: var(--space-md);
+  font-size: 13px;
+  color: var(--color-ink-secondary);
+}
+
+.printSizeOption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.secondaryLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  color: var(--color-ink-secondary);
+  font-size: 14px;
+}
+
+/* Printable slip -- rendered by the server-only TokenSlip component */
+
+.printArea {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.slip {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+}
+
+.slipService {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.slipNumber {
+  margin: 0;
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.slipMeta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+
+.slipQr {
+  margin: var(--space-xs) 0;
+}
+
+.slipQr :global(svg) {
+  display: block;
+  width: 160px;
+  height: 160px;
+}
+
+.slipHint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-ink-secondary);
+}
+
+.slipUrl {
+  margin: 0;
+  font-size: 10px;
+  color: var(--color-ink-muted);
+  word-break: break-all;
+}
+
+/* Print: only the slip survives, sized for a thermal roll by default --
+   IssuedTokenView swaps the `@page` rule to A4 for office printers. */
+@media print {
+  .noPrint {
+    display: none !important;
+  }
+
+  .page,
+  .issued {
+    padding: 0;
+    background: #fff;
+    max-width: none;
+  }
+
+  .slip {
+    border: none;
+    width: auto;
+  }
+}
