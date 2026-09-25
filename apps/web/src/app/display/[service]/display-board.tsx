@@ -136,13 +136,14 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   }
 
   const loadBoardService = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("board_services")
       .select("service_id, waiting_count, served_count, no_show_count, last_called_code, avg_service_secs")
       .eq("service_id", serviceId)
       .order("day", { ascending: false })
       .limit(1)
       .maybeSingle()
+    if (error) console.error("[display-board] board_services fetch failed", error)
     setBoard((data as BoardService | null) ?? null)
   }, [serviceId])
 
@@ -161,7 +162,8 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     if (counterIdsRef.current && counterIdsRef.current.length > 0) {
       query = query.in("counter_id", counterIdsRef.current)
     }
-    const { data } = await query
+    const { data, error } = await query
+    if (error) console.error("[display-board] board_counters fetch failed", error)
     const rows = (data as BoardCounter[] | null) ?? []
     setCounters(rows)
     for (const row of rows) {
@@ -228,6 +230,9 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
             .order("counter_name", { ascending: true }),
         ])
         if (cancelled) return
+        if (boardRes.error) console.error("[display-board] init board_services failed", boardRes.error)
+        if (csRes.error) console.error("[display-board] init counter_services failed", csRes.error)
+        if (countersRes.error) console.error("[display-board] init board_counters failed", countersRes.error)
         counterIdsRef.current =
           csRes.data && csRes.data.length > 0 ? csRes.data.map((r) => r.counter_id as string) : null
         setBoard((boardRes.data as BoardService | null) ?? null)
@@ -239,6 +244,8 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
         for (const row of rows) {
           if (row.token_code) announcedRef.current.set(row.counter_id, `${row.token_code}:${row.updated_at}`)
         }
+      } catch (err) {
+        console.error("[display-board] init threw", err)
       } finally {
         // Runs on success AND on a genuine fetch failure (confirmed live: this Promise.all
         // occasionally rejects/comes back empty under load, self-healing via the 10s poll
