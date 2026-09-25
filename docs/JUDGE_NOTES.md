@@ -1073,3 +1073,17 @@ under "Web app" above.
   each section into its own Suspense boundary, so the hero paints first and each section
   swaps a skeleton for real rows as its data lands. No new API, table or dependency: every
   number is read through helpers and database functions the rest of the app already uses.
+
+## Shared header and footer, and the not-found / error / loading states
+
+- **Header.** Every control is at least 48 px tall. "Get a token" now means the same thing
+  everywhere: sign in, then take one on your page (or go straight there when already signed in).
+  Signed-in visitors see their name, Dashboard and Sign out. Below 1024 px the links fold into a
+  menu button; the panel closes when you pick a link or press Escape, and focus goes back to the
+  button so keyboard users are not lost.
+- **Footer.** 48 px links, the live site and the public GitHub source under "Project", and a small
+  "Staff login" link. Staff and patients use the same sign-in card; the database role decides
+  where each lands, so the public footer no longer advertises the counter and admin screens.
+- **When things go wrong.** A branded "Page not found" with Back to home, a "Something went wrong"
+  card whose Try again re-fetches the page's data instead of just re-drawing it, and a skeleton
+  in the page's shape while a page loads (it stays still for people who turn motion off).
