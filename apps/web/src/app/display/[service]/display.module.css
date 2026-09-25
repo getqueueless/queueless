@@ -97,6 +97,58 @@
   outline-offset: -0.5em;
 }
 
+/* ---- Language selector: fixed kiosk control, sits under the unlock
+   overlay's z-index until sound is enabled. Pill group, same tile/line
+   tokens as the rest of the board -- no new colors. ---- */
+
+.langSelector {
+  position: fixed;
+  top: var(--b-gap);
+  right: var(--b-gap);
+  z-index: 40;
+  display: flex;
+  gap: 0.3em;
+  padding: 0.3em;
+  border: var(--b-rule) solid var(--b-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--b-tile);
+}
+
+.langButton {
+  min-width: 2.75em;
+  min-height: 2.75em;
+  padding: 0.4em 0.9em;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--b-muted);
+  font-family: var(--font-body);
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.langButton[aria-pressed="true"] {
+  background: var(--b-accent);
+  color: var(--b-on-accent);
+}
+
+.langButton:focus-visible {
+  outline: max(3px, 0.16vw) solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .langSelector {
+    top: calc(var(--b-gap) * 0.6);
+    right: calc(var(--b-gap) * 0.6);
+  }
+}
+
 /* ---- Header: brand, service name, day stats ---- */
 
 .header {
@@ -469,6 +521,69 @@
   50% {
     transform: scale(1.08);
   }
+}
+
+/* ---- Doctors: service-wide status strip, not tied to any one token (see
+   display-board.tsx's comment on why a token has no doctor to show). Same
+   status-pill colors as the counter tiles' own chips (top of this file),
+   reused for the four doctor_status_today values. ---- */
+
+.doctors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75em 1.5em;
+  padding-top: var(--b-gap);
+  border-top: var(--b-rule) solid var(--b-line);
+}
+
+.doctorList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  list-style: none;
+}
+
+.doctorChip {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.35em 0.9em;
+  border: var(--b-rule) solid var(--b-line-strong);
+  border-radius: var(--radius-pill);
+  font-size: 0.95em;
+}
+
+.doctorName {
+  font-weight: 700;
+  color: var(--b-ink);
+  white-space: nowrap;
+}
+
+.doctorStatus {
+  padding: 0.15em 0.7em;
+  border-radius: var(--radius-pill);
+  background-color: #0a1214;
+  color: #b8c6c9;
+  font-family: var(--font-body);
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.doctorChip[data-status="available"] .doctorStatus {
+  background-color: #0f2b21;
+  color: #4cbf8b;
+}
+
+.doctorChip[data-status="running_late"] .doctorStatus {
+  background-color: #2e2211;
+  color: #dba24d;
+}
+
+.doctorChip[data-status="off"] .doctorStatus {
+  background-color: #301715;
+  color: #e5766f;
 }
 
 @media (max-width: 640px) {

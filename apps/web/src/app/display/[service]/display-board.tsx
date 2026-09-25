@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { LogoMark } from "@/components/brand/Logo"
 import { createClient } from "@/lib/supabase/client"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
-import { announce, unlockSpeech } from "@/lib/speech/announce"
+import { announce, hasVoiceFor, unlockSpeech } from "@/lib/speech/announce"
+import { DOCTOR_STATUS_LABEL, listDoctorsForService, type Doctor } from "@/lib/doctors"
+import { fetchTranslation } from "./translate"
 import styles from "./display.module.css"
 
 // Real schema (supabase/migrations/0006_boards_notifications_audit.sql) -- these two
@@ -33,6 +35,18 @@ type BoardCounter = {
 }
 
 const supabase = createClient()
+
+// Announcement voice. "en" speaks the plain English string as before; "hi"/
+// "pa" are sent to POST /translate first (see ./translate.ts) and only used
+// if that succeeds AND the browser actually has a matching voice --
+// otherwise every path falls back to English, never silence.
+type Language = "en" | "hi" | "pa"
+const LANGUAGES: { value: Language; label: string }[] = [
+  { value: "en", label: "EN" },
+  { value: "hi", label: "HI" },
+  { value: "pa", label: "PA" },
+]
+const VOICE_TAG: Record<Language, string> = { en: "en-IN", hi: "hi-IN", pa: "pa-IN" }
 
 // ponytail: "next up" has no anon-safe source (tokens rows are patient-scoped by design --
 // see supabase/README.md's grant matrix -- and board_services only has a waiting COUNT, not
@@ -68,6 +82,10 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   const [board, setBoard] = useState<BoardService | null>(null)
   const [counters, setCounters] = useState<BoardCounter[]>([])
   const [soundEnabled, setSoundEnabled] = useState(false)
+  // Kiosk-local only: this is a fixed public screen, not a visitor's own
+  // device, so there is no per-viewer preference to remember across sessions.
+  const [language, setLanguage] = useState<Language>("en")
+  const [doctors, setDoctors] = useState<Doctor[]>([])
   const chimeRef = useRef<HTMLAudioElement | null>(null)
   // counter_id -> token_code already voiced, so a reconnect/unrelated update never repeats
   // (or, before sound is unlocked, never queues up) an announcement for an old call.
@@ -149,15 +167,57 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     }
   }, [serviceId])
 
-  function playThenAnnounce(text: string) {
+  // Doctor status strip. There is no doctor-per-token path in this schema
+  // (tokens has service_id + counter_id only, no doctor_id -- see
+  // supabase/migrations/0004_tokens.sql / 0003_services_counters.sql), so
+  // this is deliberately service-wide, not tied to any called token. Reuses
+  // the doctors/doctor_status_today read that already powers the booking UI
+  // (src/lib/doctors.ts) -- both are public-read.
+  // ponytail: plain 60s poll, not a realtime channel -- a doctor's status
+  // changes on its own clock (stepping out, coming back), not on every queue
+  // event, so a third resilient channel isn't worth it here. Upgrade if a
+  // status flip needs to show in under a minute.
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      listDoctorsForService(supabase, serviceId).then((rows) => {
+        if (!cancelled) setDoctors(rows)
+      })
+    }
+    load()
+    const id = setInterval(load, 60_000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [serviceId])
+
+  // Translate (if a non-English language is selected) then speak, in that
+  // order -- but this only ever runs after the board's own visual state is
+  // already updated (onCounterEvent calls loadCounters() first, synchronously,
+  // regardless of how this resolves). Any failure -- no API base configured,
+  // the request errors/times out, or the target language has no matching
+  // browser voice -- falls back to the plain English line rather than saying
+  // nothing.
+  async function resolveAnnouncement(englishText: string, lang: Language): Promise<{ text: string; tag: string }> {
+    if (lang === "en") return { text: englishText, tag: VOICE_TAG.en }
+    const translated = await fetchTranslation(englishText, lang)
+    if (translated && hasVoiceFor(VOICE_TAG[lang])) return { text: translated, tag: VOICE_TAG[lang] }
+    return { text: englishText, tag: VOICE_TAG.en }
+  }
+
+  function playThenAnnounce(englishText: string, lang: Language) {
+    const speak = () => {
+      resolveAnnouncement(englishText, lang).then(({ text, tag }) => announce(text, tag))
+    }
     const audio = chimeRef.current
     if (!audio) {
-      announce(text)
+      speak()
       return
     }
     audio.currentTime = 0
-    audio.onended = () => announce(text)
-    audio.play().catch(() => announce(text))
+    audio.onended = speak
+    audio.play().catch(speak)
   }
 
   const onCounterEvent = useCallback(
@@ -168,9 +228,9 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
       if (announcedRef.current.get(row.counter_id) === row.token_code) return
       announcedRef.current.set(row.counter_id, row.token_code)
       if (!soundEnabled || !serviceCode || !row.token_code.startsWith(`${serviceCode}-`)) return
-      playThenAnnounce(announcementText(row.token_code, row.counter_name))
+      playThenAnnounce(announcementText(row.token_code, row.counter_name), language)
     },
-    [loadCounters, soundEnabled, serviceCode],
+    [loadCounters, soundEnabled, serviceCode, language],
   )
 
   const onServiceEvent = useCallback(() => {
@@ -210,6 +270,23 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   return (
     <main className={styles.page} data-surface="slate">
       <audio ref={chimeRef} src="/sounds/chime.wav" preload="auto" />
+
+      {/* Fixed kiosk control, not a per-visitor preference -- sits behind the
+          unlock overlay (lower z-index) until sound is enabled, same as the
+          rest of the board. */}
+      <div className={styles.langSelector} role="group" aria-label="Announcement language">
+        {LANGUAGES.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={styles.langButton}
+            aria-pressed={language === option.value}
+            onClick={() => setLanguage(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
 
       {!soundEnabled && (
         <button type="button" className={styles.unlockOverlay} onClick={handleEnableSound}>
@@ -275,6 +352,22 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
               <li key={token}>{token}</li>
             ))}
           </ol>
+        </section>
+      )}
+
+      {/* Service-wide, not per-token: see the doctors effect above for why
+          a called token can't be tied to a specific doctor in this schema. */}
+      {doctors.length > 0 && (
+        <section className={styles.doctors} aria-labelledby="board-doctors">
+          <h2 id="board-doctors" className={styles.nextUpTitle}>Doctors</h2>
+          <ul className={styles.doctorList}>
+            {doctors.map((d) => (
+              <li key={d.id} className={styles.doctorChip} data-status={d.status}>
+                <span className={styles.doctorName} translate="no">{d.name}</span>
+                <span className={styles.doctorStatus}>{DOCTOR_STATUS_LABEL[d.status]}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
     </main>
