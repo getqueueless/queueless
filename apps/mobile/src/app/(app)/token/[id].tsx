@@ -15,6 +15,7 @@ import { formatFee } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
 import { markTokenPaid } from '@/lib/paid-tokens';
 import { supabase } from '@/lib/supabase';
+import { useServiceUpdates } from '@/lib/service-updates';
 import { useLiveRefresh } from '@/lib/use-live-refresh';
 
 // Client-only reassurance banner, no server backing: there's no "payment_pending"/hold state in
@@ -157,50 +158,29 @@ export default function TokenScreen() {
   }, [id, refetch]);
 
   // Realtime: refetch on any change to our own ticket, and — when we know which service this
-  // ticket belongs to — on any change to that service's board too, since other people's tickets
+  // ticket belongs to — on any change to that service's queue too, since other people's tickets
   // advancing ahead of us changes our position/eta without touching our own row.
   //
-  // The own-ticket half is the DB broadcast topic from docs/API_CONTRACT.md's "Realtime topics"
-  // (migration 0044), not `postgres_changes`: on this self-hosted stack the `supabase_realtime`
-  // publication has zero member tables, so a `postgres_changes` listener on `tokens` silently
-  // receives nothing — confirmed in that doc, not a guess. `token:<id>` is a public broadcast
-  // topic (no RLS needed) carrying a stripped-down payload; this screen already refetches the
-  // real row via `my_queue_status` on any ping, so the payload's own fields are unused here.
-  // `board_services` isn't part of that fix yet (still `postgres_changes`, still a no-op today —
-  // same doc), which is why `useLiveRefresh`'s 10s poll above is load-bearing, not just belts-
-  // and-suspenders.
+  // Both are the DB broadcast topics from docs/API_CONTRACT.md's "Realtime topics" (migration
+  // 0044), not `postgres_changes`: on this self-hosted stack the `supabase_realtime` publication
+  // has zero member tables, so a `postgres_changes` listener on `tokens`/`board_services` would
+  // silently receive nothing — confirmed in that doc, not a guess. `token:<id>` only fires for
+  // this ticket's own writes, which is why `service:<id>` (via the shared `useServiceUpdates`,
+  // already used by Home's LiveTokenHero/DepartmentGrid) is also needed for everyone else's.
   useEffect(() => {
     if (!id) return;
-
     const tokenChannel = supabase
       .channel(`token:${id}`)
-      .on('broadcast', { event: 'token_update' }, () => {
-        refetch();
-      })
+      .on('broadcast', { event: 'token_update' }, () => refetch())
       .subscribe((subStatus) => {
         if (subStatus === 'SUBSCRIBED') refetch();
       });
-
-    const boardChannel = serviceId
-      ? supabase
-          .channel(`board:${serviceId}`)
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'board_services', filter: `service_id=eq.${serviceId}` },
-            () => {
-              refetch();
-            },
-          )
-          .subscribe((subStatus) => {
-            if (subStatus === 'SUBSCRIBED') refetch();
-          })
-      : null;
-
     return () => {
       supabase.removeChannel(tokenChannel);
-      if (boardChannel) supabase.removeChannel(boardChannel);
     };
-  }, [id, serviceId, refetch]);
+  }, [id, refetch]);
+
+  useServiceUpdates(serviceId ? [serviceId] : [], refetch);
 
   // Realtime never replays missed events — also refetch whenever the app comes back to the
   // foreground in case something changed while backgrounded.

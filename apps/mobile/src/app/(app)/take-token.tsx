@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,21 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { estimateWaitSeconds } from '@/lib/predict';
-import { todayDateString } from '@/lib/service-day';
-import { supabase } from '@/lib/supabase';
-import { useLiveRefresh } from '@/lib/use-live-refresh';
-
-// Confirmed against supabase/migrations/0003_services_counters.sql and
-// 0006_boards_notifications_audit.sql (landed after this screen's first draft): `services` has
-// `default_service_secs`, not `avg_service_secs`. `board_services` is keyed by
-// `(service_id, day)` — must filter to today — and has `waiting_count`/`avg_service_secs`
-// (nullable until a service has served anyone today) but NO `open_counters` column at all;
-// that's computed client-side from `counter_services` joined to `counters.state`.
-type Service = { id: string; name: string; is_open: boolean; default_service_secs: number };
-type BoardServiceRow = { service_id: string; waiting_count: number; avg_service_secs: number | null };
-type BoardService = { waiting_count: number; avg_service_secs: number; open_counters: number };
-
-const EMPTY_BOARD_ROW: BoardService = { waiting_count: 0, avg_service_secs: 0, open_counters: 0 };
+import { useDepartmentBoard, type BoardService, type Service } from '@/lib/use-department-board';
 
 function formatWait(seconds: number): string {
   if (seconds <= 0) return 'No wait';
@@ -118,70 +104,14 @@ function ServiceCard({
 /**
  * The service picker shared by both "Take a token" and "Book appointment" on the Home hub —
  * `(app)/department/[serviceId].tsx` offers both a walk-in "Any available" token and a
- * per-doctor booking list from the same screen, so there's one picker, not two.
+ * per-doctor booking list from the same screen, so there's one picker, not two. Home's own
+ * "Departments" grid (DeptTile) uses the same `useDepartmentBoard` hook for its live waits;
+ * this is the fuller list view for the quick-action entry point.
  */
 export default function TakeToken() {
   const theme = useTheme();
   const router = useRouter();
-
-  const [services, setServices] = useState<Service[]>([]);
-  const [boardRows, setBoardRows] = useState<Record<string, BoardServiceRow>>({});
-  const [openCounters, setOpenCounters] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  // No realtime here: docs/API_CONTRACT.md's "Realtime topics" section confirms the self-hosted
-  // `supabase_realtime` publication has zero member tables, so a `postgres_changes` listener on
-  // `board_services` would silently receive nothing (a prior version of this screen carried one
-  // — it never fired). `board_services`/`board_counters` aren't covered by that migration's
-  // broadcast fix either (tokens only), so `useLiveRefresh`'s refetch-on-focus + 10s poll below
-  // is the actual live-update mechanism here, not a fallback on top of one.
-  const load = useCallback(async () => {
-    const today = todayDateString();
-    try {
-      const [servicesRes, boardRes, counterRes] = await Promise.all([
-        supabase.from('services').select('*').eq('is_open', true),
-        supabase.from('board_services').select('service_id, waiting_count, avg_service_secs').eq('day', today),
-        // No `open_counters` column exists anywhere — derive it from which counters serving
-        // each service are currently open. Refreshed on load/reconnect, not on every
-        // waiting_count tick (counters opening/closing is rare by comparison).
-        supabase.from('counter_services').select('service_id, counters(state)'),
-      ]);
-      if (servicesRes.error) throw servicesRes.error;
-      if (boardRes.error) throw boardRes.error;
-      if (counterRes.error) throw counterRes.error;
-
-      const nextBoardRows: Record<string, BoardServiceRow> = {};
-      for (const row of (boardRes.data ?? []) as BoardServiceRow[]) {
-        nextBoardRows[row.service_id] = row;
-      }
-
-      // Without generated Database types, supabase-js can't tell this embed is many-to-one
-      // (counter_services.counter_id -> counters.id) — it infers `counters` as an array even
-      // though PostgREST returns a single object at runtime. Handle both shapes defensively.
-      const nextOpenCounters: Record<string, number> = {};
-      for (const row of (counterRes.data ?? []) as unknown as {
-        service_id: string;
-        counters: { state: string } | { state: string }[] | null;
-      }[]) {
-        const counter = Array.isArray(row.counters) ? row.counters[0] : row.counters;
-        if (counter?.state === 'open') {
-          nextOpenCounters[row.service_id] = (nextOpenCounters[row.service_id] ?? 0) + 1;
-        }
-      }
-
-      setServices((servicesRes.data ?? []) as Service[]);
-      setBoardRows(nextBoardRows);
-      setOpenCounters(nextOpenCounters);
-      setLoadError(null);
-    } catch {
-      setLoadError("Couldn't load services right now — check your connection and try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useLiveRefresh(load, 10_000);
+  const { services, board, loading, loadError } = useDepartmentBoard();
 
   return (
     <ThemedView type="canvas" style={styles.container}>
@@ -221,11 +151,7 @@ export default function TakeToken() {
                 key={service.id}
                 service={service}
                 index={index}
-                boardRow={{
-                  waiting_count: boardRows[service.id]?.waiting_count ?? EMPTY_BOARD_ROW.waiting_count,
-                  avg_service_secs: boardRows[service.id]?.avg_service_secs ?? service.default_service_secs,
-                  open_counters: openCounters[service.id] ?? EMPTY_BOARD_ROW.open_counters,
-                }}
+                boardRow={board[service.id] ?? { waiting_count: 0, avg_service_secs: service.default_service_secs, open_counters: 0 }}
                 onPress={() => router.push({ pathname: '/(app)/department/[serviceId]', params: { serviceId: service.id } })}
               />
             ))}
