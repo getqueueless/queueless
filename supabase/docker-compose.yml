@@ -132,6 +132,7 @@ services:
       RUN_JANITOR: "true"
       DISABLE_HEALTHCHECK_LOGGING: "true"
       TENANT_MAX_EVENTS_PER_SECOND: 1000   # default 100: postgres_changes silently dropped during the 200-token burst
+      TENANT_MAX_CONCURRENT_USERS: 2000    # default 200: would cap concurrent TV/counter/patient sockets on a real OPD day
 
   db:
     container_name: supabase-db
