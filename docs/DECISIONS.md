@@ -59,3 +59,12 @@ One line per deviation from the plan/spec, with why.
   the automatic housekeeping job on a timer, never by staff action) and no `transfer_token`
   (moving a ticket to a different desk isn't in the spec). `call_next` and `recall_token` do
   match. Flagging this now since it's a real integration break, not a documentation gap.
+- 2026-09-25: Email OTP's confirmation email uses the built-in GoTrue body template with the
+  code only in the subject line, not a custom HTML body. `GOTRUE_MAILER_TEMPLATES_CONFIRMATION`
+  is always fetched over HTTP (confirmed in GoTrue's templatemailer source) -- there's no way to
+  inline literal HTML there, and this stack has no static file host to serve a custom template
+  from. Adding one is a separate, larger task if a fully custom body ever matters.
+- 2026-09-25: `GOTRUE_MAILER_AUTOCONFIRM` default flipped from a hardcoded `"true"` to
+  `${MAILER_AUTOCONFIRM:-false}` so the VPS (real SMTP configured) actually requires the emailed
+  code. Local `.env` must set `MAILER_AUTOCONFIRM=true` (added to `.env` and `.env.example`) or
+  local signups will hang unconfirmed against the noop mailer.
