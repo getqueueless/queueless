@@ -12,14 +12,17 @@ select id as org_id from public.organizations where slug = 'city-hospital' \gset
 -- handle_new_user() (0002) only fills it from signup metadata, which these admin-API-created
 -- accounts never carry, so without this every staff/admin list shows "Unnamed staff"/"No name
 -- set" for the whole demo.
-update public.profiles set role = 'admin', org_id = :'org_id', full_name = coalesce(full_name, 'Anjali Verma')
+-- Names match what's live on prod (set directly there by the orchestrator, since this fix
+-- landed after those accounts already existed with a null full_name) -- kept in sync here so a
+-- full db wipe reproduces the same identities instead of drifting to different placeholders.
+update public.profiles set role = 'admin', org_id = :'org_id', full_name = coalesce(full_name, 'Anita Verma')
   where id = (select id from auth.users where email = 'admin@lpu.lol') and role <> 'admin';
 
 update public.profiles set role = 'staff', org_id = :'org_id', full_name = coalesce(profiles.full_name, v.name)
   from (values
-    ('counter1@lpu.lol', 'Priya Sharma'),
-    ('counter2@lpu.lol', 'Ramesh Gupta'),
-    ('counter3@lpu.lol', 'Sunita Rao')
+    ('counter1@lpu.lol', 'Rohan Mehta'),
+    ('counter2@lpu.lol', 'Priya Nair'),
+    ('counter3@lpu.lol', 'Karan Gill')
   ) as v(email, name)
   where profiles.id = (select id from auth.users where email = v.email) and profiles.role <> 'staff';
 
