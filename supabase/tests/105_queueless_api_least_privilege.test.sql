@@ -11,7 +11,8 @@ select set_eq(
        and has_any_column_privilege('queueless_api', c.oid, 'SELECT') $$,
   array[
     'private.token_notifications', 'public.board_services', 'public.notifications',
-    'public.profiles', 'public.push_tokens', 'public.services', 'public.tokens'
+    'public.ops_summaries', 'public.profiles', 'public.push_tokens', 'public.services',
+    'public.tokens'
   ],
   'queueless_api can read exactly these tables and nothing else'
 );
@@ -21,12 +22,16 @@ select set_eq(
        and has_column_privilege('queueless_api', attrelid, attnum, 'UPDATE') $$,
   array['pushed_at'], 'pushed_at is the only notifications column queueless_api can update'
 );
--- 0029's per-schema default-privilege revoke is a no-op in Postgres, so every new function needs its own revoke
-select is_empty(
+-- 0029's per-schema default-privilege revoke is a no-op in Postgres, so every new function needs its own revoke.
+-- private.write_audit is the one deliberate door (0036): queueless_api logs its own actions into
+-- audit_log through it, with no raw table grant on audit_log itself. analytics.* functions (0033)
+-- live in their own schema and are covered separately in tests/110.
+select set_eq(
   $$ select p.oid::regprocedure::text from pg_proc p
      where p.pronamespace in ('public'::regnamespace, 'private'::regnamespace)
        and has_function_privilege('queueless_api', p.oid, 'EXECUTE') $$,
-  'queueless_api can execute no function in public or private'
+  array['private.write_audit(uuid,text,uuid,text,jsonb,jsonb)'],
+  'queueless_api can execute exactly one function in public or private: private.write_audit'
 );
 select is(has_schema_privilege('queueless_api', 'auth', 'usage'), false, 'queueless_api has no usage on schema auth');
 select trigger_is(
