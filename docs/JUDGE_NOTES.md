@@ -830,3 +830,25 @@ under "Web app" above.
   counter, staff-role, priority and doctor edits; cash walk-in and reports; AI questions and the
   daily summary). Test edits were reverted; one ₹0 test receipt stays because the ledger is
   append-only by design.
+
+## App motion: theme switch and letter-by-letter titles (mobile)
+
+- **What it is.** The phone app has the same sliding theme switch as the website: a pill whose
+  white knob slides across, stretches a little mid-way, fades the track from grey through
+  lavender to violet, and swaps a sun for a moon inside the knob. It sits in Settings and next to
+  the title on the patient home and staff home. Those titles (and the staff "Waiting" and
+  "Verify priority" section titles) now appear letter by letter, each letter fading up and
+  settling into place 30 ms after the one before, once when the screen opens.
+- **How it works.** Both are built on Reanimated, which the app already had: each animation is a
+  single number running from 0 to 1 on the phone's UI thread, and every moving part (knob
+  position, stretch, track colour, each letter) is computed from it, so the motion stays smooth
+  even while the rest of the app re-colours. The theme choice (system, light or dark) lives in
+  one small store saved on the device; the switch, the Settings buttons and every screen read
+  from it, so changing it in one place updates and animates everything at once.
+- **Accessibility.** The switch is announced as a switch with its on/off state, and screen readers
+  hear each title as one heading rather than separate letters. If the phone's Reduce Motion
+  setting is on, the switch jumps and the titles simply appear.
+- **Why this way.** No new dependency (no blur library: fading, sliding and shrinking stand in for
+  motion blur), and the colours and timings are copied from the web version so both feel like
+  one product.
+

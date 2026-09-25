@@ -101,6 +101,21 @@ consistency there.
   which word(s) render in `primaryDisplay`, e.g. `<TwoToneHeading text="OUR MEDICAL SERVICES" accent="SERVICES" />`.
   Mirrors index.html:127's `Book <span style="color:#0cb7d6">Appointment</span>` pattern, reused
   as a component instead of hand-splitting `<Text>` runs on every screen.
+- **`AnimatedHeading`** (`src/components/AnimatedHeading.tsx`) — the same two-tone heading (second
+  word cyan unless `accent` names others), with each letter fading in, rising and scaling
+  0.96 → 1 on a 30 ms stagger, once on mount. `size="display"` (26–34, scales with window width,
+  `ink` + `primaryDisplay`) for screen titles, `size="section"` (15–18, `inkSecondary` +
+  `primaryText`) for the small titles above cards. Tracking −0.02em. Screen readers get the full
+  text as one header; the letters are `aria-hidden`. Reduce Motion shows it static. Used on the
+  patient home and staff (Counter) home titles.
+- **`ThemeToggle`** (`src/components/ThemeToggle.tsx`) — the web switch (apps/web
+  `components/theme/ThemeToggle`) in Reanimated, at 60×30 with a 24px white raised knob. Light:
+  knob left, track `#D9DDDA`, grey sun `#5b615d`. Dark: knob right, track `#7B3FE4`, violet moon.
+  600 ms `cubic-bezier(0.65, 0, 0.35, 1)`: the knob slides and stretches to 1.15× mid-way, the
+  track fades through `#B9A3F0`, and the outgoing icon leaves in the direction of travel as the
+  new one enters, clipped to the knob (opacity and scale stand in for blur; no expo-blur). These
+  violets live only in this component. `accessibilityRole="switch"` + `aria-checked`; Reduce
+  Motion snaps. In the Settings Appearance card and in both home headers.
 - **Numbered card** — a large faint `primaryDisplay`-tinted number (`01`–`04` style, style.css's
   `.number_text`/`.care_text` pattern from index.html:221-241), a heading, a short line. Used for
   Home's service list — the pattern, not the literal MedWin icon set. At 18% opacity the number is
@@ -123,9 +138,10 @@ using the scales that already exist.
 
 ## Dark-mode preference
 
-`useTheme()` resolves a `"system" | "light" | "dark"` preference (default `"system"`) stored under
+`useColorScheme()` (`src/hooks/use-color-scheme.ts`, and its `.web.ts` twin) resolves a `"system" | "light" | "dark"` preference (default `"system"`) stored under
 key `queueless-theme-preference` in `localStorage`. On native, that global comes from
 `src/lib/storage-polyfill.ts` (expo-sqlite), the same one the Supabase client uses. On web it is
 the browser's own, and during static rendering, where there is none, the preference falls back to
-`"system"`. No new persistence dependency. `"system"` resolves via
-`useColorScheme()` exactly as before.
+`"system"`. No new persistence dependency. `"system"` falls through to the OS scheme, and
+`useTheme()` picks its palette from the resolved value. The value is read from storage once and
+kept in memory; Settings' segments and every `ThemeToggle` subscribe to the same store.
