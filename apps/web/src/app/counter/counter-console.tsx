@@ -231,9 +231,11 @@ export function CounterConsole({
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Counter</p>
-          <h1 className={styles.counterName}>{counter.name}</h1>
+        <div className={styles.identity}>
+          <h1 className={styles.counterName}>
+            <span className={styles.counterKind}>Counter</span>{" "}
+            <span translate="no">{counter.name}</span>
+          </h1>
           <p className={styles.serviceLabel}>{serviceLabel}</p>
         </div>
         <div className={styles.staffBadge}>
@@ -244,16 +246,6 @@ export function CounterConsole({
         </div>
       </header>
 
-      {banner && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={banner.kind === "error" ? styles.bannerError : styles.bannerInfo}
-        >
-          {banner.text}
-        </div>
-      )}
-
       {!current ? (
         <div className={styles.idle}>
           <button
@@ -261,6 +253,7 @@ export function CounterConsole({
             className={styles.callNextButton}
             onClick={() => void callNext()}
             disabled={pending}
+            aria-keyshortcuts="N"
           >
             {pending ? "Calling…" : "Call Next"}
           </button>
@@ -273,13 +266,15 @@ export function CounterConsole({
           <span className={styles.laneBadge} data-lane={current.lane}>
             {LANE_LABELS[current.lane]}
           </span>
-          <p className={styles.tokenCode}>{current.code}</p>
+          <p className={styles.tokenCode} translate="no">
+            {current.code}
+          </p>
           <p className={styles.tokenMeta}>
             {current.walk_in_label ?? "Registered patient"} · #{current.number}
             {current.recall_count > 0 ? ` · recalled ${current.recall_count}×` : ""}
           </p>
-          <p className={styles.timer} aria-label="Time since this token was called">
-            {elapsedLabel}
+          <p className={styles.timer}>
+            Called <span className={styles.timerValue}>{elapsedLabel}</span> ago
           </p>
 
           <div className={styles.actions}>
@@ -288,43 +283,44 @@ export function CounterConsole({
               className={styles.actionPrimary}
               onClick={() => void markDone()}
               disabled={pending}
+              aria-keyshortcuts="D"
             >
-              Done <kbd className={styles.kbd}>D</kbd>
+              Done <kbd className={styles.kbd} aria-hidden="true">D</kbd>
             </button>
             <button
               type="button"
-              className={styles.actionDanger}
+              className={styles.actionSecondary}
               onClick={() => void skip()}
               disabled={pending}
+              aria-keyshortcuts="S"
             >
-              Skip <kbd className={styles.kbd}>S</kbd>
+              Skip <kbd className={styles.kbd} aria-hidden="true">S</kbd>
             </button>
             <button
               type="button"
               className={styles.actionSecondary}
               onClick={() => void recall()}
               disabled={pending}
+              aria-keyshortcuts="R"
             >
-              Recall <kbd className={styles.kbd}>R</kbd>
+              Recall <kbd className={styles.kbd} aria-hidden="true">R</kbd>
             </button>
           </div>
         </div>
       )}
 
-      <footer className={styles.shortcuts}>
-        <span>
-          <kbd className={styles.kbd}>N</kbd> Call next
-        </span>
-        <span>
-          <kbd className={styles.kbd}>D</kbd> Done
-        </span>
-        <span>
-          <kbd className={styles.kbd}>S</kbd> Skip
-        </span>
-        <span>
-          <kbd className={styles.kbd}>R</kbd> Recall
-        </span>
-      </footer>
+      {/* Messages sit under the card so they never push the buttons down
+          mid-click. The status region stays mounted so screen readers announce
+          each new message; errors mount their own role="alert", which is
+          announced on insertion. */}
+      {banner?.kind === "error" && (
+        <p role="alert" className={styles.bannerError}>
+          {banner.text}
+        </p>
+      )}
+      <div role="status" className={styles.statusSlot}>
+        {banner?.kind === "info" && <p className={styles.bannerInfo}>{banner.text}</p>}
+      </div>
     </div>
   )
 }

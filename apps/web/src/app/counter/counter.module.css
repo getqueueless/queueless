@@ -1,7 +1,12 @@
 /* Counter console: the staff register of the MedWin look (see DESIGN.md).
    Slate app bar with the mark, flat hairline cards on canvas-soft, Inter for
    UI text, Poppins only for the desk name, JetBrains Mono for token numbers.
-   Every colour is a globals.css token; no local palette. */
+   Every colour is a globals.css token; no local palette.
+
+   One cyan edge on the whole screen: the current-token card, because that
+   card is the token. The dashed rule above its buttons is the tear line of
+   the printed kiosk slip. Nothing else here carries the accent except the
+   primary action fill. */
 
 .page {
   flex: 1 0 auto;
@@ -10,12 +15,34 @@
   background: var(--color-canvas-soft);
 }
 
-/* ---- App bar: slate in both themes, cyan rule on top (MedWin's top strip). */
+/* ---- App bar: slate in both themes. */
 
 .topbar {
+  position: relative;
   background: var(--color-slate);
   color: var(--color-on-slate);
-  border-top: 3px solid var(--color-accent);
+}
+
+/* Same treatment as the admin skip link: it lands on slate, so cyan fill
+   (5.63:1 against slate) with ink text and an inset ink ring. */
+.skipLink {
+  position: absolute;
+  top: -100%;
+  left: var(--space-sm);
+  z-index: 100;
+  padding: 10px var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: var(--shadow-raised);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.skipLink:focus-visible {
+  top: var(--space-xs);
+  outline: 2px solid var(--color-on-accent);
+  outline-offset: -4px;
 }
 
 .topbarInner {
@@ -61,68 +88,68 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--space-md);
+  gap: var(--space-sm) var(--space-md);
   flex-wrap: wrap;
 }
 
-.eyebrow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  margin: 0 0 var(--space-xxs);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-ink-muted);
+.identity {
+  min-width: 0;
 }
 
-/* MedWin's cyan-dot heading marker, at staff scale. */
-.eyebrow::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-accent);
-}
-
+/* display-md, sentence case. "Counter" drops to Poppins 400 so the desk name
+   carries the weight; no eyebrow, no second colour. */
 .counterName {
   font-family: var(--font-display);
   font-size: 30px;
   font-weight: 700;
   line-height: 1.2;
   color: var(--color-ink);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.counterKind {
+  font-weight: 400;
+  color: var(--color-ink-secondary);
 }
 
 .serviceLabel {
   margin-top: var(--space-xxs);
   font-size: 14px;
+  line-height: 1.5;
   color: var(--color-ink-secondary);
 }
 
 .staffBadge {
+  margin-left: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: var(--space-xs);
+  min-width: 0;
 }
 
 .staffName {
+  max-width: 100%;
   font-size: 13px;
+  line-height: 1.45;
   color: var(--color-ink-secondary);
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
-/* ---- Pills: counter state + lane. A currentColor dot carries the colour. */
+/* ---- Chips: counter state + lane. Pill, caption type, and a currentColor
+   dot that marks a real state, per the status-badge spec. */
 
 .stateBadge,
 .laneBadge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
+  padding: 2px 10px;
   border-radius: var(--radius-pill);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.35;
   letter-spacing: 0.1px;
   background: var(--color-surface-sunken);
@@ -136,6 +163,7 @@
 .stateBadge::before,
 .laneBadge::before {
   content: "";
+  flex: none;
   width: 6px;
   height: 6px;
   border-radius: var(--radius-pill);
@@ -165,45 +193,33 @@
   color: var(--color-primary);
 }
 
-/* ---- Banners (role="status") */
-
-.bannerError,
-.bannerInfo {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-md);
-  border-left: 3px solid currentColor;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.45;
-}
-
-.bannerError {
-  background: var(--color-danger-soft);
-  color: var(--color-danger);
-}
-
-.bannerInfo {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-}
-
-/* ---- Cards: idle (Call Next) and the current token. Flat, hairline, with a
-   4px cyan rule across the top as the one accent. */
+/* ---- Cards. Idle is a plain staff card; the current token is the token
+   tile (radius-xl) with the cyan leading edge. */
 
 .idle,
 .tokenCard {
   position: relative;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   background: var(--color-surface);
   border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-xl);
   text-align: center;
 }
 
-.idle::before,
+.idle {
+  gap: var(--space-md);
+  padding: var(--space-xxl) var(--space-lg);
+  border-radius: var(--radius-lg);
+}
+
+.tokenCard {
+  overflow: hidden;
+  gap: var(--space-xs);
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  border-radius: var(--radius-xl);
+}
+
 .tokenCard::before {
   content: "";
   position: absolute;
@@ -212,33 +228,27 @@
   background: var(--color-accent);
 }
 
-.idle {
-  gap: var(--space-md);
-  padding: var(--space-xxl) var(--space-lg);
-}
-
-.tokenCard {
-  gap: var(--space-xs);
-  padding: var(--space-xl) var(--space-xl) var(--space-lg);
-}
-
-/* ---- Buttons. Solid cyan with ink label for the primary action (Call Next,
-   Done); outlined for Skip and Recall. */
+/* ---- Buttons. Cyan fill with ink label for the primary action (Call Next,
+   Done); ink on a hairline-strong outline for Skip and Recall. Skip is a
+   routine action, so it gets no danger colour. */
 
 .callNextButton,
 .actionPrimary,
-.actionSecondary,
-.actionDanger {
+.actionSecondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
+  border-radius: var(--radius-md);
   font-family: var(--font-body);
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
+    background-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .callNextButton,
@@ -254,26 +264,65 @@
   background: var(--color-accent-hover);
 }
 
+.actionSecondary {
+  border: 1px solid var(--color-hairline-strong);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.actionSecondary:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-primary);
+}
+
+/* Pressed: a 1px push, plus an inset shade on the fills. */
+.callNextButton:active:not(:disabled),
+.actionPrimary:active:not(:disabled),
+.actionSecondary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
 .callNextButton:active:not(:disabled),
 .actionPrimary:active:not(:disabled) {
   box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.14);
 }
 
+.actionSecondary:active:not(:disabled) {
+  background: var(--color-surface-sunken);
+}
+
+/* Buttons are only disabled while a request is in flight. */
+.callNextButton:disabled,
+.actionPrimary:disabled,
+.actionSecondary:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.callNextButton:focus-visible,
+.actionPrimary:focus-visible,
+.actionSecondary:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+
 .callNextButton {
-  min-height: 96px;
   width: 100%;
   max-width: 420px;
-  border-radius: var(--radius-lg);
+  min-height: 96px;
+  padding: 0 var(--space-lg);
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.2px;
-  box-shadow: 0 12px 28px -14px rgba(12, 183, 214, 0.75);
 }
 
 .idleHint {
   font-size: 13px;
+  line-height: 1.45;
   color: var(--color-ink-muted);
 }
+
+/* ---- Current token */
 
 .tokenCode {
   margin-top: var(--space-xs);
@@ -284,85 +333,54 @@
   letter-spacing: -0.5px;
   line-height: 1;
   color: var(--color-ink);
+  overflow-wrap: anywhere;
 }
 
 .tokenMeta {
   font-size: 14px;
+  line-height: 1.5;
   color: var(--color-ink-secondary);
+  overflow-wrap: anywhere;
 }
 
+/* "Called 01:21 ago": a quiet label around a mono readout, so the number is
+   what the eye lands on. */
 .timer {
   margin-top: var(--space-xxs);
-  padding: 4px 14px;
+  padding: var(--space-xxs) var(--space-sm);
   border-radius: var(--radius-pill);
   background: var(--color-surface-sunken);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--color-ink-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-ink-muted);
 }
 
+.timerValue {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+/* Done gets the wide cell: it is the click that ends almost every call. */
 .actions {
+  width: 100%;
   margin-top: var(--space-md);
   padding-top: var(--space-lg);
-  border-top: 1px solid var(--color-hairline);
-  width: 100%;
+  border-top: 1px dashed var(--color-hairline-strong);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 2fr 1fr 1fr;
   gap: var(--space-sm);
 }
 
 .actionPrimary,
-.actionSecondary,
-.actionDanger {
+.actionSecondary {
   min-height: 48px;
   padding: 0 var(--space-md);
-  border-radius: var(--radius-md);
   font-size: 15px;
   font-weight: 600;
-}
-
-.actionSecondary,
-.actionDanger {
-  border: 1px solid var(--color-hairline-strong);
-  background: var(--color-surface);
-}
-
-.actionSecondary {
-  color: var(--color-ink);
-}
-
-.actionSecondary:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-primary);
-}
-
-.actionDanger {
-  color: var(--color-danger);
-}
-
-.actionDanger:hover:not(:disabled) {
-  border-color: var(--color-danger);
-  background: var(--color-danger-soft);
-}
-
-.callNextButton:disabled,
-.actionPrimary:disabled,
-.actionSecondary:disabled,
-.actionDanger:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.callNextButton:focus-visible,
-.actionPrimary:focus-visible,
-.actionSecondary:focus-visible,
-.actionDanger:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 3px;
+  white-space: nowrap;
 }
 
 /* ---- Keycaps */
@@ -393,20 +411,32 @@
   color: inherit;
 }
 
-.shortcuts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs) var(--space-lg);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--color-hairline);
-  font-size: 13px;
-  color: var(--color-ink-muted);
+/* ---- Messages, under the card. No coloured side bar: a soft fill and a
+   1px border in the message's own colour. */
+
+.bannerError,
+.bannerInfo {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
-.shortcuts span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
+.bannerError {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.bannerInfo {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+/* The always-mounted live region takes no room while it is empty. */
+.statusSlot:empty {
+  margin-top: calc(-1 * var(--space-lg));
 }
 
 /* ---- No desk assigned */
@@ -442,15 +472,20 @@
   font-weight: 700;
   line-height: 1.25;
   color: var(--color-ink);
+  text-wrap: balance;
 }
 
 .emptyBody {
+  max-width: 40ch;
   color: var(--color-ink-secondary);
   font-size: 14px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
-/* ---- Phones */
+/* ---- Phones: Done takes its own full-width row, Skip and Recall share the
+   next one. */
 
 @media (max-width: 560px) {
   .topbarInner,
@@ -468,13 +503,12 @@
   }
 
   .actions {
+    grid-template-columns: 1fr 1fr;
     gap: var(--space-xs);
   }
 
-  .actionPrimary,
-  .actionSecondary,
-  .actionDanger {
-    padding: 0 var(--space-xs);
+  .actionPrimary {
+    grid-column: 1 / -1;
   }
 }
 
@@ -488,8 +522,13 @@
 @media (prefers-reduced-motion: reduce) {
   .callNextButton,
   .actionPrimary,
-  .actionSecondary,
-  .actionDanger {
+  .actionSecondary {
     transition: none;
+  }
+
+  .callNextButton:active:not(:disabled),
+  .actionPrimary:active:not(:disabled),
+  .actionSecondary:active:not(:disabled) {
+    transform: none;
   }
 }

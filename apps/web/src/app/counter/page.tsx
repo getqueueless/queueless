@@ -15,11 +15,15 @@ export const metadata: Metadata = {
 const TOKEN_COLUMNS =
   "id, org_id, service_id, service_day, number, code, lane, status, patient_id, walk_in_label, counter_id, recall_count, called_at, serving_at"
 
-// Slate app bar shared by the console and the no-desk state: the brand mark,
-// the screen name and the theme toggle.
+// Slate app bar shared by the console and the no-desk state: skip link, the
+// brand mark, the screen name and the theme toggle. data-surface="slate" opts
+// it into the on-slate focus ring once globals.css carries that rule.
 function CounterTopBar() {
   return (
-    <header className={styles.topbar}>
+    <header className={styles.topbar} data-surface="slate">
+      <a href="#main" className={styles.skipLink}>
+        Skip to console
+      </a>
       <div className={styles.topbarInner}>
         <Logo size={22} />
         <span className={styles.topbarDivider} aria-hidden="true" />
@@ -83,7 +87,7 @@ export default async function CounterPage() {
             </span>
             <h1 className={styles.emptyTitle}>No counter assigned</h1>
             <p className={styles.emptyBody}>
-              Your account ({profile.full_name ?? user.email}) isn&apos;t linked to a desk yet.
+              Your account ({profile.full_name ?? user.email}) isn’t linked to a desk yet.
               Ask an admin to assign you a counter.
             </p>
           </div>
