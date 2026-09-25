@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { Redirect, Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
@@ -24,6 +25,7 @@ type NotificationRow = {
   id: string;
   title: string;
   body: string;
+  kind: string;
   token_id: string | null;
   read_at: string | null;
 };
@@ -48,6 +50,9 @@ export default function AppLayout() {
     if (row.read_at) return;
     setBanner(row);
     showLocalNotification(row.title, row.body).catch(() => {});
+    // A called ticket is the one moment worth reaching for the phone over -- a stronger,
+    // distinct buzz on top of the banner/local notification, not for every notification kind.
+    if (row.kind === 'called') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   }, []);
 
   const refetch = useCallback(async () => {
@@ -55,7 +60,7 @@ export default function AppLayout() {
     // Realtime never replays missed events — refetch the latest unread row on (re)connect/foreground.
     const { data } = await supabase
       .from('notifications')
-      .select('id, title, body, token_id, read_at')
+      .select('id, title, body, kind, token_id, read_at')
       .eq('patient_id', userId)
       .is('read_at', null)
       .order('id', { ascending: false })

@@ -142,6 +142,17 @@ export default function CompleteProfile() {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <ThemedView type="surface" style={[styles.card, { borderColor: theme.hairline }, CardShadow]}>
+            {isEditing ? (
+              // This route has no native header and no swipe-back gesture (it's also the
+              // mandatory first-run screen, which must trap the patient until the profile is
+              // real) -- editing an already-complete profile needs its own way out, or iOS
+              // traps the patient here with no back button at all.
+              <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backLink}>
+                <ThemedText type="button" themeColor="primaryText">
+                  ‹ Back
+                </ThemedText>
+              </Pressable>
+            ) : null}
             <ThemedText type="displayMd">{isEditing ? 'My profile' : 'Complete your profile'}</ThemedText>
             <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
               {isEditing
@@ -304,6 +315,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xxs,
   },
   subtitle: { marginBottom: Spacing.sm },
+  backLink: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginBottom: Spacing.xxs },
   label: { marginTop: Spacing.md, marginBottom: Spacing.xxs },
   input: {
     borderWidth: 1,
