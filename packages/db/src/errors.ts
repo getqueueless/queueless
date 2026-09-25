@@ -25,6 +25,9 @@ export type ErrorCode =
   | "invalid_language"
   | "too_many_attempts"
   | "claim_failed"
+  | "too_many_holds"
+  | "payment_required"
+  | "time_clash"
   | "PGRST003"
   | "PGRST202"
   | "network_error";
@@ -62,6 +65,9 @@ export const ERRORS: Record<ErrorCode, ErrorInfo> = {
   invalid_language: { http: 400, message: "That language isn't supported", retryable: false },
   too_many_attempts: { http: 429, message: "Too many failed attempts, try again in an hour", retryable: true },
   claim_failed: { http: 404, message: "We couldn't match that ticket to your phone number", retryable: false },
+  too_many_holds: { http: 409, message: "You already have 2 unpaid bookings", retryable: false },
+  payment_required: { http: 402, message: "This booking needs payment -- use Book & pay", retryable: false },
+  time_clash: { http: 409, message: "You already have a booking at that time", retryable: false },
   PGRST003: { http: 504, message: "Busy, try again", retryable: true },
   PGRST202: { http: 404, message: "Server updating, retry shortly", retryable: true },
   network_error: { http: 0, message: "Couldn't reach the server", retryable: true },

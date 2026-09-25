@@ -69,11 +69,14 @@ export default function Department() {
 
     if (error && (error.code === 'already_active' || error.message === 'already_active')) {
       try {
-        const raw = (error as { details?: string }).details;
-        const details = typeof raw === 'string' ? JSON.parse(raw) : null;
-        if (details?.id) {
+        // supabase-js hands back jsonb `details` already parsed into an object -- not the JSON
+        // string this used to assume -- and issue_token's own payload key is `token_id`, not
+        // `id` (json_build_object('token_id', v_existing.id, 'code', ...), migration 0037).
+        const raw = (error as { details?: unknown }).details;
+        const details = (typeof raw === 'string' ? JSON.parse(raw) : raw) as { token_id?: string } | null;
+        if (details?.token_id) {
           setTakingToken(false);
-          router.push({ pathname: '/(app)/token/[id]', params: { id: details.id, serviceId } });
+          router.push({ pathname: '/(app)/token/[id]', params: { id: details.token_id, serviceId } });
           return;
         }
       } catch {

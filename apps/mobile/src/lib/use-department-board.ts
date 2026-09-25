@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 
 import { useLiveRefresh } from '@/lib/use-live-refresh';
+import { hospitalOrgId } from '@/lib/hospital-org';
 import { estimateWaitSeconds } from '@/lib/predict';
 import { useServiceUpdates } from '@/lib/service-updates';
 import { todayDateString } from '@/lib/service-day';
@@ -40,8 +41,10 @@ export function useDepartmentBoard() {
   const refetch = useCallback(async () => {
     const today = todayDateString();
     try {
+      const orgId = await hospitalOrgId();
+      const servicesQuery = supabase.from('services').select('*').eq('is_open', true);
       const [servicesRes, boardRes, counterRes] = await Promise.all([
-        supabase.from('services').select('*').eq('is_open', true),
+        orgId ? servicesQuery.eq('org_id', orgId) : servicesQuery,
         supabase.from('board_services').select('service_id, waiting_count, avg_service_secs').eq('day', today),
         // No `open_counters` column exists anywhere -- derive it from which counters serving
         // each service are currently open.

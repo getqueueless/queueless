@@ -59,6 +59,10 @@ export default function DoctorDetail() {
       ]);
 
       if (slotsRes.error) throw slotsRes.error;
+      if (!doctorRow) {
+        setLoadError('Doctor not found.');
+        return;
+      }
       setDoctor(doctorRow);
       setSlots((slotsRes.data ?? []) as Slot[]);
       setMyAppointments((apptRes.data ?? []) as Appointment[]);
@@ -80,13 +84,20 @@ export default function DoctorDetail() {
     return myAppointments.find((a) => a.slot_id === slot.id);
   }
 
+  // No free booking path: migration 0068 makes book_appointment 402 payment_required for a
+  // patient caller -- every slot now goes through start_paid_appointment's paid hold, same as
+  // the top "Take token" button's start_paid_booking, just scoped to one specific slot.
   async function handleBook(slot: Slot) {
     setActionError(null);
     setPendingId(slot.id);
-    const { error } = await supabase.rpc('book_appointment', { p_slot: slot.id });
-    if (error) setActionError(mapSupabaseError({ code: error.code, message: error.message }));
-    await load();
+    const { data, error } = await supabase.rpc('start_paid_appointment', { p_slot: slot.id }).single();
     setPendingId(null);
+    if (error) {
+      setActionError(mapSupabaseError({ code: error.code, message: error.message }));
+      return;
+    }
+    const hold = data as { id: string } | null;
+    if (hold?.id) router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: hold.id } });
   }
 
   // Book & pay: skips the slot list entirely -- a token minted right now, paid online, no
@@ -179,7 +190,7 @@ export default function DoctorDetail() {
                   <ActivityIndicator color={theme.onPrimary} />
                 ) : (
                   <ThemedText type="button" themeColor="onPrimary">
-                    Book & pay
+                    Take token · {formatFee(doctor.fee_inr)}
                   </ThemedText>
                 )}
               </Pressable>
@@ -248,7 +259,7 @@ export default function DoctorDetail() {
                         <ActivityIndicator color={theme.onPrimary} />
                       ) : (
                         <ThemedText type="button" themeColor="onPrimary">
-                          Book
+                          Book · {formatFee(doctor.fee_inr)}
                         </ThemedText>
                       )}
                     </Pressable>

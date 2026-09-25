@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { hospitalOrgId } from '@/lib/hospital-org';
 import { todayDateString } from '@/lib/service-day';
 
 export type DoctorStatusValue = 'available' | 'running_late' | 'on_break' | 'off';
@@ -122,9 +123,11 @@ export type DoctorWithService = DoctorWithStatus & { serviceName: string };
 export async function fetchAllDoctors(): Promise<DoctorWithService[]> {
   const today = todayDateString();
   const weekday = todayWeekday();
+  const orgId = await hospitalOrgId();
+  const doctorsQuery = supabase.from('doctors').select('*').eq('active', true);
 
   const [doctorsRes, servicesRes, statusRes, schedulesRes, leavesRes] = await Promise.all([
-    supabase.from('doctors').select('*').eq('active', true),
+    orgId ? doctorsQuery.eq('org_id', orgId) : doctorsQuery,
     supabase.from('services').select('id, name'),
     supabase.from('doctor_status_today').select('doctor_id, status, late_minutes'),
     supabase.from('doctor_schedules').select('doctor_id, weekday, start_time, end_time').eq('weekday', weekday),
