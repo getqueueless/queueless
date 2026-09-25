@@ -927,3 +927,24 @@ under "Web app" above.
 - **iOS builds no longer get lost.** Several people push at once, and GitHub's concurrency
   setting silently cancelled every waiting build. Builds now wait their turn in order; one that
   reaches its turn while a newer one is waiting skips itself, so the newest code always ships.
+
+## Live queue tracker on the phone (token screen)
+
+- **What it is.** The app's ticket screen now shows the same tracker as the website: a ring that
+  fills as your estimated wait runs down, a row of dots (one per person ahead of you, you in cyan,
+  the counter at the end), a five-step bar (Booked, Waiting, You're next, Called, Done) and the
+  number being served right now.
+- **How it moves.** Nothing moves on a timer. When the real queue changes (the screen already
+  refreshes on every database change, on focus and every 10 seconds), the front dot slides off
+  toward the counter and everyone behind springs forward one place; if a priority patient is
+  inserted ahead of you, a dot drops in at the front with a note saying so. The ring measures
+  against the first estimate this phone saw for the ticket, so it can honestly move backwards
+  after a priority arrival.
+- **Accessibility.** Every stage change is read out by the phone's screen reader, the ring and
+  the dots each have a plain sentence ("4 people ahead of you in the General OPD queue, then
+  Counter 3"), and with Reduce Motion on everything shows the same states without movement.
+- **Why this way.** The stage rules are a copy of the website's, with the same test, so a ticket
+  never shows one stage on the web and another in the app. No new library was added: the ring is
+  built from two rotating half-circles because the app has no SVG library, and the icons come
+  from the symbol set the app already ships.
+

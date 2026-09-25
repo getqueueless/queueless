@@ -116,6 +116,16 @@ consistency there.
   new one enters, clipped to the knob (opacity and scale stand in for blur; no expo-blur). These
   violets live only in this component. `accessibilityRole="switch"` + `aria-checked`; Reduce
   Motion snaps. In the Settings Appearance card and in both home headers.
+- **`QueueTracker`** (`src/components/motion/QueueTracker.tsx`) — the token screen's live tracker,
+  apps/web's `/t/[id]` tracker in Reanimated, rendered only from props (no clock of its own). An ETA
+  ring (`primary` arc on a `hairline` track, drawn as two clipped half-rings because
+  react-native-svg is not installed), a queue lane (one `inkMuted` dot per person ahead up to 8,
+  then `+N`, you in `primary` with a halo, the counter chip at the right; dots spring forward on a
+  call and drop in with "Priority patient added"), the five-stage bar (Booked, Waiting, You're
+  next, Called or With the doctor, Done; skipped/no-show/cancelled grey out and end in `danger`),
+  and the now-serving line. Stage icons are expo-symbols (SF Symbols on iOS, Material Symbols on
+  Android and web). The status mapping lives in `queue-lane.ts`, a copy of the web file with its
+  node test. The halo gap is `canvasSoft`, the token screen's background.
 - **Numbered card** — a large faint `primaryDisplay`-tinted number (`01`–`04` style, style.css's
   `.number_text`/`.care_text` pattern from index.html:221-241), a heading, a short line. Used for
   Home's service list — the pattern, not the literal MedWin icon set. At 18% opacity the number is
