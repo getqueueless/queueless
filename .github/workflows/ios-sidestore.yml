@@ -12,7 +12,12 @@ on:
     paths:
       - "apps/mobile/**"
       - ".github/workflows/ios-sidestore.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Build even if a newer run is queued (release candidates / final cut)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -64,7 +69,7 @@ jobs:
 
   build:
     needs: wait-turn
-    if: needs.wait-turn.outputs.newest == 'true'
+    if: needs.wait-turn.outputs.newest == 'true' || inputs.force
     runs-on: macos-latest
     timeout-minutes: 40
     # Job-level, not on the prebuild step: Metro inlines EXPO_PUBLIC_* while xcodebuild's
