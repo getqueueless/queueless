@@ -9,7 +9,7 @@ from app.ai_ask import answer_question
 from app.auth import AuthedProfile, AuthedUser, require_org_role, require_role
 from app.rate_limit import limiter
 from app.summary import run_daily_summary
-from app.translate import translate_text
+from app.translate import SUPPORTED_LANGUAGES, translate_text
 
 router = APIRouter()
 
@@ -57,6 +57,9 @@ class TranslateIn(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
 
     text: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
+    # Must match app.translate.SUPPORTED_LANGUAGES' keys -- pydantic Literal
+    # can't reference that dict directly at class-definition time, so this
+    # is the one place the language set has to be kept in sync by hand.
     target_lang: Literal["hi", "pa"]
 
 
@@ -149,7 +152,7 @@ async def admin_summary_get(
         raise HTTPException(status_code=404, detail="no summary for that day")
 
     report = row["report"]
-    if lang in ("hi", "pa"):
+    if lang in SUPPORTED_LANGUAGES:
         settings = request.app.state.settings
         report = await translate_text(
             request.app.state.deepseek_client, settings.deepseek_model,

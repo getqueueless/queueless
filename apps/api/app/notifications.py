@@ -14,7 +14,7 @@ from exponent_server_sdk import (
 from app.config import Settings
 from app.db import get_direct_connection
 from app.metrics import queue_depth
-from app.translate import TranslateDeps, translate_text
+from app.translate import SUPPORTED_LANGUAGES, TranslateDeps, translate_text
 
 log = structlog.get_logger()
 
@@ -94,7 +94,7 @@ async def deliver_notification(
 
     if translate_deps is not None:
         language = await _patient_language(pool, patient_id)
-        if language in ("hi", "pa"):
+        if language in SUPPORTED_LANGUAGES:
             if title:
                 title = await translate_text(
                     translate_deps.client, translate_deps.model, translate_deps.max_tokens,
