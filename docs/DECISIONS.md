@@ -563,3 +563,19 @@ One line per deviation from the plan/spec, with why.
   real. Whoever owns those files should add a `pending_payment` case (or exclude it upstream)
   before it's hit for real; `counter/types.ts`'s own use (`ACTIVE_TOKEN_STATUSES`, a plain array,
   not a full lookup) looked lower-risk on a quick check but wasn't traced further.
+- 2026-09-26 (mobile, staff/admin pass): **returning users get no email code.** GoTrue only sets
+  a code subject for the *confirmation* template (`GOTRUE_MAILER_SUBJECTS_CONFIRMATION` in
+  `supabase/docker-compose.yml`). A user who already exists gets the *magic link* template
+  instead: subject "Your sign-in link", a link, no 6-digit code, so the app's code screen can never
+  complete for them. Confirmed with a real inbox on 2026-09-26. Fix is server-side (not mobile's
+  dirs): add `GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "{{ .Token }} is your Queueless code"` and
+  redeploy auth. No app change needed; `verifyOtp({ type: 'email' })` accepts that code.
+- 2026-09-26 (mobile): staff/admin skip the patient profile form after email-code or Google
+  sign-in. The form asks for phone/DOB/city for booking, and prod staff accounts have no name.
+- 2026-09-26 (mobile): creating a staff *account* stays web-only. `apps/web`'s
+  `/api/admin/staff` needs the service-role key and authenticates by Next cookie session, so the
+  phone can't call it. Mobile covers the rest: list members, promote an existing user, change a
+  role, demote to patient.
+- 2026-09-26 (mobile): live staff/admin screens poll every 15 s plus refetch on focus
+  (`use-live-refresh.ts`). Switch to the DB broadcast topics once `docs/API_CONTRACT.md` lists
+  them; none are documented yet.

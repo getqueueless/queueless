@@ -807,3 +807,26 @@ under "Web app" above.
   opacity and filter, with React only flipping an attribute. Measured in Chromium: a steady
   60 fps through the hero animation, one layout per word flip, zero console errors. No
   dependency added.
+
+## Mobile staff and admin tools (2026-09-26)
+
+- **Doctors.** Admins manage doctors from the phone: details, fee, department, active/inactive,
+  today's status (available, running late by N minutes, on break, off), weekly shifts with
+  capacity and slot length, breaks, and leave dates. Every write is one of the database's own
+  `admin_*` functions, so the same org and role checks guard the phone, the web and the API.
+- **Cash desk.** Staff register a walk-in who pays at the counter in one step: the database mints
+  the ticket and writes a numbered receipt in the same transaction, and the amount defaults to the
+  doctor's fee. The screen shows the staff member's own receipts and total for today. Receipts are
+  append-only; nothing on the phone edits one.
+- **Cash report.** Admins see cash collected today, over 7 days or over 30 days, grouped by staff
+  member and by doctor.
+- **Always current.** Counter, dashboard and every admin list reload when opened and every 15
+  seconds while open, on top of realtime updates, so a missed realtime event never leaves a stale
+  queue on screen.
+- **Sign out anywhere.** Staff and admins can sign out from the Counter, the Cash desk and every
+  admin screen, not only from Settings.
+- **Verified against production.** Each staff and admin action was run against the live database
+  with the QA accounts (counter call, recall, serve, complete, skip, priority check; service,
+  counter, staff-role, priority and doctor edits; cash walk-in and reports; AI questions and the
+  daily summary). Test edits were reverted; one ₹0 test receipt stays because the ledger is
+  append-only by design.
