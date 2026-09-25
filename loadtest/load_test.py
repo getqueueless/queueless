@@ -32,6 +32,7 @@ import sys
 import time
 import uuid
 
+import asyncpg
 import httpx
 import jwt
 
@@ -42,8 +43,7 @@ ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
 SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 JWT_SECRET = os.environ["SUPABASE_JWT_SECRET"]
 
-N_LOW = int(os.environ.get("LOADTEST_N_LOW", "200"))
-N_HIGH = int(os.environ.get("LOADTEST_N_HIGH", "1000"))
+WAVES = [int(x) for x in os.environ.get("LOADTEST_WAVES", "100,200,500,1000").split(",")]
 # Setup (user creation + profile completion) isn't the measured part --
 # found live against prod: firing 300 GoTrue admin/users POSTs at once
 # exhausted GoTrue's own DB pool ("couldn't start a new transaction:
@@ -51,6 +51,17 @@ N_HIGH = int(os.environ.get("LOADTEST_N_HIGH", "1000"))
 # call_next phase below stays at full concurrency.
 SETUP_CONCURRENCY = int(os.environ.get("LOADTEST_SETUP_CONCURRENCY", "8"))
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
+# Early-stop thresholds -- no point burning through the rest of an
+# escalating wave list once one wave already shows real trouble.
+MAX_ERROR_RATE = 0.05
+MAX_P95_MS = 10_000
+# Optional: a raw-Postgres burst that proves DB-level concurrency
+# correctness without Kong/PostgREST/GoTrue in the path at all. Skipped
+# (with a clear note) if not set, same convention as every other optional
+# piece in this script.
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+DB_BURST_SIZE = int(os.environ.get("LOADTEST_DB_BURST_SIZE", "1000"))
+DB_BURST_POOL_SIZE = int(os.environ.get("LOADTEST_DB_BURST_POOL_SIZE", "20"))
 
 ORG_SLUG = "loadtest-org"
 SERVICE_HEADERS = {"apikey": SERVICE_ROLE_KEY, "Authorization": f"Bearer {SERVICE_ROLE_KEY}"}
@@ -251,8 +262,10 @@ async def issue_token_once(client: httpx.AsyncClient, jwt_token: str, service_id
 
 
 async def run_issue_token_wave(jwts: list[str], service_id: str, concurrency_label: str) -> dict:
+    started = time.monotonic()
     async with httpx.AsyncClient(timeout=30.0) as client:
         results = await asyncio.gather(*(issue_token_once(client, j, service_id) for j in jwts))
+    wall_seconds = time.monotonic() - started
 
     successes = [r for r in results if r[0]]
     failures = [r for r in results if not r[0]]
@@ -268,6 +281,7 @@ async def run_issue_token_wave(jwts: list[str], service_id: str, concurrency_lab
             "failed": len(failures),
             "error_rate": round(len(failures) / len(jwts), 4) if jwts else 0.0,
             "duplicate_numbers": dupes,
+            "tokens_per_sec": round(len(successes) / wall_seconds, 2) if wall_seconds > 0 else 0.0,
         }
     )
     return summary
@@ -316,6 +330,64 @@ async def run_call_next_race(staff_jwt: str, counter_ids: list[str], max_calls_p
     }
 
 
+async def issue_token_via_db(pool: asyncpg.Pool, patient_id: str, service_id: str) -> tuple[bool, float, dict | None]:
+    """Calls issue_token() the same way PostgREST would internally --
+    auth.uid() is `select coalesce(current_setting('request.jwt.claim.sub',
+    true), ...)::uuid` (confirmed live against the real function
+    definition), so set_config'ing that GUC per-transaction is what makes
+    the SECURITY DEFINER RPC see this specific patient's identity, with no
+    Kong/PostgREST/GoTrue anywhere in the path -- a real proof that DB-
+    level concurrency (the advisory lock + unique constraints, not HTTP
+    connection handling) is what actually gates this correctly."""
+    started = time.monotonic()
+    try:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute("SELECT set_config('request.jwt.claim.sub', $1, true)", patient_id)
+                row = await conn.fetchrow("SELECT * FROM issue_token($1)", uuid.UUID(service_id))
+        latency_ms = (time.monotonic() - started) * 1000
+        return True, latency_ms, dict(row) if row else None
+    except Exception as exc:  # noqa: BLE001 - a real DB error (lock timeout, constraint) is a normal outcome here
+        latency_ms = (time.monotonic() - started) * 1000
+        return False, latency_ms, {"error": str(exc)}
+
+
+async def run_db_level_burst(patient_ids: list[str], service_id: str) -> dict:
+    """1000 concurrent logical issue_token calls, but the DB connection
+    POOL (not HTTP) is the real limiting resource -- DB_BURST_POOL_SIZE
+    real connections serve DB_BURST_SIZE concurrent asyncio tasks, each
+    awaiting pool.acquire() until one frees up. Keeps pool usage sane on a
+    shared prod Postgres while still proving 1000-wide logical concurrency
+    at the database layer."""
+    pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=DB_BURST_POOL_SIZE)
+    try:
+        started = time.monotonic()
+        results = await asyncio.gather(*(issue_token_via_db(pool, pid, service_id) for pid in patient_ids))
+        wall_seconds = time.monotonic() - started
+    finally:
+        await pool.close()
+
+    successes = [r for r in results if r[0]]
+    failures = [r for r in results if not r[0]]
+    numbers = [r[2]["number"] for r in successes if r[2] and "number" in r[2]]
+    dupes = find_duplicates(numbers)
+
+    summary = summarize_latencies([r[1] for r in results])
+    summary.update(
+        {
+            "wave": "db_level_burst",
+            "pool_size": DB_BURST_POOL_SIZE,
+            "requested": len(patient_ids),
+            "succeeded": len(successes),
+            "failed": len(failures),
+            "error_rate": round(len(failures) / len(patient_ids), 4) if patient_ids else 0.0,
+            "duplicate_numbers": dupes,
+            "tokens_per_sec": round(len(successes) / wall_seconds, 2) if wall_seconds > 0 else 0.0,
+        }
+    )
+    return summary
+
+
 async def cleanup(client: httpx.AsyncClient, org_id: str | None, user_ids: list[str]) -> None:
     """Order matters -- found live: profiles -> tokens has no cascade
     either (no cascade on tokens_patient_id_fkey), so deleting a patient's
@@ -348,7 +420,8 @@ async def cleanup(client: httpx.AsyncClient, org_id: str | None, user_ids: list[
 
 
 async def main() -> int:
-    total_patients = N_LOW + N_HIGH
+    db_burst_enabled = bool(DATABASE_URL)
+    total_patients = sum(WAVES) + (DB_BURST_SIZE if db_burst_enabled else 0)
     org_id = None
     all_user_ids: list[str] = []
 
@@ -389,14 +462,40 @@ async def main() -> int:
         # real already_active 409 (one active ticket per service), which is
         # correct RPC behavior, not something a load test should trip over.
         # Sliced off however many patients actually made it through setup,
-        # not blindly assumed to be exactly N_LOW/N_HIGH.
-        actual_low = min(N_LOW, len(jwts))
-        low_jwts, high_jwts = jwts[:actual_low], jwts[actual_low:actual_low + N_HIGH]
-        for wave_jwts, label in ((low_jwts, f"{N_LOW}_concurrent"), (high_jwts, f"{N_HIGH}_concurrent")):
-            print(f"Firing {len(wave_jwts)} concurrent issue_token calls...")
+        # not blindly assumed every wave got its full requested size.
+        offset = 0
+        for wave_size in WAVES:
+            wave_jwts = jwts[offset:offset + wave_size]
+            offset += wave_size
+            if not wave_jwts:
+                print(f"WARNING: skipping {wave_size}_concurrent -- no patients left after earlier failures")
+                continue
+            label = f"{wave_size}_concurrent"
+            print(f"Firing {len(wave_jwts)} concurrent issue_token calls ({label})...")
             wave = await run_issue_token_wave(wave_jwts, service_id, label)
             report["waves"].append(wave)
             print(json.dumps(wave, indent=2))
+            if wave["error_rate"] > MAX_ERROR_RATE or wave["p95_ms"] > MAX_P95_MS:
+                print(
+                    f"STOPPING further waves: {label} error_rate={wave['error_rate']} "
+                    f"(max {MAX_ERROR_RATE}) p95_ms={wave['p95_ms']} (max {MAX_P95_MS})"
+                )
+                break
+
+        if db_burst_enabled:
+            db_burst_ids = ready_ids[offset:offset + DB_BURST_SIZE]
+            if db_burst_ids:
+                print(
+                    f"Firing {len(db_burst_ids)} concurrent issue_token calls straight against "
+                    f"Postgres (pool size {DB_BURST_POOL_SIZE}, no Kong/PostgREST/GoTrue)..."
+                )
+                db_burst = await run_db_level_burst(db_burst_ids, service_id)
+                report["db_level_burst"] = db_burst
+                print(json.dumps(db_burst, indent=2))
+            else:
+                print("WARNING: skipping db_level_burst -- no patients left after earlier failures")
+        else:
+            print("DATABASE_URL not set -- skipping the DB-level burst (HTTP waves above still ran)")
 
         print("Racing 2 parallel call_next loops...")
         race = await run_call_next_race(staff_jwt, counter_ids, max_calls_per_loop=total_patients)
@@ -411,6 +510,9 @@ async def main() -> int:
             if wave["duplicate_numbers"]:
                 print(f"FAIL: duplicate token numbers in {wave['wave']}: {wave['duplicate_numbers']}")
                 ok = False
+        if report.get("db_level_burst", {}).get("duplicate_numbers"):
+            print(f"FAIL: duplicate token numbers in db_level_burst: {report['db_level_burst']['duplicate_numbers']}")
+            ok = False
         if report.get("call_next_race", {}).get("double_calls"):
             print(f"FAIL: double-called tokens: {report['call_next_race']['double_calls']}")
             ok = False
