@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { type Href, useRouter } from 'expo-router';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StateCard } from '@/components/admin/state-card';
@@ -90,7 +91,17 @@ function buildHourBuckets(tokens: TokenRow[]): HourBucket[] {
     });
 }
 
+// Every admin sub-screen hangs off this list — the stack has no other way in.
+const MANAGE_LINKS: { href: string; label: string; hint: string }[] = [
+  { href: '/admin/services', label: 'Services', hint: 'Open, close, timings' },
+  { href: '/admin/counters', label: 'Counters', hint: 'Names, state, services served' },
+  { href: '/admin/staff', label: 'Staff', hint: 'Roles for your team' },
+  { href: '/admin/priority', label: 'Priority', hint: 'Head start for priority lanes' },
+  { href: '/admin/ai', label: 'Ask your data', hint: 'Questions and the daily summary' },
+];
+
 export default function AdminDashboard() {
+  const router = useRouter();
   const theme = useTheme();
   const { session } = useSession();
   const { orgId, loading: roleLoading } = useRole(session?.user?.id);
@@ -230,11 +241,34 @@ export default function AdminDashboard() {
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView contentContainerStyle={styles.scroll}>
+          <ThemedText type="headingMd" themeColor="inkSecondary">
+            Manage
+          </ThemedText>
+          <ThemedView type="surface" style={[styles.listCard, CardShadow, { borderColor: theme.hairline }]}>
+            {MANAGE_LINKS.map((link, i) => (
+              <Pressable
+                key={link.href}
+                onPress={() => router.push(link.href as Href)}
+                accessibilityRole="link"
+                style={[styles.counterRow, i > 0 && { borderTopWidth: 1, borderColor: theme.hairline }]}>
+                <View>
+                  <ThemedText type="bodyLg">{link.label}</ThemedText>
+                  <ThemedText type="caption" themeColor="inkMuted">
+                    {link.hint}
+                  </ThemedText>
+                </View>
+                <ThemedText type="bodyLg" themeColor="inkMuted">
+                  ›
+                </ThemedText>
+              </Pressable>
+            ))}
+          </ThemedView>
+
           {loadError ? (
             <StateCard kind="error" message={loadError} />
           ) : (
             <>
-              <ThemedText type="headingMd" themeColor="inkSecondary">
+              <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
                 Today
               </ThemedText>
               {services.length === 0 ? (
