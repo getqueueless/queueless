@@ -389,6 +389,13 @@
   content: "Cancelled";
 }
 
+/* QA P1: an open counter that has never had a token yet today (no data-status at all --
+   see the base .counterTile::after rule above, `content: none`) rendered no chip and a
+   blank token number: looked indistinguishable from broken. Says so plainly instead. */
+.counterTile[data-state="open"]:not([data-status])::after {
+  content: "Open, waiting for next";
+}
+
 /* A paused or closed counter says so, token or not. */
 .counterTile[data-state="paused"]::after {
   content: "Paused";

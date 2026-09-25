@@ -82,6 +82,13 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   const [serviceCode, setServiceCode] = useState<string | null>(null)
   const [board, setBoard] = useState<BoardService | null>(null)
   const [counters, setCounters] = useState<BoardCounter[]>([])
+  // QA P1: the empty-counters message and the "still fetching for the first time" state
+  // are different things, but `counters.length === 0` was used for both -- an initial
+  // fetch that's simply slow, or a transient failure (confirmed live: repeated loads of
+  // the SAME already-populated service intermittently render fully blank, self-healing
+  // within the 10s poll), rendered the same "No counters open yet." as a real empty
+  // board. Gates that message on having completed the first load at all.
+  const [loaded, setLoaded] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(false)
   // Kiosk-local only: this is a fixed public screen, not a visitor's own
   // device, so there is no per-viewer preference to remember across sessions.
@@ -205,31 +212,39 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   useEffect(() => {
     let cancelled = false
     async function init() {
-      const [boardRes, csRes, countersRes] = await Promise.all([
-        supabase
-          .from("board_services")
-          .select("service_id, waiting_count, served_count, no_show_count, last_called_code, avg_service_secs")
-          .eq("service_id", serviceId)
-          .order("day", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase.from("counter_services").select("counter_id").eq("service_id", serviceId),
-        supabase
-          .from("board_counters")
-          .select("counter_id, counter_name, state, token_code, token_status, updated_at")
-          .order("counter_name", { ascending: true }),
-      ])
-      if (cancelled) return
-      counterIdsRef.current =
-        csRes.data && csRes.data.length > 0 ? csRes.data.map((r) => r.counter_id as string) : null
-      setBoard((boardRes.data as BoardService | null) ?? null)
-      const allRows = (countersRes.data as BoardCounter[] | null) ?? []
-      const rows = counterIdsRef.current
-        ? allRows.filter((r) => counterIdsRef.current!.includes(r.counter_id))
-        : allRows
-      setCounters(rows)
-      for (const row of rows) {
-        if (row.token_code) announcedRef.current.set(row.counter_id, `${row.token_code}:${row.updated_at}`)
+      try {
+        const [boardRes, csRes, countersRes] = await Promise.all([
+          supabase
+            .from("board_services")
+            .select("service_id, waiting_count, served_count, no_show_count, last_called_code, avg_service_secs")
+            .eq("service_id", serviceId)
+            .order("day", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase.from("counter_services").select("counter_id").eq("service_id", serviceId),
+          supabase
+            .from("board_counters")
+            .select("counter_id, counter_name, state, token_code, token_status, updated_at")
+            .order("counter_name", { ascending: true }),
+        ])
+        if (cancelled) return
+        counterIdsRef.current =
+          csRes.data && csRes.data.length > 0 ? csRes.data.map((r) => r.counter_id as string) : null
+        setBoard((boardRes.data as BoardService | null) ?? null)
+        const allRows = (countersRes.data as BoardCounter[] | null) ?? []
+        const rows = counterIdsRef.current
+          ? allRows.filter((r) => counterIdsRef.current!.includes(r.counter_id))
+          : allRows
+        setCounters(rows)
+        for (const row of rows) {
+          if (row.token_code) announcedRef.current.set(row.counter_id, `${row.token_code}:${row.updated_at}`)
+        }
+      } finally {
+        // Runs on success AND on a genuine fetch failure (confirmed live: this Promise.all
+        // occasionally rejects/comes back empty under load, self-healing via the 10s poll
+        // below) -- either way, the first load attempt is done, so it's safe to let the
+        // empty-state message render its real answer instead of staying suppressed forever.
+        if (!cancelled) setLoaded(true)
       }
     }
     init()
@@ -372,7 +387,7 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
 
       <section className={styles.counters} aria-labelledby="board-now-serving" aria-live="polite">
         <h2 id="board-now-serving" className={styles.sectionTitle}>Now serving</h2>
-        {sortedCounters.length === 0 && <p className={styles.empty}>No counters open yet.</p>}
+        {loaded && sortedCounters.length === 0 && <p className={styles.empty}>No counters open yet.</p>}
         {/* Token first in mono, then the counter in sentence-case Poppins, so
             "OPD-014" never reads against a same-shaped "OPD-1" above it. The key
             carries the token so each new call remounts the tile and replays the
