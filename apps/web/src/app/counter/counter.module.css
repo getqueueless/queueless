@@ -3,9 +3,9 @@
    doesn't add global tokens on behalf of the whole app -- see DESIGN.md for
    the source values. */
 .shell {
-  --success: #1c8a5c;
+  --success: #197c53;
   --success-soft: #e3f4ea;
-  --warning: #a9660c;
+  --warning: #9e5f0b;
   --warning-soft: #faf0dd;
   --radius-xl: 16px;
   --token-font: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;

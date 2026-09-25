@@ -2,9 +2,9 @@
    surface-sunken, xl radius/spacing, the monospace token-number type) --
    scoped to .page only so this doesn't touch the shared stylesheet. */
 .page {
-  --success: #1c8a5c;
+  --success: #197c53;
   --success-soft: #e3f4ea;
-  --warning: #a9660c;
+  --warning: #9e5f0b;
   --surface-sunken: #eef0f3;
   --radius-xl: 16px;
   --space-xxl: 48px;

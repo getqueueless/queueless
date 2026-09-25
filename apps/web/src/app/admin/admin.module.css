@@ -3,9 +3,9 @@
    dashboard needs for stat deltas and badges, without touching the shared
    globals.css file another agent may be editing concurrently. */
 .root {
-  --color-success: #1c8a5c;
+  --color-success: #197c53;
   --color-success-soft: #e3f4ea;
-  --color-warning: #a9660c;
+  --color-warning: #9e5f0b;
   --color-warning-soft: #faf0dd;
   --color-canvas-soft: #f6f7f9;
   min-height: 100vh;
