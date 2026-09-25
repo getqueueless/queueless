@@ -2,8 +2,10 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 
 const KEY = 'queueless-theme-preference';
 const listeners = new Set<() => void>();
+// Read storage once: useColorScheme asks on every render of every themed component.
+let cached: ThemePreference | null = null;
 
-export function getThemePreference(): ThemePreference {
+function read(): ThemePreference {
   try {
     const value = localStorage.getItem(KEY);
     if (value === 'light' || value === 'dark' || value === 'system') return value;
@@ -13,7 +15,12 @@ export function getThemePreference(): ThemePreference {
   return 'system';
 }
 
+export function getThemePreference(): ThemePreference {
+  return (cached ??= read());
+}
+
 export function setThemePreference(preference: ThemePreference): void {
+  cached = preference;
   try {
     localStorage.setItem(KEY, preference);
   } catch {
