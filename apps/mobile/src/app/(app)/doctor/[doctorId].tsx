@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -37,7 +37,7 @@ export default function DoctorDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  async function load() {
     if (!doctorId) return;
     try {
       const { data: auth } = await supabase.auth.getSession();
@@ -64,12 +64,15 @@ export default function DoctorDetail() {
     } catch {
       setLoadError("Couldn't load this doctor's slots right now — check your connection and try again.");
     }
-  }, [doctorId]);
+  }
 
   useEffect(() => {
     if (!ready) return;
-    load();
-  }, [ready, load]);
+    (async () => {
+      await load();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load() is redefined every render from doctorId (already listed) plus stable setters; adding it here would re-run the effect every render.
+  }, [ready, doctorId]);
 
   function findMine(slot: Slot) {
     return myAppointments.find((a) => a.slot_id === slot.id);

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -59,7 +59,7 @@ export default function AppointmentsScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  async function load() {
     setLoadError(null);
     const { data: auth } = await supabase.auth.getSession();
     const patientId = auth.session?.user.id;
@@ -92,11 +92,13 @@ export default function AppointmentsScreen() {
     });
     rows.sort((a, b) => (a.startsAt ?? '').localeCompare(b.startsAt ?? ''));
     setAppointments(rows);
-  }, []);
+  }
 
   useEffect(() => {
-    load();
-  }, [load]);
+    (async () => {
+      await load();
+    })();
+  }, []);
 
   async function handleCancel(appt: Appointment) {
     setActionError(null);
