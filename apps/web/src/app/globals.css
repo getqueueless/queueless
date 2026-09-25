@@ -150,3 +150,25 @@ a {
   background: var(--color-primary-soft);
   color: var(--color-ink);
 }
+
+/* ThemeToggle's page-wide switch. With View Transitions, the new theme is
+   revealed by a clip-path circle animated from ThemeToggle.tsx, so the
+   default crossfade is off. Without them, html.theme-fading eases every
+   colour for 350ms; the switch keeps its own motion. Reduced motion never
+   gets either (ThemeToggle swaps instantly). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html.theme-fading *:not([role="switch"], [role="switch"] *),
+html.theme-fading *::before,
+html.theme-fading *::after {
+  transition:
+    background-color 350ms ease,
+    color 350ms ease,
+    border-color 350ms ease,
+    fill 350ms ease;
+}
+

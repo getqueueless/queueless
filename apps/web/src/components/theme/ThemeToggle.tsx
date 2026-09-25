@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useState, useSyncExternalStore } from "react";
+import { useLayoutEffect, useState, useSyncExternalStore, type MouseEvent } from "react";
 import styles from "./ThemeToggle.module.css";
 
 // Must match THEME_SCRIPT in src/app/layout.tsx.
@@ -34,13 +34,39 @@ export function ThemeToggle({ className }: { className?: string }) {
     } catch {}
   }, []);
 
-  function toggle() {
+  function toggle(event: MouseEvent<HTMLButtonElement>) {
+    const root = document.documentElement;
     const next: Theme = readTheme() === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
+    const apply = () => {
+      root.dataset.theme = next;
+      try {
+        localStorage.setItem(KEY, next);
+      } catch {}
+    };
     setAnim(next);
-    try {
-      localStorage.setItem(KEY, next);
-    } catch {}
+
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return apply();
+
+    // No View Transitions (older Firefox): every colour eases over 350ms.
+    if (!document.startViewTransition) {
+      root.classList.add("theme-fading");
+      apply();
+      setTimeout(() => root.classList.remove("theme-fading"), 350);
+      return;
+    }
+
+    // The whole page: the new theme is revealed in a circle growing out of
+    // this switch until it covers the farthest corner of the viewport.
+    const box = event.currentTarget.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y = box.top + box.height / 2;
+    const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    document.startViewTransition(apply).ready.then(() => {
+      root.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
+        { duration: 450, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", pseudoElement: "::view-transition-new(root)" },
+      );
+    });
   }
 
   return (
