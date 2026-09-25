@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { QueueTracker } from '@/components/motion/QueueTracker';
+import { useEtaAtJoin, useNowServing } from '@/components/motion/use-queue-extras';
 import { PriorityInfoCard } from '@/components/PriorityInfoCard';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -26,8 +28,8 @@ const HOLD_SECONDS = 5 * 60;
 // straight from supabase/README.md's `my_queue_status` signature instead of importing another
 // app's hand-written placeholder.
 // `pending_payment` landed in `0050_payments_enum.sql` — included here (see docs/DECISIONS.md's
-// 2026-09-25 payments self-review flag) so a token mid-checkout never hits the `STATUS_LABELS`
-// lookup as `undefined`, even though this screen doesn't drive the payment flow itself.
+// 2026-09-25 payments self-review flag) so a token mid-checkout still maps onto QueueTracker's
+// Booked stage, even though this screen doesn't drive the payment flow itself.
 type TokenStatus = 'pending_payment' | 'waiting' | 'called' | 'serving' | 'done' | 'no_show' | 'cancelled' | 'skipped';
 
 type QueueStatus = {
@@ -41,24 +43,6 @@ type QueueStatus = {
   called_at: string | null;
   no_show_deadline: string | null;
   recall_count: number | null;
-};
-
-const PROGRESS_STEPS: { key: TokenStatus; label: string }[] = [
-  { key: 'waiting', label: 'Waiting' },
-  { key: 'called', label: 'Called' },
-  { key: 'serving', label: 'Serving' },
-  { key: 'done', label: 'Done' },
-];
-
-const STATUS_LABELS: Record<TokenStatus, string> = {
-  pending_payment: 'Waiting for payment',
-  waiting: 'Waiting',
-  called: "You've been called",
-  serving: 'Now serving you',
-  done: 'Visit complete',
-  no_show: 'Marked as no-show',
-  cancelled: 'Ticket cancelled',
-  skipped: 'Skipped — you will be recalled',
 };
 
 const TERMINAL_STATUSES = new Set<TokenStatus>(['no_show', 'cancelled', 'skipped']);
@@ -247,6 +231,11 @@ export default function TokenScreen() {
     ]);
   }
 
+  // QueueTracker's two extra inputs. The now-serving read rides on this screen's own refetches.
+  const etaMinutes = status?.eta_seconds == null ? null : Math.ceil(status.eta_seconds / 60);
+  const etaAtJoin = useEtaAtJoin(id, etaMinutes);
+  const nowServing = useNowServing(id, status);
+
   if (loading) {
     return (
       <ThemedView type="canvasSoft" style={styles.container}>
@@ -277,9 +266,7 @@ export default function TokenScreen() {
     );
   }
 
-  const currentStepIndex = PROGRESS_STEPS.findIndex((step) => step.key === status.status);
   const isTerminal = TERMINAL_STATUSES.has(status.status);
-  const eta = formatEta(status.eta_seconds);
 
   return (
     <ThemedView type="canvasSoft" style={styles.container}>
@@ -295,62 +282,15 @@ export default function TokenScreen() {
             </ThemedText>
           </View>
 
-          <ThemedText type="headingMd" style={styles.centerText}>
-            {STATUS_LABELS[status.status]}
-          </ThemedText>
-
-          {!isTerminal ? (
-            <View style={styles.progressBlock}>
-              <View style={styles.progressTrack}>
-                {PROGRESS_STEPS.map((step, i) => (
-                  <View
-                    key={step.key}
-                    style={[
-                      styles.progressSegment,
-                      { backgroundColor: i <= currentStepIndex ? theme.primary : theme.hairlineStrong },
-                    ]}
-                  />
-                ))}
-              </View>
-              <View style={styles.progressLabels}>
-                {PROGRESS_STEPS.map((step, i) => (
-                  <ThemedText
-                    key={step.key}
-                    type="caption"
-                    themeColor={i <= currentStepIndex ? 'ink' : 'inkMuted'}
-                    style={styles.progressLabelText}>
-                    {step.label}
-                  </ThemedText>
-                ))}
-              </View>
-            </View>
-          ) : null}
-
-          {status.counter_name ? (
-            <View
-              style={[
-                styles.counterBanner,
-                { backgroundColor: theme.primarySoft, borderColor: theme.primaryOutline },
-                CardShadow,
-              ]}>
-              <ThemedText type="headingLg" themeColor="ink" style={styles.centerText}>
-                Called to {status.counter_name}
-              </ThemedText>
-            </View>
-          ) : null}
-
-          {!isTerminal && status.status === 'waiting' && status.position != null ? (
-            <ThemedText type="bodyLg" style={styles.centerText}>
-              Position {status.position}
-              {status.ahead != null ? ` · ${status.ahead} ahead of you` : ''}
-            </ThemedText>
-          ) : null}
-
-          {!isTerminal && eta ? (
-            <ThemedText type="bodyLg" themeColor="inkSecondary" style={styles.centerText}>
-              {eta}
-            </ThemedText>
-          ) : null}
+          <QueueTracker
+            status={status.status}
+            ahead={status.ahead}
+            etaMinutes={etaMinutes}
+            etaAtJoin={etaAtJoin}
+            counterCode={status.counter_name}
+            nowServingNumber={nowServing}
+            serviceName={status.service_name}
+          />
 
           {holdSecondsLeft > 0 ? (
             <View style={[styles.holdBanner, { backgroundColor: theme.successSoft, borderColor: theme.success }]}>
@@ -426,12 +366,6 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   tokenCode: { textAlign: 'center' },
-  progressBlock: { alignSelf: 'stretch', gap: Spacing.xxs },
-  progressTrack: { flexDirection: 'row', gap: Spacing.xxs, height: 8 },
-  progressSegment: { flex: 1, borderRadius: Rounded.pill },
-  progressLabels: { flexDirection: 'row' },
-  progressLabelText: { flex: 1, textAlign: 'center' },
-  counterBanner: { alignSelf: 'stretch', borderWidth: 1, borderRadius: Rounded.xl, padding: Spacing.md },
   holdBanner: {
     alignSelf: 'stretch',
     borderWidth: 1,
