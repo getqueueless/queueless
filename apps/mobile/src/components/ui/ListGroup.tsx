@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import { Children, Fragment, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { CardShadow } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -55,10 +55,29 @@ export type ListRowProps = {
   accessibilityHint?: string;
   /** Show the full title and subtitle (help and policy text) instead of clipping to 1 / 2 lines. */
   wrap?: boolean;
+  /**
+   * Makes the whole 56pt row an on/off switch (role "switch" with its checked state); the switch
+   * drawn on the right is display-only, so there is one target, not a small nested control.
+   */
+  switchValue?: boolean;
+  onSwitchChange?: (value: boolean) => void;
 };
 
 /** A 56pt row: icon tile, title (+ subtitle), then a value, a control, or a chevron. */
-export function ListRow({ title, subtitle, icon, tone = 'teal', value, onPress, trailing, destructive, accessibilityHint, wrap }: ListRowProps) {
+export function ListRow({
+  title,
+  subtitle,
+  icon,
+  tone = 'teal',
+  value,
+  onPress,
+  trailing,
+  destructive,
+  accessibilityHint,
+  wrap,
+  switchValue,
+  onSwitchChange,
+}: ListRowProps) {
   const theme = useTheme();
   const dark = useColorScheme() === 'dark';
   const t = tone === 'danger' ? null : Tones[tone][dark ? 'dark' : 'light'];
@@ -88,9 +107,28 @@ export function ListRow({ title, subtitle, icon, tone = 'teal', value, onPress, 
         </UIText>
       ) : null}
       {trailing}
+      {switchValue !== undefined ? (
+        <View pointerEvents="none" aria-hidden>
+          <Switch value={switchValue} trackColor={{ true: theme.primary }} />
+        </View>
+      ) : null}
       {onPress && !trailing ? <SymbolView name={CHEVRON} size={16} tintColor={theme.inkMuted} /> : null}
     </>
   );
+
+  if (switchValue !== undefined && onSwitchChange) {
+    return (
+      <Pressable
+        onPress={() => onSwitchChange(!switchValue)}
+        accessibilityRole="switch"
+        accessibilityLabel={title}
+        accessibilityHint={subtitle}
+        aria-checked={switchValue}
+        style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.surfaceSunken }]}>
+        {body}
+      </Pressable>
+    );
+  }
 
   if (!onPress) return <View style={styles.row}>{body}</View>;
   return (

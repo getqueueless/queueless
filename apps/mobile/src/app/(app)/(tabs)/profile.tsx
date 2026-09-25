@@ -1,6 +1,6 @@
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { requestUpdateCheck } from '@/components/update-sheet';
@@ -167,14 +167,16 @@ export default function Profile() {
             subtitle="Everything 1.3× bigger"
             icon={icon('textformat.size', 'format_size')}
             tone="rose"
-            trailing={<Switch value={largeText} onValueChange={setElderlyMode} trackColor={{ true: theme.primary }} accessibilityLabel="Large text" />}
+            switchValue={largeText}
+            onSwitchChange={setElderlyMode}
           />
           <ListRow
             title="Queue alerts"
             subtitle="Tell me when my turn is near and when I'm called"
             icon={icon('bell', 'notifications')}
             tone="orange"
-            trailing={<Switch value={alerts} onValueChange={toggleAlerts} trackColor={{ true: theme.primary }} accessibilityLabel="Queue alerts" />}
+            switchValue={alerts}
+            onSwitchChange={toggleAlerts}
           />
           {alerts ? (
             <ListRow
