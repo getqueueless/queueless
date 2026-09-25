@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
+import { LabeledInput } from '@/components/admin/labeled-input';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Button, Card, SectionHeader, UIText } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
@@ -89,64 +90,46 @@ export default function AdminPriority() {
   return (
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-        <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
-          Priority head start
-        </ThemedText>
-        <ThemedText type="bodySm" themeColor="inkMuted" style={styles.fairnessNote}>
+        <SectionHeader title="Priority head start" accent="head start" />
+        <UIText variant="secondary">
           A senior or pregnant patient gets a head-start on arrival time, not a permanent jump to
           the front — someone who&apos;s been waiting longer still goes first once that head-start
           runs out.
-        </ThemedText>
+        </UIText>
 
         {loadError ? (
-          <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
+          <UIText variant="secondary" color="danger">
             {loadError}
-          </ThemedText>
+          </UIText>
         ) : (
-          <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
-            <ThemedText type="caption" themeColor="inkMuted">
-              Current: {savedValue} minutes
-            </ThemedText>
-            <View style={styles.inputRow}>
-              <TextInput
-                value={input}
-                onChangeText={(t) => {
-                  setInput(t);
-                  setSaved(false);
-                }}
-                keyboardType="number-pad"
-                placeholder="15"
-                placeholderTextColor={theme.inkMuted}
-                style={[styles.input, { color: theme.ink, borderColor: theme.hairline }]}
-              />
-              <ThemedText type="body" themeColor="inkSecondary">
-                minutes
-              </ThemedText>
+          <Card style={styles.card}>
+            <View>
+              <UIText variant="secondary">Current head start</UIText>
+              <UIText variant="title2">{savedValue} min</UIText>
             </View>
+            <LabeledInput
+              label="New head start (minutes)"
+              value={input}
+              onChangeText={(t) => {
+                setInput(t);
+                setSaved(false);
+              }}
+              keyboardType="number-pad"
+              placeholder="15"
+            />
 
             {saveError ? (
-              <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
+              <UIText variant="secondary" color="danger">
                 {saveError}
-              </ThemedText>
+              </UIText>
             ) : saved ? (
-              <ThemedText type="bodySm" themeColor="success" style={styles.error}>
+              <UIText variant="secondaryStrong" color="success">
                 Saved.
-              </ThemedText>
+              </UIText>
             ) : null}
 
-            <Pressable
-              onPress={handleSave}
-              disabled={!isValid || saving}
-              style={[styles.saveButton, { backgroundColor: theme.primary, opacity: !isValid || saving ? 0.5 : 1 }]}>
-              {saving ? (
-                <ActivityIndicator color={theme.onPrimary} />
-              ) : (
-                <ThemedText type="button" themeColor="onPrimary">
-                  Save
-                </ThemedText>
-              )}
-            </Pressable>
-          </ThemedView>
+            <Button label="Save" block loading={saving} disabled={!isValid} onPress={handleSave} />
+          </Card>
         )}
       </SafeAreaView>
     </ThemedView>
@@ -156,24 +139,6 @@ export default function AdminPriority() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  safeArea: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
-  sectionLabel: { marginTop: Spacing.sm },
-  fairnessNote: { marginTop: Spacing.xxs, marginBottom: Spacing.md },
-  error: { marginTop: Spacing.xs },
-  card: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.lg, gap: Spacing.sm },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  input: {
-    borderWidth: 1,
-    borderRadius: Rounded.md,
-    paddingHorizontal: Spacing.sm,
-    minHeight: 44,
-    width: 100,
-  },
-  saveButton: {
-    minHeight: 44,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.xs,
-  },
+  safeArea: { flex: 1, paddingHorizontal: Spacing.md, paddingTop: Spacing.md, gap: Spacing.sm },
+  card: { marginTop: Spacing.xs, gap: Spacing.md },
 });

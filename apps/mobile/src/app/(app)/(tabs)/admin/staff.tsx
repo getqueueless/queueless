@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
+import { LabeledInput } from '@/components/admin/labeled-input';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Button, Card, MIN_TAP, Radius, SectionHeader, UIText, type IconName } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
@@ -134,57 +135,55 @@ export default function AdminStaff() {
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
-            Org members ({members.length})
-          </ThemedText>
+          <SectionHeader title={`Org members (${members.length})`} />
 
           {actionError ? (
-            <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
+            <UIText variant="secondary" color="danger">
               {actionError}
-            </ThemedText>
+            </UIText>
           ) : null}
 
-          <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
+          <Card style={styles.listCard}>
             {membersLoading ? (
               <ActivityIndicator color={theme.primary} style={styles.cardPadding} />
             ) : membersError ? (
-              <ThemedText type="bodySm" themeColor="danger" style={styles.cardPadding}>
+              <UIText color="danger" style={styles.cardPadding}>
                 {membersError}
-              </ThemedText>
+              </UIText>
             ) : members.length === 0 ? (
-              <ThemedText type="bodySm" themeColor="inkMuted" style={styles.cardPadding}>
+              <UIText color="inkSecondary" style={styles.cardPadding}>
                 No staff or admins in this org yet.
-              </ThemedText>
+              </UIText>
             ) : (
               members.map((m, i) => (
                 <View key={m.id} style={[styles.memberRow, i > 0 && { borderTopWidth: 1, borderColor: theme.hairline }]}>
                   <View style={styles.memberInfo}>
-                    <ThemedText type="bodyLg">{memberLabel(m)}</ThemedText>
-                    {m.phone ? (
-                      <ThemedText type="caption" themeColor="inkMuted">
-                        {m.phone}
-                      </ThemedText>
-                    ) : null}
+                    <UIText variant="bodyStrong">{memberLabel(m)}</UIText>
+                    {m.phone ? <UIText variant="secondary">{m.phone}</UIText> : null}
                   </View>
                   <View style={styles.roleRow}>
                     {ROLE_OPTIONS.map((role) => {
                       const selected = m.role === role;
+                      const busy = busyId === m.id;
                       return (
                         <Pressable
                           key={role}
                           onPress={() => handleSetRole(m, role)}
-                          disabled={busyId === m.id}
+                          disabled={busy}
+                          accessibilityRole="radio"
+                          accessibilityLabel={`${memberLabel(m)}: ${role}`}
+                          accessibilityState={{ selected, disabled: busy }}
                           style={[
                             styles.roleChip,
                             {
-                              backgroundColor: selected ? theme.dark : 'transparent',
-                              borderColor: selected ? theme.dark : theme.hairline,
-                              opacity: busyId === m.id ? 0.5 : 1,
+                              backgroundColor: selected ? theme.primary : 'transparent',
+                              borderColor: selected ? theme.primary : theme.hairlineStrong,
+                              opacity: busy ? 0.5 : 1,
                             },
                           ]}>
-                          <ThemedText type="caption" themeColor={selected ? 'onPrimary' : 'inkSecondary'} style={styles.capitalize}>
+                          <UIText variant={selected ? 'secondaryStrong' : 'secondary'} color={selected ? 'onPrimary' : 'ink'} style={styles.capitalize}>
                             {role}
-                          </ThemedText>
+                          </UIText>
                         </Pressable>
                       );
                     })}
@@ -192,80 +191,68 @@ export default function AdminStaff() {
                 </View>
               ))
             )}
-          </ThemedView>
+          </Card>
 
-          <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
-            Promote an unassigned patient
-          </ThemedText>
-          <ThemedText type="caption" themeColor="inkMuted" style={styles.hint}>
-            Search by name — looking someone up by email needs the web admin console.
-          </ThemedText>
+          <View style={styles.sectionGap}>
+            <SectionHeader title="Promote a patient" accent="patient" />
+          </View>
+          <UIText variant="secondary">Search unassigned patients by name — looking someone up by email needs the web admin console.</UIText>
 
           <View style={styles.searchRow}>
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Patient's name"
-              placeholderTextColor={theme.inkMuted}
-              onSubmitEditing={handleSearch}
-              returnKeyType="search"
-              style={[styles.searchInput, { color: theme.ink, borderColor: theme.hairline }]}
-            />
-            <Pressable
-              onPress={handleSearch}
-              disabled={searchBusy || !query.trim()}
-              style={[styles.searchButton, { backgroundColor: theme.dark, opacity: searchBusy || !query.trim() ? 0.6 : 1 }]}>
-              <ThemedText type="button" themeColor="onPrimary">
-                Search
-              </ThemedText>
-            </Pressable>
+            <View style={styles.flex}>
+              <LabeledInput
+                label="Name"
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Patient's name"
+                onSubmitEditing={handleSearch}
+                returnKeyType="search"
+              />
+            </View>
+            <Button label="Search" size="md" icon={SEARCH_ICON} loading={searchBusy} disabled={!query.trim()} onPress={handleSearch} />
           </View>
 
           {searchError ? (
-            <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
+            <UIText variant="secondary" color="danger">
               {searchError}
-            </ThemedText>
+            </UIText>
           ) : null}
 
           {searched && !searchError ? (
-            <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
+            <Card style={styles.listCard}>
               {unassigned.length === 0 ? (
-                <ThemedText type="bodySm" themeColor="inkMuted" style={styles.cardPadding}>
+                <UIText color="inkSecondary" style={styles.cardPadding}>
                   No unassigned patients match that name.
-                </ThemedText>
+                </UIText>
               ) : (
                 unassigned.map((p, i) => (
                   <View key={p.id} style={[styles.memberRow, i > 0 && { borderTopWidth: 1, borderColor: theme.hairline }]}>
                     <View style={styles.memberInfo}>
-                      <ThemedText type="bodyLg">{memberLabel(p)}</ThemedText>
-                      {p.phone ? (
-                        <ThemedText type="caption" themeColor="inkMuted">
-                          {p.phone}
-                        </ThemedText>
-                      ) : null}
+                      <UIText variant="bodyStrong">{memberLabel(p)}</UIText>
+                      {p.phone ? <UIText variant="secondary">{p.phone}</UIText> : null}
                     </View>
                     <View style={styles.roleRow}>
-                      <Pressable
+                      <Button
+                        label="Make staff"
+                        variant="secondary"
+                        size="md"
+                        disabled={busyId === p.id}
                         onPress={() => handleSetRole(p, 'staff')}
+                        style={styles.flex}
+                      />
+                      <Button
+                        label="Make admin"
+                        variant="secondary"
+                        size="md"
                         disabled={busyId === p.id}
-                        style={[styles.actionButtonOutline, { borderColor: theme.primaryOutline, opacity: busyId === p.id ? 0.5 : 1 }]}>
-                        <ThemedText type="caption" themeColor="primaryText">
-                          Make staff
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
                         onPress={() => handleSetRole(p, 'admin')}
-                        disabled={busyId === p.id}
-                        style={[styles.actionButtonOutline, { borderColor: theme.primaryOutline, opacity: busyId === p.id ? 0.5 : 1 }]}>
-                        <ThemedText type="caption" themeColor="primaryText">
-                          Make admin
-                        </ThemedText>
-                      </Pressable>
+                        style={styles.flex}
+                      />
                     </View>
                   </View>
                 ))
               )}
-            </ThemedView>
+            </Card>
           ) : null}
         </ScrollView>
       </SafeAreaView>
@@ -273,50 +260,28 @@ export default function AdminStaff() {
   );
 }
 
+const SEARCH_ICON: IconName = { ios: 'magnifyingglass', android: 'search', web: 'search' };
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
-  scroll: { paddingTop: Spacing.sm, paddingBottom: Spacing.xxl, gap: Spacing.xs },
-  sectionLabel: { marginTop: Spacing.md },
-  hint: { marginTop: -Spacing.xxs, marginBottom: Spacing.xxs },
-  error: { marginTop: Spacing.xxs },
-  card: { borderWidth: 1, borderRadius: Rounded.lg },
-  cardPadding: { padding: Spacing.md, textAlign: 'center' },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  memberInfo: { flexShrink: 1, gap: 2 },
-  roleRow: { flexDirection: 'row', gap: Spacing.xxs },
+  safeArea: { flex: 1, paddingHorizontal: Spacing.md },
+  scroll: { paddingTop: Spacing.md, paddingBottom: Spacing.xxl, gap: Spacing.sm },
+  sectionGap: { marginTop: Spacing.md },
+  flex: { flex: 1 },
+  listCard: { paddingVertical: Spacing.xxs, gap: 0 },
+  cardPadding: { paddingVertical: Spacing.md, textAlign: 'center' },
+  memberRow: { gap: Spacing.sm, paddingVertical: Spacing.sm },
+  memberInfo: { gap: 2 },
+  roleRow: { flexDirection: 'row', gap: Spacing.xs },
   roleChip: {
+    flex: 1,
     borderWidth: 1,
-    borderRadius: Rounded.pill,
-    paddingHorizontal: Spacing.sm,
-    minHeight: 44,
+    borderRadius: Radius.sm,
+    minHeight: MIN_TAP,
     alignItems: 'center',
     justifyContent: 'center',
   },
   capitalize: { textTransform: 'capitalize' },
-  actionButtonOutline: {
-    borderWidth: 1,
-    borderRadius: Rounded.pill,
-    paddingHorizontal: Spacing.sm,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchRow: { flexDirection: 'row', gap: Spacing.xs, marginBottom: Spacing.xs },
-  searchInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: Rounded.md,
-    paddingHorizontal: Spacing.sm,
-    minHeight: 44,
-  },
-  searchButton: { minHeight: 44, borderRadius: Rounded.md, paddingHorizontal: Spacing.md, justifyContent: 'center' },
+  searchRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.xs },
 });

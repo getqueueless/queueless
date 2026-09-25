@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LabeledInput } from '@/components/admin/labeled-input';
 import { StateCard } from '@/components/admin/state-card';
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Button, Card, EmptyState, MIN_TAP, UIText, type IconName } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
@@ -211,26 +211,32 @@ export default function AdminServices() {
           {loadError ? (
             <StateCard kind="error" message={loadError} />
           ) : services.length === 0 ? (
-            <StateCard kind="empty" message="No services yet — add one below." />
+            <Card>
+              <EmptyState icon={LIST_ICON} title="No services yet" text="Add your first service below." />
+            </Card>
           ) : (
             services.map((row) => {
               const editing = editingId === row.id;
               const busy = busyId === row.id;
               return (
-                <ThemedView key={row.id} type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
-                  <View style={styles.cardHeader}>
-                    <View style={styles.cardHeaderText}>
-                      <ThemedText type="headingSm">{row.name}</ThemedText>
-                      <ThemedText type="caption" themeColor="inkMuted">
-                        Code {row.code}
-                      </ThemedText>
-                    </View>
+                <Card key={row.id}>
+                  <View style={styles.headerText}>
+                    <UIText variant="title3">{row.name}</UIText>
+                    <UIText variant="secondary">Code {row.code}</UIText>
+                  </View>
+
+                  <View style={[styles.switchRow, { borderColor: theme.hairline }]}>
+                    <UIText variant="bodyStrong" color={row.is_open ? 'success' : 'inkSecondary'} style={styles.flex}>
+                      {row.is_open ? 'Open for tokens' : 'Closed'}
+                    </UIText>
                     <Switch
                       value={row.is_open}
                       onValueChange={() => toggleOpen(row)}
                       disabled={busy}
-                      trackColor={{ false: theme.hairline, true: theme.primaryOutline }}
-                      thumbColor={row.is_open ? theme.primary : theme.surface}
+                      accessibilityLabel={`${row.name} open for tokens`}
+                      trackColor={{ false: theme.hairlineStrong, true: theme.primary }}
+                      ios_backgroundColor={theme.hairlineStrong}
+                      thumbColor="#ffffff"
                     />
                   </View>
 
@@ -264,47 +270,34 @@ export default function AdminServices() {
                       />
 
                       {rowError ? (
-                        <ThemedText type="bodySm" themeColor="danger">
+                        <UIText variant="secondary" color="danger">
                           {rowError}
-                        </ThemedText>
+                        </UIText>
                       ) : null}
 
                       <View style={styles.actionRow}>
-                        <Pressable
-                          onPress={() => saveEdit(row.id)}
-                          disabled={busy}
-                          style={[styles.actionButton, { backgroundColor: theme.primary, opacity: busy ? 0.6 : 1 }]}>
-                          {busy ? <ActivityIndicator color={theme.onPrimary} /> : <ThemedText type="button" themeColor="onPrimary">Save</ThemedText>}
-                        </Pressable>
-                        <Pressable onPress={cancelEdit} disabled={busy} style={[styles.actionButtonOutline, { borderColor: theme.hairline }]}>
-                          <ThemedText type="button" themeColor="ink">
-                            Cancel
-                          </ThemedText>
-                        </Pressable>
+                        <Button label="Save" size="md" loading={busy} onPress={() => saveEdit(row.id)} style={styles.flex} />
+                        <Button label="Cancel" variant="secondary" size="md" disabled={busy} onPress={cancelEdit} />
                       </View>
                     </View>
                   ) : (
-                    <View style={styles.form}>
-                      <ThemedText type="bodySm" themeColor="inkSecondary">
-                        {row.default_service_secs}s/token · no-show after {row.no_show_minutes}m · max {row.max_tokens_per_day}/day
-                      </ThemedText>
-                      <Pressable onPress={() => startEdit(row)} style={[styles.actionButtonOutline, { borderColor: theme.hairline }]}>
-                        <ThemedText type="button" themeColor="ink">
-                          Edit
-                        </ThemedText>
-                      </Pressable>
-                    </View>
+                    <>
+                      <UIText variant="secondary">
+                        {row.default_service_secs}s per token · no-show after {row.no_show_minutes} min · max {row.max_tokens_per_day}/day
+                      </UIText>
+                      <Button label="Edit" variant="secondary" size="md" onPress={() => startEdit(row)} />
+                    </>
                   )}
-                </ThemedView>
+                </Card>
               );
             })
           )}
 
-          <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
-            <Pressable onPress={() => setShowAdd((v) => !v)} style={styles.addToggle}>
-              <ThemedText type="headingSm">{showAdd ? 'Cancel' : '+ Add service'}</ThemedText>
-            </Pressable>
-            {showAdd ? (
+          {showAdd ? (
+            <Card>
+              <UIText variant="title3" accessibilityRole="header">
+                New service
+              </UIText>
               <View style={styles.form}>
                 <LabeledInput label="Name" value={addDraft.name} onChangeText={(v) => setAddDraft((d) => ({ ...d, name: v }))} />
                 <LabeledInput
@@ -334,51 +327,44 @@ export default function AdminServices() {
                 />
 
                 {addError ? (
-                  <ThemedText type="bodySm" themeColor="danger">
+                  <UIText variant="secondary" color="danger">
                     {addError}
-                  </ThemedText>
+                  </UIText>
                 ) : null}
 
-                <Pressable
-                  onPress={handleAdd}
-                  disabled={addBusy}
-                  style={[styles.actionButton, { backgroundColor: theme.primary, opacity: addBusy ? 0.6 : 1 }]}>
-                  {addBusy ? <ActivityIndicator color={theme.onPrimary} /> : <ThemedText type="button" themeColor="onPrimary">Add service</ThemedText>}
-                </Pressable>
+                <View style={styles.actionRow}>
+                  <Button label="Add service" size="md" loading={addBusy} onPress={handleAdd} style={styles.flex} />
+                  <Button label="Cancel" variant="secondary" size="md" onPress={() => setShowAdd((v) => !v)} />
+                </View>
               </View>
-            ) : null}
-          </ThemedView>
+            </Card>
+          ) : (
+            <Button label="Add service" variant="secondary" icon={PLUS_ICON} block onPress={() => setShowAdd((v) => !v)} />
+          )}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
 }
 
+const LIST_ICON: IconName = { ios: 'list.bullet', android: 'list', web: 'list' };
+const PLUS_ICON: IconName = { ios: 'plus', android: 'add', web: 'add' };
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
-  scroll: { paddingVertical: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xxl },
-  card: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.md, gap: Spacing.sm },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardHeaderText: { gap: 2 },
-  form: { gap: Spacing.xs },
+  safeArea: { flex: 1, paddingHorizontal: Spacing.md },
+  scroll: { paddingVertical: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xxl },
+  flex: { flex: 1 },
+  headerText: { gap: 2 },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    minHeight: MIN_TAP,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+  },
+  form: { gap: Spacing.sm },
   actionRow: { flexDirection: 'row', gap: Spacing.xs },
-  actionButton: {
-    flexGrow: 1,
-    minHeight: 44,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-  },
-  actionButtonOutline: {
-    minHeight: 44,
-    borderWidth: 1,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-  },
-  addToggle: { minHeight: 44, justifyContent: 'center' },
 });

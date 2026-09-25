@@ -4,9 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LabeledInput } from '@/components/admin/labeled-input';
 import { StateCard } from '@/components/admin/state-card';
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Button, Card, EmptyState, MIN_TAP, Radius, UIText, type IconName } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
@@ -205,42 +205,36 @@ export default function AdminCounters() {
           {loadError ? (
             <StateCard kind="error" message={loadError} />
           ) : counters.length === 0 ? (
-            <StateCard kind="empty" message="No counters yet — add one below." />
+            <Card>
+              <EmptyState icon={COUNTER_ICON} title="No counters yet" text="Add your first counter below." />
+            </Card>
           ) : (
             counters.map((row) => {
               const editing = editingId === row.id;
               const busy = busyId === row.id;
               const mapped = counterServices[row.id] ?? new Set<string>();
               return (
-                <ThemedView key={row.id} type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
+                <Card key={row.id}>
                   {editing ? (
                     <View style={styles.form}>
                       <LabeledInput label="Name" value={nameDraft} onChangeText={setNameDraft} />
                       <View style={styles.actionRow}>
-                        <Pressable
-                          onPress={() => saveName(row.id)}
-                          disabled={busy}
-                          style={[styles.actionButton, { backgroundColor: theme.primary, opacity: busy ? 0.6 : 1 }]}>
-                          {busy ? <ActivityIndicator color={theme.onPrimary} /> : <ThemedText type="button" themeColor="onPrimary">Save</ThemedText>}
-                        </Pressable>
-                        <Pressable onPress={cancelEdit} disabled={busy} style={[styles.actionButtonOutline, { borderColor: theme.hairline }]}>
-                          <ThemedText type="button" themeColor="ink">
-                            Cancel
-                          </ThemedText>
-                        </Pressable>
+                        <Button label="Save" size="md" loading={busy} onPress={() => saveName(row.id)} style={styles.flex} />
+                        <Button label="Cancel" variant="secondary" size="md" disabled={busy} onPress={cancelEdit} />
                       </View>
                     </View>
                   ) : (
                     <View style={styles.cardHeader}>
-                      <ThemedText type="headingSm">{row.name}</ThemedText>
-                      <Pressable onPress={() => startEdit(row)} style={styles.editLink}>
-                        <ThemedText type="caption" themeColor="primaryText">
-                          Rename
-                        </ThemedText>
-                      </Pressable>
+                      <UIText variant="title3" style={styles.flex}>
+                        {row.name}
+                      </UIText>
+                      <Button label="Rename" variant="ghost" size="md" onPress={() => startEdit(row)} />
                     </View>
                   )}
 
+                  <UIText variant="secondaryStrong" color="inkSecondary" accessibilityRole="header">
+                    State
+                  </UIText>
                   <View style={styles.segmentedRow}>
                     {COUNTER_STATES.map((state) => {
                       const selected = row.state === state;
@@ -249,29 +243,30 @@ export default function AdminCounters() {
                           key={state}
                           onPress={() => setState(row, state)}
                           disabled={busy}
+                          accessibilityRole="radio"
+                          accessibilityLabel={state}
+                          accessibilityState={{ selected, disabled: busy }}
                           style={[
                             styles.segment,
                             {
-                              backgroundColor: selected ? theme.dark : 'transparent',
-                              borderColor: selected ? theme.dark : theme.hairline,
+                              backgroundColor: selected ? theme.primary : 'transparent',
+                              borderColor: selected ? theme.primary : theme.hairlineStrong,
                               opacity: busy ? 0.6 : 1,
                             },
                           ]}>
-                          <ThemedText type="button" themeColor={selected ? 'onPrimary' : 'inkSecondary'} style={styles.capitalize}>
+                          <UIText variant={selected ? 'secondaryStrong' : 'secondary'} color={selected ? 'onPrimary' : 'ink'} style={styles.capitalize}>
                             {state}
-                          </ThemedText>
+                          </UIText>
                         </Pressable>
                       );
                     })}
                   </View>
 
-                  <ThemedText type="caption" themeColor="inkMuted" style={styles.sectionLabel}>
+                  <UIText variant="secondaryStrong" color="inkSecondary" accessibilityRole="header">
                     Serves
-                  </ThemedText>
+                  </UIText>
                   {services.length === 0 ? (
-                    <ThemedText type="bodySm" themeColor="inkMuted">
-                      No services to map yet.
-                    </ThemedText>
+                    <UIText variant="secondary">No services to map yet.</UIText>
                   ) : (
                     <View style={styles.chipRow}>
                       {services.map((service) => {
@@ -283,17 +278,20 @@ export default function AdminCounters() {
                             key={service.id}
                             onPress={() => toggleMapping(row.id, service.id, isMapped)}
                             disabled={mappingBusyKey !== null}
+                            accessibilityRole="checkbox"
+                            accessibilityLabel={service.name}
+                            accessibilityState={{ checked: isMapped, busy: chipBusy }}
                             style={[
                               styles.chip,
                               {
                                 backgroundColor: isMapped ? theme.primarySoft : 'transparent',
-                                borderColor: isMapped ? theme.primaryOutline : theme.hairline,
+                                borderColor: isMapped ? theme.primaryOutline : theme.hairlineStrong,
                                 opacity: chipBusy ? 0.6 : 1,
                               },
                             ]}>
-                            <ThemedText type="caption" themeColor={isMapped ? 'primaryText' : 'inkSecondary'}>
-                              {service.name}
-                            </ThemedText>
+                            <UIText variant={isMapped ? 'secondaryStrong' : 'secondary'} color={isMapped ? 'primaryText' : 'ink'}>
+                              {isMapped ? `✓ ${service.name}` : service.name}
+                            </UIText>
                           </Pressable>
                         );
                       })}
@@ -301,80 +299,65 @@ export default function AdminCounters() {
                   )}
 
                   {rowError ? (
-                    <ThemedText type="bodySm" themeColor="danger">
+                    <UIText variant="secondary" color="danger">
                       {rowError}
-                    </ThemedText>
+                    </UIText>
                   ) : null}
-                </ThemedView>
+                </Card>
               );
             })
           )}
 
-          <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
-            <Pressable onPress={() => setShowAdd((v) => !v)} style={styles.addToggle}>
-              <ThemedText type="headingSm">{showAdd ? 'Cancel' : '+ Add counter'}</ThemedText>
-            </Pressable>
-            {showAdd ? (
+          {showAdd ? (
+            <Card>
+              <UIText variant="title3" accessibilityRole="header">
+                New counter
+              </UIText>
               <View style={styles.form}>
                 <LabeledInput label="Name" value={addName} onChangeText={setAddName} />
                 {addError ? (
-                  <ThemedText type="bodySm" themeColor="danger">
+                  <UIText variant="secondary" color="danger">
                     {addError}
-                  </ThemedText>
+                  </UIText>
                 ) : null}
-                <Pressable
-                  onPress={handleAdd}
-                  disabled={addBusy}
-                  style={[styles.actionButton, { backgroundColor: theme.primary, opacity: addBusy ? 0.6 : 1 }]}>
-                  {addBusy ? <ActivityIndicator color={theme.onPrimary} /> : <ThemedText type="button" themeColor="onPrimary">Add counter</ThemedText>}
-                </Pressable>
+                <View style={styles.actionRow}>
+                  <Button label="Add counter" size="md" loading={addBusy} onPress={handleAdd} style={styles.flex} />
+                  <Button label="Cancel" variant="secondary" size="md" onPress={() => setShowAdd((v) => !v)} />
+                </View>
               </View>
-            ) : null}
-          </ThemedView>
+            </Card>
+          ) : (
+            <Button label="Add counter" variant="secondary" icon={PLUS_ICON} block onPress={() => setShowAdd((v) => !v)} />
+          )}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
 }
 
+const COUNTER_ICON: IconName = { ios: 'tray', android: 'inbox', web: 'inbox' };
+const PLUS_ICON: IconName = { ios: 'plus', android: 'add', web: 'add' };
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
-  scroll: { paddingVertical: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xxl },
-  card: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.md, gap: Spacing.sm },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
-  editLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.xs },
-  form: { gap: Spacing.xs },
+  safeArea: { flex: 1, paddingHorizontal: Spacing.md },
+  scroll: { paddingVertical: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xxl },
+  flex: { flex: 1 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, minHeight: MIN_TAP },
+  form: { gap: Spacing.sm },
   actionRow: { flexDirection: 'row', gap: Spacing.xs },
-  actionButton: {
-    flexGrow: 1,
-    minHeight: 44,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-  },
-  actionButtonOutline: {
-    minHeight: 44,
-    borderWidth: 1,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-  },
   segmentedRow: { flexDirection: 'row', gap: Spacing.xs },
-  segment: { flex: 1, minHeight: 44, borderWidth: 1, borderRadius: Rounded.md, alignItems: 'center', justifyContent: 'center' },
+  segment: { flex: 1, minHeight: MIN_TAP, borderWidth: 1, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   capitalize: { textTransform: 'capitalize' },
-  sectionLabel: { marginTop: Spacing.xxs },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   chip: {
     borderWidth: 1,
-    borderRadius: Rounded.pill,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    minHeight: 44,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.md,
+    minHeight: MIN_TAP,
+    minWidth: MIN_TAP,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  addToggle: { minHeight: 44, justifyContent: 'center' },
 });
