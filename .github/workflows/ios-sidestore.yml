@@ -203,7 +203,13 @@ jobs:
 
           node -e '
             const fs = require("fs");
-            const [, , baseUrl, version, build, ipaName, ipaSize, date] = process.argv;
+            // `node -e` consumes only ONE argv slot (execPath) -- there's no script-file slot
+            // to skip a second one for. Confirmed empirically: `node -e '...' a b c` gives
+            // process.argv = [execPath, "a", "b", "c"]. Skipping two here (as a first version
+            // of this did) shifted every field by one position -- verified against a real
+            // published sidestore-source.json where iconURL came out as "1.0.0/icon.png" and
+            // size as null (NaN from Number(<a date string>), JSON-serialized).
+            const [, baseUrl, version, build, ipaName, ipaSize, date] = process.argv;
             const source = {
               name: "Queueless",
               identifier: "xyz.lpu.queueless.source",
