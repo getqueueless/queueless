@@ -1116,3 +1116,45 @@ under "Web app" above.
 - **When things go wrong.** A branded "Page not found" with Back to home, a "Something went wrong"
   card whose Try again re-fetches the page's data instead of just re-drawing it, and a skeleton
   in the page's shape while a page loads (it stays still for people who turn motion off).
+
+## Patient app redesign -- four tabs, Swiggy/Zomato style (2026-09-26)
+
+- **Navigation.** Patients now get four tabs -- Home, Doctors, My tokens, Profile -- replacing
+  Home/Appointments/History/Settings. Everything is one or two taps away. Staff and admin keep
+  their own tabs (Counter, Admin, Settings) untouched.
+- **Home.** A greeting with the patient's name, a live hero card for their newest active ticket
+  (built by app motion's HomeHeader/LiveTokenHero), three quick actions (take a token, book a
+  visit, claim a paper ticket), and a warm-toned Departments grid with live waits.
+- **Doctors.** Search plus department filter chips over every doctor in the hospital, not just
+  one department at a time. Tapping a card opens a detail sheet: shift hours, live status, and
+  the doctor's next open slots as big tappable pills. Picking a slot and picking nothing are two
+  different real actions underneath -- a slot mints a hold for that exact time, no slot mints a
+  walk-in hold for today -- and both hand off to Payment work's checkout screen the same way.
+- **My tokens.** Replaces Appointments and History with one screen, two tabs. Active shows every
+  ticket in progress as the same live tracker the token detail screen uses (position, ETA, stage
+  bar), plus any booked-but-not-checked-in appointment with its Check-in button. Past merges
+  resolved tickets and appointments, newest first, with a Paid chip where a real fee was charged
+  -- patients have no read access to the payments table itself (confirmed with Payment work), so
+  this reads the fee already stored on the ticket instead.
+  Refund status needs a hold-owner-scoped RPC Payment work is adding next; not shown yet.
+- **Profile.** Replaces Settings for patients (staff/admin still have Settings): contact details
+  with a one-tap edit, language, the existing theme switch, and a new elderly-mode switch that
+  scales patient-facing text 1.3x.
+  Toast messages (mounted once in the shared layout) replace `Alert.alert` for the paths this
+  pass touched -- Alert has no effect at all under `expo start --web`, confirmed against this
+  session's own build, not a guess.
+- **A real bug, not a screenshot artifact.** Every new tab's root view had no background color,
+  so on a phone set to dark mode the (correctly light) text sat on the OS's default white/
+  transparent canvas -- unreadable. Confirmed with a computed-style check
+  (`getComputedStyle`) before touching anything: text opacity was 1 the whole time, only the
+  background was wrong. Fixed per screen; app motion independently fixed the same class of bug
+  one layer up, at the shared navigation stack -- both fixes are in main and don't conflict.
+- **Verified end to end against production**, signed in as a QA patient: booked a doctor's slot
+  and cancelled it, took a walk-in token and watched its live tracker update, picked a paid slot
+  and confirmed the real `start_paid_booking` hold, checkout screen (price breakdown, hold
+  countdown, patient details) and price all matched, then backed out before Razorpay -- the hold
+  auto-expires in 10 minutes rather than staying booked. Checked every tab in both light and dark.
+  Not verified: the iOS SideStore build itself, which needs the owner's physical iPhone -- this
+  session only has the web preview and the source. Native-only concerns (safe-area insets on a
+  notch, real haptics, real `Alert.alert` behavior) should get a quick pass there before relying
+  on this note alone.
