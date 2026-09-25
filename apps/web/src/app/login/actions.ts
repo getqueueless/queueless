@@ -10,8 +10,6 @@ export type LoginState = {
   fieldErrors: Partial<Record<"email" | "password", string>>
 }
 
-export const initialLoginState: LoginState = { error: null, fieldErrors: {} }
-
 // Only ever redirect to a same-origin relative path -- the `next` param
 // comes from the URL, so treat it as untrusted and refuse anything that
 // could send the browser off-site.

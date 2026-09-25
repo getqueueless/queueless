@@ -2,7 +2,8 @@
 
 import { useActionState, useEffect, useRef } from "react"
 
-import { initialLoginState, login } from "./actions"
+import { login } from "./actions"
+import { initialLoginState } from "./state"
 import styles from "./login.module.css"
 
 export function LoginForm({ next }: { next: string }) {
