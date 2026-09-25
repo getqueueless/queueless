@@ -10,6 +10,7 @@ import {
   countOpenCounters,
   countTokensAhead,
   fetchCounter,
+  fetchToken,
   type CounterRow,
   type ServiceRow,
   type TokenRow,
@@ -25,6 +26,7 @@ const STATUS_LABEL: Record<TokenRow["status"], string> = {
   skipped: "Skipped",
   no_show: "No-show",
   cancelled: "Cancelled",
+  pending_payment: "Awaiting payment",
 }
 
 const STATUS_BADGE_CLASS: Record<TokenRow["status"], string> = {
@@ -35,6 +37,7 @@ const STATUS_BADGE_CLASS: Record<TokenRow["status"], string> = {
   skipped: styles.badgeNoShow,
   no_show: styles.badgeNoShow,
   cancelled: styles.badgeNoShow,
+  pending_payment: styles.badgeWaiting,
 }
 
 // The happy path drawn as a progress track (words, no numerals). Skipped /
@@ -86,6 +89,33 @@ export function StatusView({
     filter: `id=eq.${tokenId}`,
     onEvent,
   })
+
+  // Fallback for QA #1: postgres_changes can silently stop delivering to an
+  // already-open anon tab (RLS/subscription gap), and the resilient channel's
+  // own reconnect logic only fires on a transport-level drop, not a silent
+  // stall. A 10s poll plus an immediate refetch on tab focus/visibility puts a
+  // hard ceiling on staleness regardless of why the push failed. Cheap: one
+  // row by primary key.
+  useEffect(() => {
+    let cancelled = false
+    const refetch = () => {
+      fetchToken(supabase, tokenId).then((row) => {
+        if (!cancelled && row) setToken(row)
+      })
+    }
+    const interval = setInterval(refetch, 10_000)
+    const handleVisible = () => {
+      if (document.visibilityState === "visible") refetch()
+    }
+    document.addEventListener("visibilitychange", handleVisible)
+    window.addEventListener("focus", refetch)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", handleVisible)
+      window.removeEventListener("focus", refetch)
+    }
+  }, [supabase, tokenId])
 
   // Look up the new counter's name whenever the counter this token is
   // assigned to changes (realtime payloads carry raw columns only, not the
@@ -250,6 +280,12 @@ export function StatusView({
           {token.status === "cancelled" && (
             <div className={styles.body}>
               <p className={styles.line}>This token was cancelled.</p>
+            </div>
+          )}
+
+          {token.status === "pending_payment" && (
+            <div className={styles.body}>
+              <p className={styles.line}>Waiting for your payment to confirm.</p>
             </div>
           )}
         </div>

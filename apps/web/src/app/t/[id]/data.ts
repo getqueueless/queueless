@@ -20,6 +20,7 @@ export type TokenStatus =
   | "skipped"
   | "no_show"
   | "cancelled"
+  | "pending_payment"
 
 export type TokenRow = {
   id: string
