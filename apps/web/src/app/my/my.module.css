@@ -136,9 +136,10 @@
   padding-top: var(--space-lg);
 }
 
-/* Specificity over AnimatedHeading's own .heading: hero scale, and the
-   brand cyan (5.63:1 on slate) rather than its on-dark teal. */
-.hero .heroTitle {
+/* Specificity over AnimatedHeading's own .heading (and its dark-theme rule):
+   hero scale, and the brand cyan (5.63:1 on slate) rather than its on-dark teal. */
+.hero .heroTitle,
+:global(:root[data-theme="dark"]) .hero .heroTitle {
   --accent: var(--color-accent);
   --accent-hover: var(--color-accent-hover);
 
