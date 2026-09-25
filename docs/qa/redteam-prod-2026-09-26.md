@@ -135,9 +135,51 @@ etc). Not part of this hole.
 
 ### The fix
 
-`supabase/migrations/0046` (Hackathon database team) — re-enables RLS on
-the four tables above. *(This line updates once 0046 actually lands and
-is re-verified; not yet applied as of this addendum.)*
+Three migrations from the Hackathon database team, not one:
+- **`0063_prod_hotfix_grants.sql`** — a hand-run hotfix already live on
+  prod before this addendum was finished: revokes all anon access to
+  `profiles`/`appointments`/`notifications`/`audit_log` outright, and
+  revokes insert/update/delete (not select) on `tokens` from anon/
+  authenticated. This is why the *first* live sweep run already found
+  `notifications`/`appointments`/`audit_log` leaking only for `patient`,
+  never for `anon` — that half was closed first.
+- **`0047_tokens_appointments_notifications_audit_rls.sql`** — the real
+  fix: enables RLS on all four tables with actual policies (own-row for
+  patients, org-staff for staff/admin via `private.is_staff_of()`).
+- **`0048_get_token_status_rpc.sql`** — a purpose-built RPC so
+  `apps/web`'s `/t/[id]` page stops needing a raw anon table read.
+
+### Re-test after 0047 — done
+
+Confirmed `relrowsecurity = true` on all four tables directly against
+prod (`pg_class`) before re-running, then re-ran the same sweep, same
+throttle, against prod:
+
+```
+[FAIL] table_sweep_no_cross_identity_read[tokens/anon] -- got 200: [{"id":"0b1b204c-..."}]
+
+181/182 passed
+```
+
+**Fixed:** `tokens/patient`, `notifications/patient`, `appointments/
+patient`, `audit_log/patient` — all four now correctly return nothing for
+another identity's row.
+
+**Still open, on purpose, not a residual bug:** `tokens` keeps an explicit
+`tokens_read_anon_temporary` policy (`for select to anon using (true)`) —
+0047's own header comment states this is intentionally as wide as the
+pre-existing grant, kept only because two frontend pages
+(`apps/web/src/app/t/[id]/data.ts` and `/pay/[tokenId]/data.ts`) still do
+a raw anon table read for a single token by id. `0048` gives `/t/[id]` a
+real RPC to replace it; `/pay/[tokenId]` hasn't moved yet. Confirmed live
+— `pg_policies` on `tokens` still lists `tokens_read_anon_temporary` for
+role `anon`. Not this session's to remove (apps/web is out of scope
+here); flagged so whoever migrates the last caller off direct reads knows
+to drop this policy the same day.
+
+Nothing else in the sweep changed: `organizations`/`services`/`counters`/
+`board_services`/`board_counters`/`push_tokens`/`counter_services` remain
+correctly RLS-gated, as they already were before this whole incident.
 
 ### What now catches it permanently
 
