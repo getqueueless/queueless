@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { loadBoard } from "@/app/_landing/board"
-import { countTokensAhead, fetchCounter, type CounterRow, type TokenRow, type TokenStatus } from "@/app/t/[id]/data"
+import { fetchCounter, type CounterRow, type TokenRow, type TokenStatus } from "@/app/t/[id]/data"
 import type { DoctorStatus } from "@/lib/doctors"
 
 import { availability, dayKey, shiftsLabel, slotLabel, type Availability } from "./format"
@@ -27,6 +27,20 @@ export async function loadOrg(supabase: SupabaseClient, orgId: string | null): P
 
 // ---------- the patient's live token ----------
 
+// tokens has RLS since 0047: a patient sees only their own rows, so counting
+// the line with a direct query would always say nobody is ahead.
+// get_token_status (0048) counts server-side. It is RETURNS TABLE, so the
+// response is an array: .single() unwraps it.
+export async function readTokenStatus(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<{ token: TokenRow; ahead: number | null } | null> {
+  const { data, error } = await supabase.rpc("get_token_status", { p_id: id }).single()
+  if (error || !data) return null
+  const { people_ahead, ...token } = data as TokenRow & { people_ahead: number | null }
+  return { token, ahead: token.status === "waiting" ? people_ahead : null }
+}
+
 const ACTIVE_STATUSES: TokenStatus[] = ["pending_payment", "waiting", "called", "serving"]
 
 export type ActiveToken = {
@@ -51,10 +65,11 @@ export async function loadActiveToken(supabase: SupabaseClient, userId: string):
   if (!data) return null
 
   const { services, doctors, ...token } = data as TokenRow & { services: Named; doctors: Named }
-  const [ahead, counter] = await Promise.all([
-    token.status === "waiting" ? countTokensAhead(supabase, token) : null,
+  const [status, counter] = await Promise.all([
+    token.status === "waiting" ? readTokenStatus(supabase, token.id) : null,
     token.counter_id ? fetchCounter(supabase, token.counter_id) : null,
   ])
+  const ahead = status?.ahead ?? null
   return { token, serviceName: nameOf(services) ?? "Queueless", doctorName: nameOf(doctors), ahead, counter }
 }
 
@@ -167,7 +182,14 @@ export async function loadDoctors(supabase: SupabaseClient, timeZone: string, no
 
 // ---------- appointments + history ----------
 
-export type Appointment = { id: string; when: string; doctor: string | null; service: string }
+export type Appointment = {
+  id: string
+  when: string
+  doctor: string | null
+  service: string
+  /** pending_payment: a paid slot held for 10 minutes until the payment lands (0056). */
+  status: "booked" | "pending_payment"
+}
 
 export async function loadAppointments(
   supabase: SupabaseClient,
@@ -177,10 +199,16 @@ export async function loadAppointments(
 ): Promise<Appointment[]> {
   const { data } = await supabase
     .from("appointments")
-    .select("id, appointment_slots(starts_at), doctors(name), services(name)")
+    .select("id, status, appointment_slots(starts_at), doctors(name), services(name)")
     .eq("patient_id", userId)
-    .eq("status", "booked")
-  type Row = { id: string; appointment_slots: { starts_at: string } | { starts_at: string }[] | null; doctors: Named; services: Named }
+    .in("status", ["booked", "pending_payment"])
+  type Row = {
+    id: string
+    status: Appointment["status"]
+    appointment_slots: { starts_at: string } | { starts_at: string }[] | null
+    doctors: Named
+    services: Named
+  }
   return ((data ?? []) as Row[])
     .map((a) => {
       const slot = Array.isArray(a.appointment_slots) ? a.appointment_slots[0] : a.appointment_slots
@@ -193,6 +221,7 @@ export async function loadAppointments(
       when: slotLabel(a.startsAt, timeZone, now),
       doctor: nameOf(a.doctors),
       service: nameOf(a.services) ?? "",
+      status: a.status,
     }))
 }
 

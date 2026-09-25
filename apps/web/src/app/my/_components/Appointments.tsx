@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client"
 import type { Appointment } from "./data"
 import styles from "./History.module.css"
 import { CalendarIcon } from "./icons"
+import ui from "./ui.module.css"
 
 // "Today, 5:00 PM" -> day + time, for the date tile.
 function split(label: string): [string, string] {
@@ -53,7 +54,11 @@ function AppointmentRow({ appt }: { appt: Appointment }) {
           </p>
         )}
       </div>
-      {confirming ? (
+      {appt.status === "pending_payment" ? (
+        <span className={ui.chip} data-tone="warning">
+          Awaiting payment
+        </span>
+      ) : confirming ? (
         <div className={styles.confirm} role="group" aria-label="Cancel this appointment?">
           <button type="button" className={styles.danger} onClick={cancel} disabled={pending}>
             {pending ? "Cancelling…" : "Yes, cancel"}

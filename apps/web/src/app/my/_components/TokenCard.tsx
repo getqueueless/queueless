@@ -3,14 +3,14 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 
-import { countOpenCounters, countTokensAhead, fetchCounter, fetchToken, type TokenStatus } from "@/app/t/[id]/data"
+import { countOpenCounters, fetchCounter, type TokenStatus } from "@/app/t/[id]/data"
 import { fetchPrediction } from "@/app/t/[id]/predict"
 import { QueueTracker } from "@/components/motion/QueueTracker"
 import { useEtaAtJoin, useNowServing } from "@/components/motion/useQueueExtras"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import { createClient } from "@/lib/supabase/client"
 
-import type { ActiveToken } from "./data"
+import { readTokenStatus, type ActiveToken } from "./data"
 import { TOKEN_STATUS } from "./format"
 import { ArrowIcon } from "./icons"
 import styles from "./TokenCard.module.css"
@@ -39,12 +39,10 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
   useEffect(() => {
     let cancelled = false
     async function refresh() {
-      const row = await fetchToken(supabase, id)
-      if (cancelled || !row) return
+      const read = await readTokenStatus(supabase, id)
+      if (cancelled || !read) return
+      const { token: row, ahead: n } = read
       setToken(row)
-      if (row.status !== "waiting") return
-      const n = await countTokensAhead(supabase, row)
-      if (cancelled) return
       setAhead(n)
       if (n === null) return
       const prediction = await fetchPrediction(row.service_id, n, await countOpenCounters(supabase, row.service_id))
