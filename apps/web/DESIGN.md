@@ -117,6 +117,29 @@ typography:
     lineHeight: 1
     letterSpacing: -0.5px
     fontFeature: tnum
+  token-number-kiosk:
+    fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace"
+    fontSize: 96px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: -0.5px
+    fontFeature: tnum
+    note: "The just-issued number on /kiosk, read at arm's length by the staff member handing over the slip -- one deliberate step above token-number, not a stray value."
+  token-number-board:
+    fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace"
+    fontSize: "clamp(64px, 10vw, 180px)"
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: -0.5px
+    fontFeature: tnum
+    note: "/display/[service]'s now-serving tiles -- fluid by design so a phone-sized preview and a wall-mounted TV both stay legible from their own real viewing distance; every other clamp() endpoint on that page (title, stat values, next-up chips) scales off this same instinct."
+  caption-xs:
+    fontFamily: Inter
+    fontSize: 10px
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: 0
+    note: "The fallback status URL printed under a token slip's QR code -- only read when the QR itself fails to scan."
 
 rounded:
   xs: 4px
@@ -322,3 +345,5 @@ Flat by default. Cards lift with `{colors.surface}` fill + 1px `{colors.hairline
 | Mobile | <768px | Patient status page only (staff console is not optimized for phone); single column, token tile stays large and centered. |
 
 Touch targets ≥44px on any control a counter/staff user taps repeatedly (call next, mark done) — this is used standing at a counter, not sitting at a desk.
+
+`/display/[service]` is the one screen meant to run at *any* size in that range at once, from a kiosk-adjacent laptop up to a wall-mounted TV, so every size on it (title, stat values, counter tiles, the "next up" list, and `token-number-board` above) is a `clamp(min, preferred-vw, max)` scaled to viewport width rather than a fixed ramp step — deliberate fluid type, not drift off the ramp.
