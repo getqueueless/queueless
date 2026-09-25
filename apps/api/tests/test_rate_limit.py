@@ -44,3 +44,41 @@ def test_sixth_retrain_request_in_ten_minutes_is_rate_limited(client):
         last = client.post("/admin/retrain")
     assert last.status_code == 429
     assert "retry-after" in {k.lower() for k in last.headers}
+
+
+async def test_translate_rate_limited(client, db_pool):
+    import uuid
+
+    from tests.conftest import make_token
+
+    user_id = uuid.uuid4()
+    await db_pool.execute(
+        "INSERT INTO profiles (id, role) VALUES ($1, 'staff') "
+        "ON CONFLICT (id) DO UPDATE SET role = 'staff'",
+        user_id,
+    )
+    headers = {"Authorization": f"Bearer {make_token(sub=str(user_id))}"}
+    last = None
+    for _ in range(31):
+        last = client.post("/translate", json={"text": "hello", "target_lang": "hi"}, headers=headers)
+    assert last.status_code == 429
+    assert "retry-after" in {k.lower() for k in last.headers}
+
+
+async def test_admin_summary_run_rate_limited(client, db_pool):
+    import uuid
+
+    from tests.conftest import make_token
+
+    user_id = uuid.uuid4()
+    await db_pool.execute(
+        "INSERT INTO profiles (id, role, org_id) VALUES ($1, 'admin', $2) "
+        "ON CONFLICT (id) DO UPDATE SET role = 'admin'",
+        user_id, uuid.uuid4(),
+    )
+    headers = {"Authorization": f"Bearer {make_token(sub=str(user_id))}"}
+    last = None
+    for _ in range(6):
+        last = client.post("/admin/summary/run", json={}, headers=headers)
+    assert last.status_code == 429
+    assert "retry-after" in {k.lower() for k in last.headers}

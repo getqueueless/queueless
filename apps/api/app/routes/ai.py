@@ -60,7 +60,18 @@ class TranslateIn(BaseModel):
     target_lang: Literal["hi", "pa"]
 
 
-@router.post("/translate")
+@limiter.limit("30/minute")
+async def _translate_rate_limit(request: Request, response: Response) -> None:
+    # Same route-level-dependency pattern as /predict, /admin/retrain,
+    # /admin/ask -- runs before auth resolves. Every DeepSeek-backed route
+    # needs a bound: unlike /translate's own in-process cache (which only
+    # helps for a REPEATED identical (text, lang) pair), arbitrary caller-
+    # supplied text has no natural ceiling on real API calls/cost without
+    # this.
+    return None
+
+
+@router.post("/translate", dependencies=[Depends(_translate_rate_limit)])
 async def translate_route(
     request: Request,
     body: TranslateIn,
@@ -85,7 +96,18 @@ class SummaryRunIn(BaseModel):
     day: str | None = None
 
 
-@router.post("/admin/summary/run")
+@limiter.limit("5/minute")
+async def _summary_run_rate_limit(request: Request, response: Response) -> None:
+    # Same reasoning as _translate_rate_limit above: each call re-aggregates
+    # and re-generates a real DeepSeek report (the (org_id, day) upsert
+    # doesn't stop it running the LLM call again for an already-summarized
+    # day), so an admin re-triggering this in a loop has no natural cost
+    # ceiling without one. Admin-triggered and meant to be occasional, so a
+    # tighter budget than /translate's is appropriate.
+    return None
+
+
+@router.post("/admin/summary/run", dependencies=[Depends(_summary_run_rate_limit)])
 async def admin_summary_run(
     request: Request,
     body: SummaryRunIn,
