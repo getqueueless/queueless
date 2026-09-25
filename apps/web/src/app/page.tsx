@@ -90,14 +90,13 @@ export default async function Home() {
               Your place in the queue is held. Wait wherever you like, and your phone shows when
               the counter is ready.
             </p>
-            {/* Tokens come from the reception desk or its kiosk (a staff-signed-in
-                device), so the patient CTA is the status lookup, not /kiosk. */}
-            <div className={styles.heroCtas}>
-              <a href="#status" className={`${styles.btn} ${styles.btnAccent}`}>
+            {/* Patients take a token from /my; /login sends them straight there. */}
+            <div id="hero-ctas" className={styles.heroCtas}>
+              <Link href="/login?next=/my" className={`${styles.btn} ${styles.btnAccent}`}>
+                Take a token
+              </Link>
+              <a href="#status" className={`${styles.btn} ${styles.btnGhost}`}>
                 Check status
-              </a>
-              <a href="#how" className={`${styles.btn} ${styles.btnGhost}`}>
-                How to get a token
               </a>
             </div>
           </div>
