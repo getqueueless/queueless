@@ -34,4 +34,9 @@ export const TAB_ICONS = {
   counter: { sf: { default: 'person.wave.2', selected: 'person.wave.2.fill' }, md: 'support_agent' },
   admin: { sf: { default: 'chart.bar', selected: 'chart.bar.fill' }, md: 'admin_panel_settings' },
   settings: { sf: { default: 'gearshape', selected: 'gearshape.fill' }, md: 'settings' },
+  // Patient redesign's four tabs -- added per Hackathon mobile app's request, names checked
+  // against sf-symbols-typescript and expo-symbols' AndroidSymbol union.
+  doctors: { sf: { default: 'stethoscope', selected: 'stethoscope' }, md: 'stethoscope' },
+  'my-tokens': { sf: { default: 'ticket', selected: 'ticket.fill' }, md: 'confirmation_number' },
+  profile: { sf: { default: 'person.crop.circle', selected: 'person.crop.circle.fill' }, md: 'account_circle' },
 } satisfies Record<string, NativeTabsTriggerIconProps>;

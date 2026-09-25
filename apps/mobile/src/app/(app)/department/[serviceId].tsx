@@ -3,78 +3,17 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DoctorCard } from '@/components/ui/DoctorCard';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing, ThemeColor } from '@/constants/theme';
+import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { doctorStatusLabel, fetchDoctorsForService, formatFee, type DoctorWithStatus } from '@/lib/doctors';
+import { doctorCardStatus, fetchDoctorsForService, type DoctorWithStatus } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 import { useRequireCompleteProfile } from '@/lib/use-require-complete-profile';
 
 type Service = { id: string; name: string };
-
-const STATUS_COLOR: Record<DoctorWithStatus['status'], ThemeColor> = {
-  available: 'success',
-  running_late: 'warning',
-  on_break: 'warning',
-  off: 'danger',
-};
-const STATUS_SOFT: Record<DoctorWithStatus['status'], ThemeColor> = {
-  available: 'successSoft',
-  running_late: 'warningSoft',
-  on_break: 'warningSoft',
-  off: 'dangerSoft',
-};
-
-function StatusBadge({ doctor }: { doctor: DoctorWithStatus }) {
-  const key = doctor.onLeaveToday ? 'off' : doctor.status;
-  return (
-    <ThemedView type={STATUS_SOFT[key]} style={styles.statusBadge}>
-      <ThemedText type="caption" themeColor={STATUS_COLOR[key]}>
-        {doctorStatusLabel(doctor)}
-      </ThemedText>
-    </ThemedView>
-  );
-}
-
-function DoctorCard({ doctor, onPress }: { doctor: DoctorWithStatus; onPress: () => void }) {
-  const theme = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.doctorCard,
-        CardShadow,
-        { backgroundColor: theme.surface, borderColor: theme.hairline, opacity: pressed ? 0.85 : 1 },
-      ]}>
-      <View style={styles.doctorHeaderRow}>
-        <ThemedText type="headingSm" style={styles.doctorName}>
-          {doctor.name}
-        </ThemedText>
-        <StatusBadge doctor={doctor} />
-      </View>
-      <ThemedText type="bodySm" themeColor="inkSecondary">
-        {doctor.specialty}
-        {doctor.qualification ? ` · ${doctor.qualification}` : ''}
-      </ThemedText>
-      <View style={styles.doctorMetaRow}>
-        <ThemedText type="bodySm" themeColor="primaryText">
-          {formatFee(doctor.fee_inr)} consultation
-        </ThemedText>
-      </View>
-      {doctor.todayShifts.length > 0 ? (
-        <ThemedText type="caption" themeColor="inkMuted">
-          Today: {doctor.todayShifts.join(', ')}
-        </ThemedText>
-      ) : (
-        <ThemedText type="caption" themeColor="inkMuted">
-          No shifts scheduled today
-        </ThemedText>
-      )}
-    </Pressable>
-  );
-}
 
 export default function Department() {
   const params = useLocalSearchParams<{ serviceId: string }>();
@@ -196,13 +135,22 @@ export default function Department() {
                 <ThemedText type="headingSm" style={styles.sectionLabel}>
                   Or choose a doctor to book
                 </ThemedText>
-                {doctors.map((doctor) => (
-                  <DoctorCard
-                    key={doctor.id}
-                    doctor={doctor}
-                    onPress={() => router.push({ pathname: '/(app)/doctor/[doctorId]', params: { doctorId: doctor.id } })}
-                  />
-                ))}
+                {doctors.map((doctor) => {
+                  const openDoctor = () =>
+                    router.push({ pathname: '/(app)/doctor/[doctorId]', params: { doctorId: doctor.id } });
+                  return (
+                    <DoctorCard
+                      key={doctor.id}
+                      name={doctor.name}
+                      department={doctor.specialty}
+                      feeInr={doctor.fee_inr}
+                      status={doctorCardStatus(doctor)}
+                      nextSlot={doctor.todayShifts[0] ?? null}
+                      onPress={openDoctor}
+                      onAction={openDoctor}
+                    />
+                  );
+                })}
               </>
             ) : null}
           </ScrollView>
@@ -228,18 +176,4 @@ const styles = StyleSheet.create({
   anyCardSpinner: { alignSelf: 'flex-start', marginTop: Spacing.xxs },
   errorText: { marginTop: -Spacing.xs },
   sectionLabel: { marginTop: Spacing.sm },
-  doctorCard: {
-    borderWidth: 1,
-    borderRadius: Rounded.lg,
-    padding: Spacing.lg,
-    gap: Spacing.xxs,
-  },
-  doctorHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.xs },
-  doctorName: { flexShrink: 1 },
-  doctorMetaRow: { marginTop: Spacing.xxs },
-  statusBadge: {
-    borderRadius: Rounded.pill,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xxs,
-  },
 });

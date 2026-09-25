@@ -42,6 +42,15 @@ export function doctorStatusLabel(doctor: Pick<DoctorWithStatus, 'status' | 'lat
   return STATUS_LABELS[doctor.status];
 }
 
+/** Collapses the real 4-value status onto components/ui's DoctorCard/StatusChip 3-value scale
+ * (available/late/leave) -- `on_break` reads as "late" with its own label, since neither chip
+ * vocabulary has a dedicated "on break" state. */
+export function doctorCardStatus(doctor: Pick<DoctorWithStatus, 'status' | 'onLeaveToday'>): 'available' | 'late' | 'leave' {
+  if (doctor.onLeaveToday || doctor.status === 'off') return 'leave';
+  if (doctor.status === 'running_late' || doctor.status === 'on_break') return 'late';
+  return 'available';
+}
+
 /** 12-hour clock from a Postgres `time` string ("09:00:00" / "13:30:00"). */
 function formatTime(value: string): string {
   const [hStr, mStr] = value.split(':');
@@ -104,6 +113,53 @@ export async function fetchDoctorsForService(serviceId: string): Promise<DoctorW
   });
 }
 
+export type DoctorWithService = DoctorWithStatus & { serviceName: string };
+
+/**
+ * Every active doctor across every department, for the Doctors tab's flat search+filter list --
+ * `fetchDoctorsForService` stays scoped to one department (department screen still uses it).
+ */
+export async function fetchAllDoctors(): Promise<DoctorWithService[]> {
+  const today = todayDateString();
+  const weekday = todayWeekday();
+
+  const [doctorsRes, servicesRes, statusRes, schedulesRes, leavesRes] = await Promise.all([
+    supabase.from('doctors').select('*').eq('active', true),
+    supabase.from('services').select('id, name'),
+    supabase.from('doctor_status_today').select('doctor_id, status, late_minutes'),
+    supabase.from('doctor_schedules').select('doctor_id, weekday, start_time, end_time').eq('weekday', weekday),
+    supabase.from('doctor_leaves').select('doctor_id, from_date, to_date').lte('from_date', today).gte('to_date', today),
+  ]);
+
+  if (doctorsRes.error) throw doctorsRes.error;
+
+  const serviceNameById: Record<string, string> = {};
+  for (const row of (servicesRes.data ?? []) as { id: string; name: string }[]) serviceNameById[row.id] = row.name;
+
+  const statusByDoctor: Record<string, DoctorStatusRow> = {};
+  for (const row of (statusRes.data ?? []) as DoctorStatusRow[]) statusByDoctor[row.doctor_id] = row;
+
+  const shiftsByDoctor: Record<string, string[]> = {};
+  for (const row of (schedulesRes.data ?? []) as DoctorScheduleRow[]) {
+    const label = `${formatTime(row.start_time)} – ${formatTime(row.end_time)}`;
+    (shiftsByDoctor[row.doctor_id] ??= []).push(label);
+  }
+
+  const onLeaveDoctors = new Set(((leavesRes.data ?? []) as DoctorLeaveRow[]).map((row) => row.doctor_id));
+
+  return ((doctorsRes.data ?? []) as Doctor[]).map((doctor) => {
+    const status = statusByDoctor[doctor.id];
+    return {
+      ...doctor,
+      status: status?.status ?? 'available',
+      lateMinutes: status?.late_minutes ?? null,
+      onLeaveToday: onLeaveDoctors.has(doctor.id),
+      todayShifts: shiftsByDoctor[doctor.id] ?? [],
+      serviceName: serviceNameById[doctor.service_id] ?? 'General',
+    };
+  });
+}
+
 export async function fetchDoctor(doctorId: string): Promise<DoctorWithStatus | null> {
   const today = todayDateString();
   const weekday = todayWeekday();
@@ -127,4 +183,21 @@ export async function fetchDoctor(doctorId: string): Promise<DoctorWithStatus | 
       (row) => `${formatTime(row.start_time)} – ${formatTime(row.end_time)}`,
     ),
   };
+}
+
+/** A short, time-only label for a slot pill ("9:00 AM"), for a doctor's next few open slots. */
+export async function fetchNextSlotLabels(doctorId: string, limit = 4): Promise<string[]> {
+  const { data } = await supabase
+    .from('appointment_slots')
+    .select('starts_at, booked, capacity')
+    .eq('doctor_id', doctorId)
+    .gt('starts_at', new Date().toISOString())
+    .order('starts_at', { ascending: true })
+    .limit(limit * 3);
+
+  const rows = (data ?? []) as { starts_at: string; booked: number; capacity: number }[];
+  return rows
+    .filter((row) => row.booked < row.capacity)
+    .slice(0, limit)
+    .map((row) => new Date(row.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
 }
