@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Rounded, Spacing } from '@/constants/theme';
+import { TwoToneHeading } from '@/components/TwoToneHeading';
+import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { estimateWaitSeconds } from '@/lib/predict';
@@ -37,10 +38,12 @@ function formatWait(seconds: number): string {
 function ServiceCard({
   service,
   boardRow,
+  index,
   onPress,
 }: {
   service: Service;
   boardRow: BoardService;
+  index: number;
   onPress: () => void;
 }) {
   const theme = useTheme();
@@ -87,21 +90,29 @@ function ServiceCard({
 
   const waitSeconds = predictedSeconds ?? localEstimate;
   const label = predictedSeconds !== null ? 'predicted' : 'estimate';
+  const numberLabel = String(index + 1).padStart(2, '0');
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
+        CardShadow,
         { backgroundColor: theme.surface, borderColor: theme.hairline, opacity: pressed ? 0.85 : 1 },
       ]}>
-      <ThemedText type="headingMd">{service.name}</ThemedText>
-      <View style={styles.cardRow}>
-        <ThemedText type="bodySm" themeColor="inkSecondary">
-          {boardRow.waiting_count} waiting
-        </ThemedText>
-        <ThemedText type="bodySm" themeColor="inkMuted">
-          {formatWait(waitSeconds)} ({label})
+      <ThemedText type="displayLg" themeColor="primary" style={styles.cardNumber}>
+        {numberLabel}
+      </ThemedText>
+      <ThemedText type="headingMd" style={styles.cardHeading}>
+        {service.name}
+      </ThemedText>
+      <View
+        style={[
+          styles.cardBadge,
+          { backgroundColor: theme.primarySoft, borderColor: theme.primaryOutline },
+        ]}>
+        <ThemedText type="caption" themeColor="inkSecondary">
+          {boardRow.waiting_count} waiting · {formatWait(waitSeconds)} ({label})
         </ThemedText>
       </View>
     </Pressable>
@@ -253,35 +264,40 @@ export default function Home() {
   return (
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="displayMd" style={styles.title}>
-          Queueless
-        </ThemedText>
+        <TwoToneHeading text="TAKE A TOKEN" accent="TOKEN" style={styles.title} />
         <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
           Tap a service to take a token.
         </ThemedText>
 
         {loading ? (
           <View style={styles.centerFill}>
-            <ActivityIndicator color={theme.primary} />
+            <View style={[styles.stateCard, CardShadow, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
+              <ActivityIndicator color={theme.primary} />
+            </View>
           </View>
         ) : loadError ? (
           <View style={styles.centerFill}>
-            <ThemedText type="body" themeColor="inkMuted" style={styles.emptyText}>
-              {loadError}
-            </ThemedText>
+            <View style={[styles.stateCard, CardShadow, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
+              <ThemedText type="body" themeColor="inkMuted" style={styles.emptyText}>
+                {loadError}
+              </ThemedText>
+            </View>
           </View>
         ) : services.length === 0 ? (
           <View style={styles.centerFill}>
-            <ThemedText type="body" themeColor="inkMuted" style={styles.emptyText}>
-              No services are open right now. Check back soon.
-            </ThemedText>
+            <View style={[styles.stateCard, CardShadow, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
+              <ThemedText type="body" themeColor="inkMuted" style={styles.emptyText}>
+                No services are open right now. Check back soon.
+              </ThemedText>
+            </View>
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.list}>
-            {services.map((service) => (
+            {services.map((service, index) => (
               <ServiceCard
                 key={service.id}
                 service={service}
+                index={index}
                 boardRow={{
                   waiting_count: boardRows[service.id]?.waiting_count ?? EMPTY_BOARD_ROW.waiting_count,
                   avg_service_secs: boardRows[service.id]?.avg_service_secs ?? service.default_service_secs,
@@ -297,7 +313,7 @@ export default function Home() {
       <Modal visible={selected !== null} transparent animationType="slide" onRequestClose={closeSheet}>
         <View style={styles.modalRoot}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
-          <ThemedView type="surface" style={[styles.sheet, { borderColor: theme.hairline }]}>
+          <ThemedView type="surface" style={[styles.sheet, CardShadow, { borderColor: theme.hairline }]}>
             <ThemedText type="headingLg">{selected?.name}</ThemedText>
             <ThemedText type="body" themeColor="inkSecondary" style={styles.sheetSubtitle}>
               You&apos;ll get a token number and your place in the queue.
@@ -322,7 +338,10 @@ export default function Home() {
               )}
             </Pressable>
 
-            <Pressable onPress={closeSheet} disabled={submitting} style={styles.cancelButton}>
+            <Pressable
+              onPress={closeSheet}
+              disabled={submitting}
+              style={[styles.cancelButton, { borderColor: theme.primaryOutline }]}>
               <ThemedText type="button" themeColor="inkSecondary">
                 Cancel
               </ThemedText>
@@ -339,17 +358,35 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
   title: { marginTop: Spacing.sm },
   subtitle: { marginTop: Spacing.xxs, marginBottom: Spacing.md },
-  list: { paddingBottom: Spacing.xl, gap: Spacing.sm },
+  list: { paddingBottom: Spacing.xl, gap: Spacing.md },
   centerFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { textAlign: 'center', paddingHorizontal: Spacing.lg },
+  stateCard: {
+    borderWidth: 1,
+    borderRadius: Rounded.lg,
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: Spacing.lg,
+  },
+  emptyText: { textAlign: 'center' },
   card: {
     borderWidth: 1,
     borderRadius: Rounded.lg,
-    padding: Spacing.md,
+    padding: Spacing.lg,
     minHeight: 44,
     gap: Spacing.xxs,
   },
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.xxs },
+  cardNumber: { fontSize: 40, lineHeight: 40, opacity: 0.18 },
+  cardHeading: { marginTop: -Spacing.xs },
+  cardBadge: {
+    borderWidth: 1,
+    borderRadius: Rounded.pill,
+    paddingVertical: Spacing.xxs,
+    paddingHorizontal: Spacing.sm,
+    alignSelf: 'flex-start',
+    marginTop: Spacing.xxs,
+  },
   modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
     borderTopLeftRadius: Rounded.xl,
@@ -374,5 +411,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
+    borderWidth: 1,
+    borderRadius: Rounded.md,
   },
 });
