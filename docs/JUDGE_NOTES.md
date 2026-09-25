@@ -129,6 +129,51 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   (3 tokens/10min, cooldown after cancellations). Staff/admin logins are untouched — they still
   use a password and never go through the mailer.
 
+## Database security
+
+- **"Ask your data" without a text-to-SQL hole.** An admin can ask questions about their queue
+  (no-shows by service, wait times by hour, busiest desks, priority-lane mix) through 8 fixed,
+  read-only Postgres functions — never a generated SQL string. Whatever asks the question, the
+  only questions it can ever ask are these 8 shapes; there is no path from a typed question to
+  an arbitrary query. Every one of them is admin-only and scoped to the caller's own
+  organization from their signed session, never from a parameter — an admin cannot pass another
+  org's id and see its data, because nothing ever reads one. This is proven with two organizations
+  in the test suite, not just asserted: org A's admin gets zero rows for org B's service, and the
+  reverse.
+- **AI-generated ops summaries are read-only for admins, write-only for the API.** The daily
+  summary text lives in its own table, one row per organization/day/language. The backend that
+  generates it can insert and read; nothing, including a signed-in admin, can edit or delete a
+  summary once written — if a regeneration is ever needed, it's a new row, not a silent edit of
+  an old one.
+- **The API's audit door stays narrow even as its job grows.** Logging apps/api's own actions
+  (a push delivered, a summary generated) into the same audit trail the RPCs use does **not**
+  mean giving it `INSERT` on `audit_log` — that would let anything running as that role write
+  arbitrary rows into the one table this whole system treats as ground truth. Instead it calls
+  one function that only ever inserts, with the actor left null (it isn't a signed-in user), and
+  it still can't read `audit_log` back — proven the same way as everything else in this section,
+  by testing that the door opens and every other one stays shut.
+- **A real bug this pass caught, not just a design point:** the fixed-date functions above (and
+  the existing admin dashboard) take a calendar day, and this system's "day" is always the
+  organization's local one (`Asia/Kolkata`), never the database server's own UTC clock. For
+  about 5.5 hours every day (00:00–05:30 IST) a naive `current_date` on the server and the real
+  local day are different dates. It surfaced live while testing `busiest_counters`: called with
+  the server's raw date it returned nothing for a desk that had, in fact, served someone that
+  IST day. Every date-taking analytics function is documented with this trap explicitly named in
+  `supabase/README.md`, not left for the next person to rediscover the same way.
+- **What this pass found but did not fix, stated plainly rather than left implicit:** row-level
+  security now covers `organizations`, `services`, `counters`, `board_services`,
+  `board_counters`, `push_tokens`, `notifications` and, as of this pass, `ops_summaries`. It is
+  **still off** on `profiles`, `tokens`, `appointments`, `appointment_slots` and `audit_log` — and
+  on those tables, `anon` and `authenticated` currently hold Postgres's original default grant of
+  full `INSERT/SELECT/UPDATE/DELETE/TRUNCATE`, unrevoked. Concretely: today, a raw signed request
+  with nothing more than the public `anon` key can write directly to `profiles` — including
+  setting its own `role` to `admin` — or to `tokens`, bypassing every RPC's numbering, rate limit
+  and state-machine check entirely. The RPCs remain the only path the real apps ever take, and
+  nothing in this pass depends on that hole being open, but it is real, it is live, and it is not
+  hidden from this document. Closing it is a separate, deliberately-scoped migration (it has to
+  be checked against what `apps/web`'s own direct table reads actually need before it can safely
+  restrict them) — flagged as its own piece of work rather than rushed in alongside this one.
+
 ## Web app
 
 - **Stack.** Next.js 16 (App Router, TypeScript) under `apps/web`, styled with plain CSS Modules

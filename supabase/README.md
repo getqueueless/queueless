@@ -54,6 +54,18 @@ requires the emailed code.
 Staff and admin accounts are unaffected — they still sign in with `signInWithPassword()` and
 are seeded with `email_confirm: true` via the admin API, which never touches the mailer.
 
+### Google sign-in
+
+`supabase.auth.signInWithOAuth({ provider: 'google' })` works when `GOOGLE_ENABLED=true` and
+real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are set in `.env` (only the deployed instance's
+own `.env` has real values; `GOOGLE_ENABLED` must be exactly `true` or `false` — an empty
+string crashes the whole `auth` container at boot, so it's its own flag rather than derived
+from whether a client id is set). The redirect URI is `https://sb.lpu.lol/auth/v1/callback`
+(`SUPABASE_PUBLIC_URL` + `/auth/v1/callback`), registered as an authorized redirect on the
+Google Cloud OAuth client — a manual step in Google Cloud Console, nothing in this repo does
+it. A new Google sign-in gets `role='patient'` through the same `on_auth_user_created` trigger
+email signup uses; staff/admin only ever happens through `set_member_role`.
+
 ## apps/api's database access
 
 `apps/api` connects directly to Postgres (`127.0.0.1:54322`) as its own least-privilege role,
@@ -79,6 +91,8 @@ runs once, so changing the value later takes its own `alter role`.
 | `notifications` | `select`, `update (pushed_at)` | push delivery |
 | `push_tokens` | `select`, `delete` | a patient's devices; pruning dead ones |
 | `private.token_notifications` | `select`, `insert` | nothing since apps/api went delivery-only; left over from `0018` |
+| `ops_summaries` | `select`, `insert` | writing/reading the daily AI ops summary; no `update` — a rerun for the same `(org, day, lang)` hits the unique constraint, not an upsert |
+| `private.write_audit(...)` (execute) | — | logs apps/api's own actions (push delivered, summary generated) into `audit_log` with `actor` left null, without a raw insert grant on that table |
 
 **A grant is not access once RLS is on.** `services`, `board_services` and `push_tokens` have
 RLS, so each also has a policy naming `queueless_api` (`services_api_read`,
@@ -133,6 +147,8 @@ their table's columns unless noted.
   Errors: `not_signed_in`, `illegal_transition`, `not_found`, `checkin_window`, `busy`.
   **Retry:** safe — a second check-in on an already-checked-in appointment is
   `illegal_transition`, never a second ticket.
+- `set_my_language(p_language text) returns profiles` — `p_language` must be `en`, `hi` or
+  `pa`. Errors: `not_signed_in`, `invalid_language`.
 
 ### Staff
 
@@ -165,6 +181,60 @@ their table's columns unless noted.
 
 Every RPC also implicitly returns `not_signed_in` (401) if called without a valid JWT, and
 `busy` (429, `Retry-After: 1`) if a second write for the same patient is already in flight.
+
+## Analytics ("ask your data")
+
+Schema `analytics` holds 8 read-only, parameterized functions — no dynamic SQL anywhere in
+them, every filter is a static, bound `WHERE` clause. They're the safe surface for an
+"ask your data" feature: whatever asks the question, only these 8 shapes of question can
+ever be asked, none of them can be built into an arbitrary query string.
+
+All of them: `POST /rest/v1/rpc/<name>` with a signed-in **admin's** JWT (or `queueless_api`).
+Org scope always comes from the caller — an admin's own JWT, never a parameter — so there is
+nothing a caller can pass to see another org's data. A non-admin gets `forbidden`.
+
+- `no_shows_by_service(p_from date, p_to date) returns table(service_id uuid, service_name
+  text, total_tokens bigint, no_show_count bigint, no_show_rate numeric)`
+- `avg_wait_by_hour(p_service uuid, p_from date, p_to date) returns table(hour smallint,
+  avg_wait_minutes numeric, sample_count bigint)`
+- `busiest_counters(p_day date) returns table(counter_id uuid, counter_name text,
+  tokens_served bigint, avg_service_secs numeric)`
+- `tokens_per_day(p_from date, p_to date) returns table(day date, tokens_count bigint)` —
+  every day in range appears, zero-filled, chart-ready
+- `service_time_trend(p_service uuid, p_days int) returns table(day date, avg_service_secs
+  numeric, sample_count bigint)`
+- `wait_vs_predicted(p_from date, p_to date) returns table(service_id uuid, service_name
+  text, day date, avg_actual_wait_secs numeric, sample_count bigint)` — **name is aspirational
+  half the time**: this DB never stores a predicted wait (predictions are computed live by
+  apps/api's model and never persisted), so this returns the *actual* half only. A real
+  "vs predicted" comparison has to join this against a live `/predict` call at the app layer.
+- `peak_hours(p_from date, p_to date) returns table(hour smallint, tokens_count bigint)` —
+  always all 24 hours, zero-filled
+- `lane_mix(p_from date, p_to date) returns table(lane lane, tokens_count bigint, pct
+  numeric)`
+
+**`p_from`/`p_to`/`p_day` are service-day dates (the org's `Asia/Kolkata` calendar), not
+whatever "today" the caller's own clock computes.** The DB session is UTC; for roughly 5.5
+hours a day (00:00–05:30 IST) a UTC `current_date` and the real IST service day are different
+dates — this bit `busiest_counters` in testing (`current_date` found nothing; `(now() at time
+zone 'Asia/Kolkata')::date` found the token). Same trap as the admin dashboard's board lookup
+(below) — compute the date in IST before calling any of these, don't pass a raw `current_date`.
+
+**`queueless_api` calling these gets a different org-scoping path**, because it has no JWT and
+so no org of its own: `private.analytics_org()` checks `session_user = 'queueless_api'` (not
+`current_user` — `SECURITY DEFINER` makes `current_user` the function owner for the whole
+call, so it can never tell callers apart; `session_user` is fixed for the connection's life
+and does) and, for that one caller, returns the single organization this system has today.
+A genuinely multi-org deployment would need an explicit, queueless_api-only org parameter —
+not built, because there's exactly one organization to be wrong about right now. This path
+can't be exercised by pgTAP (`set local role` changes `current_user`, never `session_user`,
+so a pgTAP session can never really *be* `queueless_api`) — it's verified with a real direct
+connection instead:
+```
+docker exec -i -e PGPASSWORD="$QUEUELESS_API_DB_PASSWORD" supabase-db \
+  psql -U queueless_api -h localhost -d postgres \
+  -c "select * from analytics.tokens_per_day(current_date, current_date)"
+```
 
 ## Tables the screens read
 
