@@ -58,7 +58,7 @@ export async function PublicHeader({ current, tone = "surface" }: PublicHeaderPr
             </>
           ) : (
             <Link href="/login" aria-current={page("signin")} className={styles.login}>
-              Sign in
+              Log in
             </Link>
           )}
         </nav>

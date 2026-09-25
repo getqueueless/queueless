@@ -15,7 +15,7 @@ const COLUMNS = [
   {
     heading: "Staff",
     links: [
-      { href: "/staff?tab=password", label: "Staff login" },
+      { href: "/login", label: "Log in" },
       { href: "/counter", label: "Counter console" },
       { href: "/admin", label: "Admin dashboard" },
     ],

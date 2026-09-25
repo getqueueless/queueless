@@ -1,7 +1,7 @@
 import { z } from "zod"
 
-// Staff/admin only -- patients have no password (see supabase/README.md,
-// "Patient auth: email OTP").
+// One card, everyone: a patient who's set a password signs in the same way
+// as staff/admin (see docs/JUDGE_NOTES.md/QA#8).
 export const loginSchema = z.object({
   email: z.email("Enter a valid email address"),
   password: z.string().min(1, "Password is required"),
@@ -16,13 +16,40 @@ export const otpRequestSchema = z.object({
 export type OtpRequestInput = z.infer<typeof otpRequestSchema>
 
 // 0037_mandatory_profile.sql's `token` param to verifyOtp is the 6-digit
-// code from the email subject line, not a magic-link token.
+// code from the email subject line, not a magic-link token. The same shape
+// verifies a sign-in code, a signup confirmation code and a password-reset
+// code -- only the `type` passed to supabase.auth.verifyOtp differs.
 export const otpVerifySchema = z.object({
   email: z.email("Enter a valid email address"),
   code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
 })
 
 export type OtpVerifyInput = z.infer<typeof otpVerifySchema>
+
+export const signUpSchema = z
+  .object({
+    email: z.email("Enter a valid email address"),
+    password: z.string().min(8, "Use at least 8 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  })
+
+export type SignUpInput = z.infer<typeof signUpSchema>
+
+export const newPasswordSchema = z
+  .object({
+    password: z.string().min(8, "Use at least 8 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  })
+
+export type NewPasswordInput = z.infer<typeof newPasswordSchema>
 
 // Mirrors complete_my_profile's own server-side checks (0037) so the form
 // fails the same way before it ever calls the RPC -- the RPC re-validates

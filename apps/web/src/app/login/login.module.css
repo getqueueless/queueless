@@ -1,5 +1,5 @@
-/* Same public-screen shell as the old /login (band + overlapping card,
-   Poppins). Adds a tab bar for the three sign-in methods. */
+/* GitHub-style single sign-in card: band + overlapping card, Poppins for the
+   heading. One card, every role -- no tab bar (that's the point). */
 .page {
   --overlap: 88px;
   flex: 1;
@@ -37,6 +37,9 @@
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-raised);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
 }
 
 :global(:root[data-theme="dark"]) .card {
@@ -44,7 +47,7 @@
 }
 
 .subtitle {
-  margin: var(--space-sm) 0 var(--space-lg);
+  margin: var(--space-sm) 0 0;
   color: var(--color-ink-secondary);
   font-size: 14px;
   line-height: 1.65;
@@ -70,43 +73,7 @@
   color: var(--color-primary-hover);
 }
 
-/* ---------- Tabs ---------- */
-
-.tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: var(--space-lg);
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  background: var(--color-canvas-soft);
-}
-
-.tab {
-  flex: 1;
-  min-height: 38px;
-  border: none;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: var(--color-ink-secondary);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-}
-
-.tab[aria-selected="true"] {
-  background: var(--color-surface);
-  color: var(--color-ink);
-  box-shadow: var(--shadow-card);
-}
-
-.tab:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
-/* ---------- Form (shared by password + OTP panels) ---------- */
+/* ---------- Form ---------- */
 
 .form {
   display: flex;
@@ -123,6 +90,17 @@
 .label {
   font-size: 14px;
   color: var(--color-ink-secondary);
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.labelRow .linkButton {
+  font-size: 13px;
 }
 
 .hint {
@@ -252,6 +230,27 @@
   outline-offset: 2px;
 }
 
+/* "or" divider between the password form and Google -- a line through the
+   middle, word centered on the card's own background. */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-hairline-strong);
+}
+
 /* Google button: outlined, not filled -- it's a third-party identity, not
    this app's own primary action. */
 .google {
@@ -300,6 +299,13 @@
 
 .linkButton:hover {
   color: var(--color-primary-hover);
+}
+
+.prompt {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-ink-secondary);
 }
 
 @media (max-width: 767px) {

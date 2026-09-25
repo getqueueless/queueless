@@ -76,7 +76,7 @@ export async function updateSession(request: NextRequest) {
   const userId = data?.claims.sub ?? null;
 
   if (!userId) {
-    const loginUrl = new URL("/staff", request.url);
+    const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }

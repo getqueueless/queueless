@@ -6,38 +6,30 @@ import { PublicFooter } from "@/components/site/PublicFooter"
 import { PublicHeader } from "@/components/site/PublicHeader"
 import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 
-import { LoginTabs, type Tab } from "../staff/LoginTabs"
-import styles from "../staff/staff.module.css"
+import { LoginCard } from "./LoginCard"
+import styles from "./login.module.css"
 
 export const metadata: Metadata = {
-  title: "Sign in to take a token",
+  title: "Sign in to Queueless",
 }
 
-const PATIENT_TABS: Tab[] = ["google", "otp"]
-
-// Same "no explicit next means no explicit next" rule as /staff -- see that
-// page's safeNextPath for why this must stay empty, not default to /my.
+// Empty (not a default page) when the caller didn't ask for a specific
+// page: an empty `next` is what tells the sign-in actions "no explicit
+// request, use the signed-in user's own role to pick /admin, /counter or
+// /my" (see lib/auth/redirect.ts's roleLandingPath).
 function safeNextPath(value: string | string[] | undefined): string {
   const path = Array.isArray(value) ? value[0] : value
   if (!path || !path.startsWith("/") || path.startsWith("//")) return ""
   return path
 }
 
-function safeTab(value: string | string[] | undefined): Tab {
-  const tab = Array.isArray(value) ? value[0] : value
-  if (tab === "email") return "otp"
-  return (PATIENT_TABS as string[]).includes(tab ?? "") ? (tab as Tab) : "google"
-}
-
-// Patient-facing sign-in: Google or an email code only, Google first --
-// patients never had a password to begin with. Staff/admin still sign in at
-// /staff (linked from the footer's Staff column), which keeps its password
-// tab; this page reuses that same LoginTabs component restricted to the two
-// patient-safe methods rather than a second copy of GooglePanel/OtpPanel.
+// One card, every role (GitHub-style): password sign-in by default, with
+// Google, an email sign-in code and account creation reachable from the
+// same card. /staff redirects here; there's no separate staff surface any
+// more.
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const params = await searchParams
   const next = safeNextPath(params.next)
-  const initialTab = safeTab(params.tab)
 
   return (
     <>
@@ -50,11 +42,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </div>
 
         <div className={styles.card}>
-          <TwoToneHeading as="h1" lead="Sign in to take a" accent="token" />
-          <p className={styles.subtitle}>
-            No password, no separate sign-up — continue with Google or a one-time email code.
-          </p>
-          <LoginTabs next={next} initialTab={initialTab} tabs={PATIENT_TABS} />
+          <div>
+            <LogoMark size={32} />
+            <TwoToneHeading as="h1" lead="Sign in to" accent="Queueless" />
+          </div>
+          <LoginCard next={next} />
         </div>
 
         <p className={styles.aside}>

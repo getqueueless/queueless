@@ -10,17 +10,12 @@ export function safeNextPath(value: string | FormDataEntryValue | null | undefin
 }
 
 // Patient-first: lpu.lol's default landing for anyone we can't confirm a
-// role for is /my, not the staff console. `methodHint` is the one exception
-// -- the password tab is staff/admin-only (patients have no password, though
-// see docs/JUDGE_NOTES.md/QA#8 on that not being enforced), so a successful
-// password sign-in falls back to /counter on the rare case `profile` comes
-// back null from a genuine read error. A real profile.role always wins.
-export function roleLandingPath(
-  profile: ProfileSummary | null,
-  methodHint?: "password",
-): string {
+// role for is /my, not the staff console. Password is no longer a
+// staff/admin-only method (/login is one unified card for every role), so
+// there's no method-based hint left to fall back on -- only a real
+// profile.role picks anything but /my.
+export function roleLandingPath(profile: ProfileSummary | null): string {
   if (profile?.role === "admin") return "/admin"
   if (profile?.role === "staff") return "/counter"
-  if (profile?.role === "patient") return "/my"
-  return methodHint === "password" ? "/counter" : "/my"
+  return "/my"
 }
