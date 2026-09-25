@@ -185,19 +185,21 @@ export async function fetchDoctor(doctorId: string): Promise<DoctorWithStatus | 
   };
 }
 
-/** A short, time-only label for a slot pill ("9:00 AM"), for a doctor's next few open slots. */
-export async function fetchNextSlotLabels(doctorId: string, limit = 4): Promise<string[]> {
+export type NextSlot = { id: string; label: string };
+
+/** A doctor's next few open slots, each with a short time-only label ("9:00 AM") for a pill. */
+export async function fetchNextSlots(doctorId: string, limit = 4): Promise<NextSlot[]> {
   const { data } = await supabase
     .from('appointment_slots')
-    .select('starts_at, booked, capacity')
+    .select('id, starts_at, booked, capacity')
     .eq('doctor_id', doctorId)
     .gt('starts_at', new Date().toISOString())
     .order('starts_at', { ascending: true })
     .limit(limit * 3);
 
-  const rows = (data ?? []) as { starts_at: string; booked: number; capacity: number }[];
+  const rows = (data ?? []) as { id: string; starts_at: string; booked: number; capacity: number }[];
   return rows
     .filter((row) => row.booked < row.capacity)
     .slice(0, limit)
-    .map((row) => new Date(row.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+    .map((row) => ({ id: row.id, label: new Date(row.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }));
 }

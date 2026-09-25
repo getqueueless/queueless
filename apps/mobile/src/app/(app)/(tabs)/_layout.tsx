@@ -48,15 +48,21 @@ export default function TabsLayout() {
         </NativeTabs.Trigger>
       )}
       {role === 'patient' && (
-        <NativeTabs.Trigger name="appointments">
-          <NativeTabs.Trigger.Icon {...TAB_ICONS.appointments} />
-          <NativeTabs.Trigger.Label>Appointments</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger name="doctors">
+          <NativeTabs.Trigger.Icon {...TAB_ICONS.doctors} />
+          <NativeTabs.Trigger.Label>Doctors</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       )}
       {role === 'patient' && (
-        <NativeTabs.Trigger name="history">
-          <NativeTabs.Trigger.Icon {...TAB_ICONS.history} />
-          <NativeTabs.Trigger.Label>History</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger name="my-tokens">
+          <NativeTabs.Trigger.Icon {...TAB_ICONS['my-tokens']} />
+          <NativeTabs.Trigger.Label>My tokens</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+      )}
+      {role === 'patient' && (
+        <NativeTabs.Trigger name="profile">
+          <NativeTabs.Trigger.Icon {...TAB_ICONS.profile} />
+          <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       )}
       {(role === 'staff' || role === 'admin') && (
@@ -71,10 +77,12 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Label>Admin</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       )}
-      <NativeTabs.Trigger name="settings">
-        <NativeTabs.Trigger.Icon {...TAB_ICONS.settings} />
-        <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
+      {role !== 'patient' && (
+        <NativeTabs.Trigger name="settings">
+          <NativeTabs.Trigger.Icon {...TAB_ICONS.settings} />
+          <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+      )}
     </NativeTabs>
   );
 }
