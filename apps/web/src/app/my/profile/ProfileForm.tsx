@@ -1,30 +1,50 @@
 "use client"
 
-import { useActionState, useEffect, useRef } from "react"
+import { useActionState, useEffect, useRef, useState } from "react"
 
 import { completeProfile } from "./actions"
 import styles from "./profile.module.css"
 
+type ProfileFieldValues = Record<"fullName" | "phone" | "dateOfBirth" | "gender" | "city" | "addressLine", string>
+
 export type ProfileFormState = {
   error: string | null
-  fieldErrors: Partial<
-    Record<"fullName" | "phone" | "dateOfBirth" | "gender" | "city" | "addressLine", string>
-  >
+  fieldErrors: Partial<ProfileFieldValues>
+  values: ProfileFieldValues | null
 }
 
 export function ProfileForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState<ProfileFormState, FormData>(completeProfile, {
     error: null,
     fieldErrors: {},
+    values: null,
   })
   const errorRef = useRef<HTMLDivElement>(null)
+  const v = state.values
 
+  // QA P2: React resets an uncontrolled <form action={fn}> back to each field's
+  // defaultValue once the action settles -- on ANY submit, not just a successful one,
+  // since React has no way to know "error" from a plain returned state object. That
+  // wiped every field on a validation/RPC error. Fix: echo the submitted values back
+  // in `state` (actions.ts) and remount the form with a fresh key each time a
+  // submission completes, so the reset lands on the CORRECT (just-submitted)
+  // defaultValue instead of the field's original empty one.
+  const [formKey, setFormKey] = useState(0)
+  const wasPending = useRef(pending)
+  useEffect(() => {
+    if (wasPending.current && !pending) setFormKey((k) => k + 1)
+    wasPending.current = pending
+  }, [pending])
+
+  // Depends on formKey too: the remount above happens one render after `state`
+  // updates, which would otherwise unmount the very div this just focused and leave
+  // the freshly-mounted one (post-remount) never focused.
   useEffect(() => {
     if (state.error) errorRef.current?.focus()
-  }, [state])
+  }, [state, formKey])
 
   return (
-    <form action={formAction} className={styles.form} noValidate>
+    <form key={formKey} action={formAction} className={styles.form} noValidate>
       <input type="hidden" name="next" value={next} />
 
       {state.error && (
@@ -47,6 +67,7 @@ export function ProfileForm({ next }: { next: string }) {
           name="fullName"
           type="text"
           autoComplete="name"
+          defaultValue={v?.fullName}
           required
           aria-invalid={state.fieldErrors.fullName ? "true" : undefined}
           aria-describedby={state.fieldErrors.fullName ? "fullName-error" : undefined}
@@ -73,7 +94,9 @@ export function ProfileForm({ next }: { next: string }) {
             type="tel"
             inputMode="numeric"
             autoComplete="tel-national"
-            placeholder="98765 43210"
+            placeholder="9876543210"
+            defaultValue={v?.phone}
+            maxLength={10}
             required
             aria-invalid={state.fieldErrors.phone ? "true" : undefined}
             aria-describedby={state.fieldErrors.phone ? "phone-error" : undefined}
@@ -96,6 +119,7 @@ export function ProfileForm({ next }: { next: string }) {
             id="dateOfBirth"
             name="dateOfBirth"
             type="date"
+            defaultValue={v?.dateOfBirth}
             required
             aria-invalid={state.fieldErrors.dateOfBirth ? "true" : undefined}
             aria-describedby={state.fieldErrors.dateOfBirth ? "dob-error" : undefined}
@@ -112,7 +136,7 @@ export function ProfileForm({ next }: { next: string }) {
           <label htmlFor="gender" className={styles.label}>
             Gender
           </label>
-          <select id="gender" name="gender" required defaultValue="" className={styles.select}>
+          <select id="gender" name="gender" required defaultValue={v?.gender ?? ""} className={styles.select}>
             <option value="" disabled>
               Select
             </option>
@@ -133,6 +157,7 @@ export function ProfileForm({ next }: { next: string }) {
           name="city"
           type="text"
           autoComplete="address-level2"
+          defaultValue={v?.city}
           required
           aria-invalid={state.fieldErrors.city ? "true" : undefined}
           aria-describedby={state.fieldErrors.city ? "city-error" : undefined}
@@ -153,6 +178,7 @@ export function ProfileForm({ next }: { next: string }) {
           id="addressLine"
           name="addressLine"
           autoComplete="street-address"
+          defaultValue={v?.addressLine}
           className={styles.textarea}
         />
       </div>
