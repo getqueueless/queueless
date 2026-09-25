@@ -19,6 +19,16 @@ declare
   v_tok uuid;
   v_svc uuid;
   v_doctor uuid;
+  v_walkin uuid;
+  v_receipt_num int;
+  v_receipt_id uuid;
+  v_first_receipt_id uuid;
+  v_finished_a uuid;
+  v_finished_b uuid;
+  v_finished_c uuid;
+  v_patient_demo uuid;
+  v_slot uuid;
+  v_appt_doctor uuid;
   v_names text[] := array['Asha','Ravi','Priya','Kiran','Meera','Vikram','Sunita','Arjun','Divya','Rohit','Neha','Sanjay','Pooja','Amit','Rekha'];
   i int;
 begin
@@ -54,7 +64,9 @@ begin
   perform private.demo_reset_cash_receipts(v_org, v_day);
 
   -- 3. payments, if that table exists yet (owned by a different migration range) -- guarded so
-  -- this script keeps working whether or not it's landed.
+  -- this script keeps working whether or not it's landed. Every payment this script itself
+  -- creates (below) is tied to one of today's tokens, so this token-scoped delete always catches
+  -- them on the next run.
   if to_regclass('public.payments') is not null
      and exists (
        select 1 from information_schema.columns
@@ -74,6 +86,20 @@ begin
     set token_id = null
     where token_id in (select id from public.tokens where org_id = v_org and service_day = v_day);
 
+  -- Demo appointments this script itself books (tomorrow's, below) are its own to clean up on
+  -- every run, unlike a real patient's booking -- scoped to the dedicated demo patient account
+  -- so this never touches a real booking. Release each slot's booked count first -- a plain
+  -- delete would leak capacity forever (never decremented, unlike cancel_appointment's own
+  -- path), and every slot would eventually show full on repeat runs.
+  select id into v_patient_demo from auth.users where email = 'demo-appointments@lpu.lol';
+  if v_patient_demo is not null then
+    update public.appointment_slots s
+      set booked = greatest(0, s.booked - 1)
+      from public.appointments a
+      where a.patient_id = v_patient_demo and a.slot_id = s.id and a.status = 'booked';
+    delete from public.appointments where patient_id = v_patient_demo;
+  end if;
+
   -- 5. offline-claim rate-limit rows aren't org/day-scoped (private.claim_attempts is keyed
   -- only by patient_id) and exist purely to drive a 1-hour rolling lockout, not as an audit
   -- trail -- clearing the whole table on a demo reset can't leak or lose anything real.
@@ -83,6 +109,115 @@ begin
   delete from public.tokens where org_id = v_org and service_day = v_day;
   delete from private.service_days
     where day = v_day and service_id in (select id from public.services where org_id = v_org);
+
+  -- ~6 completed visits today with realistic service times, so served_count, avg_service_secs,
+  -- the admin charts and the ML training data all have something to show -- run BEFORE any
+  -- counter gets pulled into 'serving' below, so a random counter pick here can never collide
+  -- with tokens_one_per_desk's "one called/serving token per counter" constraint.
+  for i in 1..6 loop
+    v_svc := (array[v_opd, v_opd, v_ped, v_ort, v_pha, v_pha])[i];
+
+    select id into v_tok from private.mint_token(
+      v_org, v_svc, 'normal', null, v_names[1 + floor(random() * array_length(v_names, 1))::int],
+      null, now(), null, null
+    );
+    select c.id into v_counter_a from public.counter_services cs
+      join public.counters c on c.id = cs.counter_id
+      where cs.service_id = v_svc
+      order by random() limit 1;
+
+    -- backdated so "today" doesn't look like it all happened in the last 10 seconds -- created_at
+    -- has no ON DELETE-style constraint tying it to called_at/serving_at, so this is safe.
+    update public.tokens set created_at = now() - (30 + floor(random() * 240))::int * interval '1 minute'
+      where id = v_tok;
+    update public.tokens set status = 'called', counter_id = v_counter_a, called_at = created_at + interval '2 minutes'
+      where id = v_tok;
+    update public.tokens set status = 'serving', serving_at = called_at + interval '1 minute'
+      where id = v_tok;
+    update public.tokens set status = 'done', finished_at = serving_at + (180 + floor(random() * 300))::int * interval '1 second'
+      where id = v_tok;
+
+    if i = 1 then v_finished_a := v_tok;
+    elsif i = 2 then v_finished_b := v_tok;
+    elsif i = 3 then v_finished_c := v_tok;
+    end if;
+  end loop;
+
+  -- 4 cash receipts today (one of them refunded), mirroring staff_register_walkin's own
+  -- receipt-numbering logic directly -- that RPC requires a real signed-in staff auth.uid(),
+  -- which this script doesn't have.
+  v_first_receipt_id := null;
+  for i in 1..4 loop
+    v_svc := (array[v_opd, v_ped, v_ort, v_pha])[i];
+    select id into v_doctor from public.doctors where service_id = v_svc and active order by random() limit 1;
+
+    insert into public.walkin_patients (org_id, phone, full_name, date_of_birth, gender, city)
+    values (
+      v_org, '+9198765' || lpad((40000 + i)::text, 5, '0'),
+      v_names[1 + floor(random() * array_length(v_names, 1))::int],
+      (current_date - ((20 + i * 7) || ' years')::interval)::date,
+      (array['male', 'female']::public.gender[])[1 + floor(random() * 2)::int], 'Ludhiana'
+    )
+    on conflict (org_id, phone) do update set full_name = excluded.full_name
+    returning id into v_walkin;
+
+    select id into v_tok from private.mint_token(v_org, v_svc, 'normal', null, 'Cash desk walk-in', null, now(), null, v_doctor);
+    update public.tokens
+      set walkin_patient_id = v_walkin, status = 'called', counter_id = null, called_at = now()
+      where id = v_tok;
+    update public.tokens set status = 'serving', serving_at = now() where id = v_tok;
+    update public.tokens set status = 'done', finished_at = now() where id = v_tok;
+
+    insert into private.cash_receipt_days (org_id, day, last_number)
+    values (v_org, v_day, 1)
+    on conflict (org_id, day) do update set last_number = private.cash_receipt_days.last_number + 1
+    returning last_number into v_receipt_num;
+
+    insert into public.cash_receipts (org_id, token_id, patient_phone, doctor_id, amount_inr, receipt_no, collected_by)
+    values (
+      v_org, v_tok, '+9198765' || lpad((40000 + i)::text, 5, '0'), v_doctor,
+      coalesce((select fee_inr from public.doctors where id = v_doctor), 300),
+      'R-' || to_char(v_day, 'YYYYMMDD') || '-' || lpad(v_receipt_num::text, 4, '0'),
+      (select id from auth.users where email = 'counter1@lpu.lol')
+    )
+    returning id into v_receipt_id;
+
+    if i = 1 then v_first_receipt_id := v_receipt_id; end if;
+  end loop;
+
+  -- refund the first of the 4 (append-only ledger, so a refund is its own new row, negative,
+  -- pointing back at the original -- same shape admin_refund_cash_receipt writes).
+  if v_first_receipt_id is not null then
+    insert into private.cash_receipt_days (org_id, day, last_number)
+    values (v_org, v_day, 1)
+    on conflict (org_id, day) do update set last_number = private.cash_receipt_days.last_number + 1
+    returning last_number into v_receipt_num;
+
+    insert into public.cash_receipts (org_id, token_id, patient_phone, doctor_id, amount_inr, receipt_no, collected_by, refund_of, reason)
+    select org_id, token_id, patient_phone, doctor_id, -amount_inr,
+      'R-' || to_char(v_day, 'YYYYMMDD') || '-' || lpad(v_receipt_num::text, 4, '0'),
+      collected_by, id, 'Demo refund'
+    from public.cash_receipts where id = v_first_receipt_id;
+  end if;
+
+  -- 2 captured online payments + 1 refunded, tied to 3 of the finished visits above. Those
+  -- tokens are minted with no doctor (a plain walk-in service visit), so there's no real fee to
+  -- copy -- a flat realistic amount stands in, same as the cash desk fixtures' own fallback.
+  if to_regclass('public.payments') is not null and v_finished_a is not null then
+    insert into public.payments (org_id, token_id, razorpay_order_id, razorpay_payment_id, amount_inr, status, captured_at)
+    values (v_org, v_finished_a, 'order_demo_' || v_finished_a, 'pay_demo_' || v_finished_a, 450, 'captured', now());
+  end if;
+  if to_regclass('public.payments') is not null and v_finished_b is not null then
+    insert into public.payments (org_id, token_id, razorpay_order_id, razorpay_payment_id, amount_inr, status, captured_at)
+    values (v_org, v_finished_b, 'order_demo_' || v_finished_b, 'pay_demo_' || v_finished_b, 600, 'captured', now());
+  end if;
+  if to_regclass('public.payments') is not null and v_finished_c is not null then
+    insert into public.payments (org_id, token_id, razorpay_order_id, razorpay_payment_id, razorpay_refund_id, amount_inr, status, captured_at, refunded_at, refund_reason)
+    values (
+      v_org, v_finished_c, 'order_demo_' || v_finished_c, 'pay_demo_' || v_finished_c, 'rfnd_demo_' || v_finished_c,
+      500, 'refunded', now() - interval '20 minutes', now(), 'Demo refund'
+    );
+  end if;
 
   -- ~15 waiting tokens spread across the 4 services, mostly normal lane. Roughly a third are
   -- assigned to a specific active doctor for that service (doctor-bound queue), the rest stay
@@ -142,6 +277,39 @@ begin
       update public.tokens set status = 'serving', serving_at = now() where id = v_tok;
     end if;
   end if;
+
+  -- upcoming appointments: a dedicated demo patient account (never a real signed-up user -- see
+  -- the cleanup above), 3 bookings across different services/doctors, each the soonest open slot
+  -- in the coming week (usually tomorrow; see the generate_doctor_slots call below for why not
+  -- always literally tomorrow). book_appointment's own auth.uid() check can't run here, so this
+  -- mirrors its insert + slot-capacity bump directly.
+  insert into auth.users (id, email)
+  select gen_random_uuid(), 'demo-appointments@lpu.lol'
+  where not exists (select 1 from auth.users where email = 'demo-appointments@lpu.lol');
+  select id into v_patient_demo from auth.users where email = 'demo-appointments@lpu.lol';
+  update public.profiles
+    set full_name = coalesce(full_name, 'Demo Appointments Patient'), profile_completed_at = coalesce(profile_completed_at, now())
+    where id = v_patient_demo;
+
+  for i in 1..3 loop
+    v_svc := (array[v_opd, v_ped, v_ort])[i];
+    select d.id into v_appt_doctor from public.doctors d where d.service_id = v_svc and d.active order by random() limit 1;
+    -- a whole week out, not just literally tomorrow: doctor_schedules only covers Mon-Sat
+    -- (seed data), so "tomorrow" landing on a Sunday would otherwise silently generate zero
+    -- slots for that doctor and skip this booking every 7th run.
+    perform private.generate_doctor_slots(v_appt_doctor, v_day + 1, v_day + 7);
+
+    select id into v_slot from public.appointment_slots
+      where service_id = v_svc and doctor_id = v_appt_doctor and booked < capacity
+        and starts_at::date > v_day
+      order by starts_at limit 1;
+
+    if v_slot is not null then
+      insert into public.appointments (slot_id, service_id, patient_id, status, doctor_id)
+      values (v_slot, v_svc, v_patient_demo, 'booked', v_appt_doctor);
+      update public.appointment_slots set booked = booked + 1 where id = v_slot;
+    end if;
+  end loop;
 
   perform private.rebuild_boards(v_org, v_day);
 
