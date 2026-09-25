@@ -134,3 +134,21 @@ One line per deviation from the plan/spec, with why.
   computes everywhere else via `private.service_day`. They diverge for about 5.5 hours a day
   (roughly 00:00-05:30 IST), during which the dashboard queries the wrong day's board row. This
   is an `apps/web` fix, out of scope for the DB side.
+- 2026-09-25 (mobile): the exact same UTC-vs-`Asia/Kolkata` bug above was independently present
+  in `(app)/(tabs)/index.tsx`'s own `todayDateString()` (used to filter `board_services` by
+  `day`) — caught by reading this file's own log entry above, fixed the same way
+  (`toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'})`), hardcoded to the org's default
+  timezone since the mobile client doesn't otherwise know `org_id` (single-org hackathon demo).
+- 2026-09-25 (mobile, MedWin redesign): derived `apps/mobile/DESIGN.md` independently from
+  `~/code/design-ref/medwin/` rather than waiting on `apps/web/DESIGN.md`'s own MedWin pass —
+  checked again at the end of this session (via `head`/`git log` on `origin/main`) and
+  `apps/web/DESIGN.md` still describes the old teal/Inter "calm clinical" system, unchanged.
+  No reconciliation was possible or needed yet; re-check next time either file is touched.
+- 2026-09-25 (mobile, MedWin redesign): while restyling, three of the six restyling agents
+  independently found and fixed the same class of pre-existing bug: `primary` (`#0cb7d6`) used
+  as a small text color (`NotificationBanner`'s title, `token/[id].tsx`'s counter-banner label
+  and active progress labels, `PriorityInfoCard`'s heading, Settings' "Active" pill, two link
+  colors in Appointments/OTP) — all measure under WCAG AA's 4.5:1 at body/caption size (~2.4:1
+  on white). Fixed in place as part of the restyle per the brief's own non-negotiable
+  accessibility rule, not filed as separate "noticed, not touched" items, since the rule that
+  would have required touching them anyway was explicit in every agent's own instructions.

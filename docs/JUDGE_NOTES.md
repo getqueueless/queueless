@@ -47,8 +47,18 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   plain RLS-scoped `select`, no manual user-id filtering needed since the backend already scopes
   every row to the caller.
 - **Settings.** Language row (English active, Hindi shown but disabled — no i18n system for one
-  placeholder string) and sign-out, which defers to the app's existing session-watcher redirect
-  instead of navigating manually.
+  placeholder string), a System/Light/Dark appearance control, and sign-out, which defers to the
+  app's existing session-watcher redirect instead of navigating manually.
+- **Visual redesign (MedWin).** Every screen restyled to a design system derived directly from a
+  licensed HTML template (`~/code/design-ref/medwin/` — Poppins font under the SIL Open Font
+  License, colors/type scale hand-extracted and cited by CSS line in `apps/mobile/DESIGN.md`,
+  never copied assets or markup). Pure visual pass — every RPC call, Realtime subscription, and
+  screen's data logic is byte-identical to before; only JSX structure and `StyleSheet` values
+  changed. Also added: a persisted light/system/dark theme preference (stored in the same
+  `localStorage` polyfill the Supabase client already uses, no new dependency), and fixed several
+  pre-existing spots where the brand cyan was used as small body/caption text — it measures
+  ~2.4:1 contrast on white, under WCAG AA's 4.5:1 minimum, so it's fill/button/large-decorative
+  only now, never text at that size.
 - **Notifications — reliable path first.** Expo Go cannot receive remote push on Android since
   SDK 53, so the app doesn't treat push as the primary mechanism. The real path is a Supabase
   Realtime subscription on the signed-in patient's own `notifications` rows — the instant a
