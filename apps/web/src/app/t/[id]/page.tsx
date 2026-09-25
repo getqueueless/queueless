@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 
 import { LogoMark } from "@/components/brand/Logo"
 import { PublicFooter } from "@/components/site/PublicFooter"
@@ -35,6 +36,9 @@ function NotFoundCard() {
             This link may have expired, or the token was already cleared for the day. Check the
             QR code on your slip and try again, or ask the counter for help.
           </p>
+          <Link href="/#status" className={styles.cta}>
+            Check your status
+          </Link>
         </div>
       </main>
       <PublicFooter />

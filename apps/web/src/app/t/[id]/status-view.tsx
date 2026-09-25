@@ -37,8 +37,8 @@ const STATUS_BADGE_CLASS: Record<TokenRow["status"], string> = {
   cancelled: styles.badgeNoShow,
 }
 
-// The happy path drawn as a 01-04 progress track. Skipped / no-show /
-// cancelled leave it, so the track is hidden for those.
+// The happy path drawn as a progress track (words, no numerals). Skipped /
+// no-show / cancelled leave it, so the track is hidden for those.
 const STEPS = ["waiting", "called", "serving", "done"] as const
 
 // Live refresh cadence for the derived, not-realtime-pushed numbers (position
@@ -149,11 +149,18 @@ export function StatusView({
         <TwoToneHeading as="h1" lead="Your" accent="token" onDark align="center" />
       </div>
       <div className={styles.card} data-status={token.status}>
-        <p className={styles.eyebrow}>{service?.name ?? "Queueless"}</p>
-        <div className={styles.tokenNumber}>{token.code}</div>
-        <span className={`${styles.badge} ${STATUS_BADGE_CLASS[token.status]}`}>
-          {STATUS_LABEL[token.status]}
-        </span>
+        {/* Turns solid cyan when the token is called: the loudest moment. */}
+        <div className={styles.head}>
+          <div className={styles.tokenNumber} translate="no">
+            {token.code}
+          </div>
+          <div className={styles.meta}>
+            <span className={styles.service}>{service?.name ?? "Queueless"}</span>
+            <span className={`${styles.badge} ${STATUS_BADGE_CLASS[token.status]}`}>
+              {STATUS_LABEL[token.status]}
+            </span>
+          </div>
+        </div>
 
         {step >= 0 && (
           <ol className={styles.steps} aria-label="Progress">
@@ -164,79 +171,90 @@ export function StatusView({
                 data-state={i < step ? "past" : i === step ? "current" : "next"}
                 aria-current={i === step ? "step" : undefined}
               >
-                <span className={styles.stepNum} aria-hidden="true">
-                  {`0${i + 1}`}
-                </span>
                 {STATUS_LABEL[key]}
               </li>
             ))}
           </ol>
         )}
 
-        {token.status === "waiting" && (
-          <div className={styles.body}>
-            <p className={styles.line}>
-              {queueAhead === null ? (
-                "Position in queue is unavailable right now."
-              ) : queueAhead === 0 ? (
-                <strong className={`${styles.stat} ${styles.next}`}>You&apos;re next.</strong>
-              ) : (
-                <>
-                  <strong className={styles.stat}>{queueAhead}</strong>{" "}
-                  {queueAhead === 1 ? "person" : "people"} ahead of you.
-                </>
-              )}
-            </p>
-            {predictedWaitMinutes !== null && (
-              <p className={styles.eta}>
-                Estimated wait:{" "}
-                <strong className={styles.stat}>
-                  ~{Math.max(0, Math.round(predictedWaitMinutes))} min
-                </strong>
-                {predictedIsFallback && <span className={styles.etaNote}> (rough estimate)</span>}
-              </p>
-            )}
-          </div>
-        )}
-
-        {(token.status === "called" || token.status === "serving") && (
-          <div className={styles.body}>
-            <p className={styles.lineUrgent}>
-              {token.status === "called" ? "You're being called now." : "You're being served."}
-            </p>
-            {displayCounter && (
+        {/* One persistent live region, so a realtime status change (above
+            all, "called") is announced without the patient refreshing. */}
+        <div aria-live="polite" aria-atomic="true">
+          {token.status === "waiting" && (
+            <div className={styles.body}>
               <p className={styles.line}>
-                Go to <strong className={styles.counterName}>{displayCounter.name}</strong>.
+                {queueAhead === null ? (
+                  "Position in queue is unavailable right now."
+                ) : queueAhead === 0 ? (
+                  <strong className={`${styles.stat} ${styles.next}`}>You’re next.</strong>
+                ) : (
+                  <>
+                    <strong className={styles.stat}>{queueAhead}</strong>{" "}
+                    {queueAhead === 1 ? "person" : "people"} ahead of you.
+                  </>
+                )}
               </p>
-            )}
-          </div>
-        )}
+              {predictedWaitMinutes !== null && (
+                <p className={styles.eta}>
+                  Estimated wait{" "}
+                  <strong className={styles.stat}>
+                    ~{Math.max(0, Math.round(predictedWaitMinutes))} min
+                  </strong>
+                  {predictedIsFallback && <span className={styles.etaNote}> (rough estimate)</span>}
+                </p>
+              )}
+            </div>
+          )}
 
-        {token.status === "done" && (
-          <div className={styles.body}>
-            <p className={styles.line}>Visit complete. Thank you.</p>
-          </div>
-        )}
+          {(token.status === "called" || token.status === "serving") && (
+            <div className={styles.body}>
+              <p className={styles.lineUrgent}>
+                {token.status === "called" ? "You’re being called now." : "You’re being served."}
+              </p>
+              {displayCounter && (
+                <p className={styles.directions}>
+                  <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" className={styles.directionsIcon}>
+                    <path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span>
+                    <span className={styles.goTo}>Go to</span>{" "}
+                    {/* Say "Counter" unless the counter's own name already does. */}
+                    {!/^counter\b/i.test(displayCounter.name) && (
+                      <span className={styles.counterWord}>Counter </span>
+                    )}
+                    <strong className={styles.counterName}>{displayCounter.name}</strong>
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
 
-        {token.status === "no_show" && (
-          <div className={styles.body}>
-            <p className={styles.line}>Marked as a no-show. See the counter to be re-added.</p>
-          </div>
-        )}
+          {token.status === "done" && (
+            <div className={styles.body}>
+              <p className={styles.line}>Visit complete. Thank you.</p>
+            </div>
+          )}
 
-        {token.status === "skipped" && (
-          <div className={styles.body}>
-            <p className={styles.line}>You were skipped. Check in with the counter.</p>
-          </div>
-        )}
+          {token.status === "no_show" && (
+            <div className={styles.body}>
+              <p className={styles.line}>Marked as a no‑show. See the counter to be re‑added.</p>
+            </div>
+          )}
 
-        {token.status === "cancelled" && (
-          <div className={styles.body}>
-            <p className={styles.line}>This token was cancelled.</p>
-          </div>
-        )}
+          {token.status === "skipped" && (
+            <div className={styles.body}>
+              <p className={styles.line}>You were skipped. Check in with the counter.</p>
+            </div>
+          )}
 
-        <p className={styles.footer}>Updates automatically — no need to refresh.</p>
+          {token.status === "cancelled" && (
+            <div className={styles.body}>
+              <p className={styles.line}>This token was cancelled.</p>
+            </div>
+          )}
+        </div>
+
+        <p className={styles.footer}>Updates automatically. No need to refresh.</p>
       </div>
     </main>
   )

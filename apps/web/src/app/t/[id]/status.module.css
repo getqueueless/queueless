@@ -1,8 +1,14 @@
 /* Public-screen treatment (DESIGN.md): slate band, the white status card
-   pulled up over it, Poppins body copy. The card is keyed off
-   data-status, so every state gets its own colour and layout without extra
-   markup. Status colours are global tokens now; the old local copies are
-   gone. */
+   pulled up over it, Poppins body copy. The card is keyed off data-status,
+   so every state gets its own colour and layout without extra markup.
+
+   Contrast (light / dark), all AA: token code ink on surface 15.33 / 14.31;
+   service ink-secondary on surface 8.86 / 9.12; called head on-accent
+   #252525 on accent #0cb7d6 6.39 (both themes, the badge keeps its own
+   primary-soft pill: 4.77 / 6.29); directions white on slate 13.50, "Go to"
+   on-slate-muted on slate 7.62, arrow accent on slate 5.63 (non-text);
+   footer ink-muted on canvas-soft 4.99 / 6.60; status text on its -soft
+   tint: success 4.54 / 6.58, danger 4.51 / 5.68. */
 
 .page {
   flex: 1;
@@ -33,10 +39,13 @@
 }
 
 .card {
+  --pad-y: var(--space-xxl);
+  --pad-x: var(--space-xl);
+
   position: relative;
   width: min(560px, 100% - 2 * var(--space-lg));
   margin: -96px auto var(--space-section);
-  padding: var(--space-xxl) var(--space-xl) 0;
+  padding: var(--pad-y) var(--pad-x) 0;
   overflow: hidden;
   border-radius: var(--radius-lg);
   background: var(--color-surface);
@@ -48,20 +57,20 @@
   border: 1px solid var(--color-hairline);
 }
 
-/* Called is the moment that matters: frame the whole card in cyan. */
-.card[data-status="called"] {
-  box-shadow:
-    0 0 0 3px var(--color-accent),
-    var(--shadow-raised);
-}
-
-/* State bar along the top edge. */
+/* State strip along the top edge: this card IS the token (DESIGN.md
+   motifs). Called replaces it with the full cyan head below. */
 .card::before {
   content: "";
   position: absolute;
   inset: 0 0 auto;
+  z-index: 1;
   height: 6px;
   background: var(--color-accent);
+}
+
+/* The not-found card carries no token, so no strip. */
+.card:not([data-status])::before {
+  display: none;
 }
 
 .card[data-status="serving"]::before {
@@ -78,18 +87,16 @@
   background: var(--color-danger);
 }
 
-.eyebrow {
-  margin: 0 0 var(--space-sm);
-  color: var(--color-primary);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+/* Head: the token code, then service + status on one line. Full-bleed so
+   the called state can fill it edge to edge. */
+.head {
+  margin: calc(-1 * var(--pad-y)) calc(-1 * var(--pad-x)) 0;
+  padding: var(--pad-y) var(--pad-x) var(--space-lg);
+  color: var(--color-ink);
 }
 
 .tokenNumber {
-  margin-bottom: var(--space-md);
-  color: var(--color-ink);
+  margin-bottom: var(--space-sm);
   font-family: var(--font-mono);
   font-size: clamp(56px, 16vw, 88px);
   font-weight: 700;
@@ -99,7 +106,34 @@
   word-break: break-all;
 }
 
-/* Badges */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+.service {
+  color: var(--color-ink-secondary);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* Called: the one moment the patient must not miss. The head goes solid
+   brand cyan with ink text (white on cyan is 2.40:1); on-accent, not ink,
+   because ink turns near-white in dark theme. */
+.card[data-status="called"] .head {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.card[data-status="called"] .service {
+  color: var(--color-on-accent);
+}
+
+/* Badges -- one chip: dot + label, pill, caption type. */
 
 .badge {
   display: inline-flex;
@@ -142,37 +176,23 @@
   color: var(--color-danger);
 }
 
-.card[data-status="called"] .badge::before {
-  animation: ping 1.4s ease-out infinite;
-}
-
-/* 01-04 progress track */
+/* Progress track: words only, the bar above each carries the state. */
 
 .steps {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-xs);
-  margin-top: var(--space-xl);
+  margin-top: var(--space-md);
   list-style: none;
   text-align: left;
 }
 
 .step {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   padding-top: var(--space-sm);
   border-top: 4px solid var(--color-hairline);
   color: var(--color-ink-muted);
   font-size: 13px;
   line-height: 1.3;
-}
-
-.stepNum {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  font-variant-numeric: tabular-nums;
 }
 
 .step[data-state="past"],
@@ -184,10 +204,6 @@
 .step[data-state="current"] {
   color: var(--color-ink);
   font-weight: 700;
-}
-
-.step[data-state="current"] .stepNum {
-  color: var(--color-primary);
 }
 
 .card[data-status="done"] .step {
@@ -259,31 +275,56 @@
 /* Called / serving: the call, then signage-style directions on slate. */
 .lineUrgent {
   margin: 0 0 var(--space-md);
-  color: var(--color-accent-display);
-  font-size: 26px;
+  color: var(--color-primary);
+  font-size: 22px; /* heading-lg */
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
   text-wrap: balance;
 }
 
-.card[data-status="serving"] .lineUrgent {
-  color: var(--color-primary);
+/* display-md: the call outranks everything below the head. */
+.card[data-status="called"] .lineUrgent {
+  color: var(--color-ink);
+  font-size: 30px;
 }
 
-.card[data-status="called"] .line,
-.card[data-status="serving"] .line {
-  padding: var(--space-md) var(--space-lg);
+.directions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 20px var(--space-lg);
   border-radius: var(--radius-md);
   background: var(--color-slate);
   color: var(--color-on-slate);
-  font-size: 18px;
+  text-align: left;
+}
+
+.directionsIcon {
+  flex: none;
+  color: var(--color-accent);
+}
+
+/* "Go to" on its own line; the destination reads as one signage line.
+   Counter names share a token code's shape (OPD-1 vs OPD-007), so the name
+   is set in Poppins, never mono, with the word "Counter" before it. */
+.goTo {
+  display: block;
+  color: var(--color-on-slate-muted);
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.counterWord {
+  font-size: 22px;
+  font-weight: 400;
 }
 
 .counterName {
-  color: var(--color-accent);
   font-size: 28px;
   font-weight: 700;
-  letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 
 /* Done and the off-path states: a tinted panel in the state colour. */
@@ -294,6 +335,7 @@
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-md);
   font-weight: 700;
+  text-wrap: balance;
 }
 
 .card[data-status="done"] .line {
@@ -308,13 +350,14 @@
   color: var(--color-danger);
 }
 
-/* Live footer strip, full-bleed along the card's bottom edge. */
+/* Live footer strip, full-bleed along the card's bottom edge. The dot is a
+   real live indicator (the realtime channel), not decoration. */
 .footer {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
-  margin: var(--space-xl) calc(-1 * var(--space-xl)) 0;
+  margin: var(--space-xl) calc(-1 * var(--pad-x)) 0;
   padding: 14px var(--space-md);
   border-top: 1px solid var(--color-hairline);
   background: var(--color-canvas-soft);
@@ -330,17 +373,61 @@
   border-radius: 50%;
   background: var(--color-success);
   color: var(--color-success);
-  animation: ping 2s ease-out infinite;
 }
 
 /* Not-found card */
 
 .subtitle {
   margin: 0;
-  padding-bottom: var(--space-xxl);
   color: var(--color-ink-secondary);
   font-size: 16px;
   line-height: 1.6;
+  text-wrap: pretty;
+}
+
+/* button-accent (DESIGN.md): cyan fill, ink text. */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  margin: var(--space-lg) 0 var(--space-xxl);
+  padding: 0 var(--space-xl);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: background-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.cta:hover {
+  background: var(--color-accent-hover);
+}
+
+.cta:active {
+  transform: translateY(1px);
+}
+
+/* Motion: the head fills in when the realtime channel flips the token to
+   called, and the dots pulse. Only for people who haven't asked for less. */
+@media (prefers-reduced-motion: no-preference) {
+  .head {
+    transition:
+      background-color 400ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      color 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .card[data-status="called"] .badge::before {
+    animation: ping 1.4s ease-out infinite;
+  }
+
+  .footer::before {
+    animation: ping 2s ease-out infinite;
+  }
 }
 
 @keyframes ping {
@@ -358,14 +445,12 @@
   }
 
   .card {
+    --pad-y: 40px;
+    --pad-x: var(--space-md);
+
     width: calc(100% - 2 * var(--space-md));
     margin-top: -80px;
     margin-bottom: var(--space-xxl);
-    padding: 40px var(--space-md) 0;
-  }
-
-  .footer {
-    margin-inline: calc(-1 * var(--space-md));
   }
 
   .steps {
@@ -380,11 +465,16 @@
   .eta {
     padding-inline: var(--space-sm);
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .card[data-status="called"] .badge::before,
-  .footer::before {
-    animation: none;
+  .directions {
+    padding: var(--space-md);
+  }
+
+  .counterWord {
+    font-size: 18px;
+  }
+
+  .counterName {
+    font-size: 22px;
   }
 }
