@@ -1,27 +1,186 @@
-/* Inherits the header's text colour, so it works on surface and slate bars. */
+/* The Scene.mp4 switch: a 56x28 pill with a raised white knob carrying the
+   sun (light, knob left) or the moon (dark, knob right). Violet and lavender
+   live here and nowhere else in the product. Every state below is keyed off
+   :root[data-theme], so the first paint is right before React hydrates. */
 .toggle {
+  --knob: 24px;
+  --travel: 28px; /* 56 - 2 x 2px inset - 24 */
+  --ease: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur: 600ms;
+  --off: #d9ddda;
+  --on: #7b3fe4;
+  --via: #b9a3f0;
+  --shade: rgba(26, 50, 55, 0.32);
+
+  position: relative;
+  flex: none;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 28px;
+  padding: 2px;
+  border: 0;
   border-radius: var(--radius-pill);
-  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
-  background: transparent;
+  background: var(--off);
+  box-shadow:
+    inset 0 1px 2px rgba(26, 50, 55, 0.22),
+    inset 0 0 0 1px rgba(26, 50, 55, 0.06);
+  outline: 1px solid transparent; /* drawn only in forced-colors mode */
   color: inherit;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.toggle:hover {
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  border-color: var(--color-accent);
+/* 64x44 hit area around the 28px pill. */
+.toggle::before {
+  content: "";
+  position: absolute;
+  inset: -8px -4px;
+}
+
+:global(:root[data-theme="dark"]) .toggle {
+  --shade: rgba(36, 10, 88, 0.5);
+  background: var(--on);
+  box-shadow:
+    inset 0 1px 2px rgba(36, 10, 88, 0.45),
+    inset 0 0 0 1px rgba(36, 10, 88, 0.2);
 }
 
 /* currentColor, not the cyan focus token: it contrasts with whatever bar the
    toggle sits on (ink on white, white on slate). */
 .toggle:focus-visible {
   outline: 2px solid currentColor;
-  outline-offset: 2px;
+  outline-offset: 3px;
+}
+
+/* Raised: a soft offset drop shadow under a white face with a top highlight. */
+.knob {
+  position: relative;
+  display: block;
+  width: var(--knob);
+  height: var(--knob);
+  border-radius: 50%;
+  overflow: hidden; /* clips the icons to the circle */
+  background: radial-gradient(circle at 50% 28%, #ffffff 52%, #eef1ef);
+  box-shadow:
+    0 1px 1px var(--shade),
+    0 3px 7px -2px var(--shade),
+    inset 0 1px 0 #ffffff,
+    inset 0 -1.5px 1px rgba(26, 50, 55, 0.08);
+}
+
+.toggle:hover .knob {
+  box-shadow:
+    0 1px 1px var(--shade),
+    0 5px 10px -2px var(--shade),
+    inset 0 1px 0 #ffffff,
+    inset 0 -1.5px 1px rgba(26, 50, 55, 0.08);
+}
+
+:global(:root[data-theme="dark"]) .knob {
+  translate: var(--travel) 0;
+}
+
+/* 14px glyphs. The outgoing one leaves in the direction of travel and the
+   incoming one enters from the other side: light parks the moon a knob-width
+   to the left, dark parks the sun a knob-width to the right. */
+.icon {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sun {
+  color: #5b615d; /* 6.2:1 on the knob */
+}
+
+.moon {
+  color: var(--on); /* 5.7:1 on the knob */
+  translate: calc(-1 * var(--knob)) 0;
+}
+
+:global(:root[data-theme="dark"]) .sun {
+  translate: var(--knob) 0;
+}
+
+:global(:root[data-theme="dark"]) .moon {
+  translate: 0 0;
+}
+
+/* Reduced motion gets none of this: the knob and icons jump. */
+@media (prefers-reduced-motion: no-preference) {
+  .icon {
+    transition: translate var(--dur) var(--ease);
+  }
+
+  .knob {
+    transition:
+      translate var(--dur) var(--ease),
+      box-shadow 150ms ease;
+  }
+
+  /* data-anim is set by a click only (never by hydration), and names the
+     direction, so each flip swaps the animation name and restarts it. */
+  .toggle[data-anim="dark"] {
+    animation: track-to-dark var(--dur) var(--ease);
+  }
+
+  .toggle[data-anim="light"] {
+    animation: track-to-light var(--dur) var(--ease);
+  }
+
+  .toggle[data-anim="dark"] .knob {
+    animation: stretch-right var(--dur) var(--ease);
+  }
+
+  .toggle[data-anim="light"] .knob {
+    animation: stretch-left var(--dur) var(--ease);
+  }
+}
+
+/* The track crossfades through lavender; `to` is the resting colour. */
+@keyframes track-to-dark {
+  from {
+    background-color: var(--off);
+  }
+  50% {
+    background-color: var(--via);
+  }
+}
+
+@keyframes track-to-light {
+  from {
+    background-color: var(--on);
+  }
+  50% {
+    background-color: var(--via);
+  }
+}
+
+/* Same keyframes under two names, so alternate flips restart them. */
+@keyframes stretch-right {
+  50% {
+    scale: 1.15 1;
+  }
+}
+
+@keyframes stretch-left {
+  50% {
+    scale: 1.15 1;
+  }
+}
+
+@media (forced-colors: active) {
+  .knob {
+    outline: 1px solid ButtonText;
+    outline-offset: -1px;
+  }
 }
