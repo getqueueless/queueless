@@ -28,34 +28,39 @@ export function KioskForm({ services }: { services: ServiceOption[] }) {
 
       <fieldset className={styles.serviceGroup}>
         <legend className={styles.label}>Select a service</legend>
-        {services.map((service) => (
+        {services.map((service, i) => (
           <label key={service.id} className={styles.serviceOption}>
-            <input type="radio" name="service_id" value={service.id} required />
+            <input type="radio" name="service_id" value={service.id} required className={styles.radio} />
+            <span className={styles.serviceIndex} aria-hidden="true">
+              {String(i + 1).padStart(2, "0")}
+            </span>
             <span className={styles.serviceName}>{service.name}</span>
             <span className={styles.serviceCode}>{service.code}</span>
           </label>
         ))}
       </fieldset>
 
-      <div className={styles.field}>
-        <label htmlFor="walk_in_label" className={styles.label}>
-          Name (for calling out)
-        </label>
-        <input
-          id="walk_in_label"
-          name="walk_in_label"
-          type="text"
-          maxLength={40}
-          required
-          autoComplete="off"
-          placeholder="e.g. Priya S."
-          className={styles.input}
-        />
-      </div>
+      <div className={styles.formRow}>
+        <div className={styles.field}>
+          <label htmlFor="walk_in_label" className={styles.label}>
+            Name (for calling out)
+          </label>
+          <input
+            id="walk_in_label"
+            name="walk_in_label"
+            type="text"
+            maxLength={40}
+            required
+            autoComplete="off"
+            placeholder="e.g. Priya S."
+            className={styles.input}
+          />
+        </div>
 
-      <button type="submit" disabled={pending} className={styles.submit}>
-        {pending ? "Issuing…" : "Get token"}
-      </button>
+        <button type="submit" disabled={pending} className={styles.submit}>
+          {pending ? "Issuing…" : "Get token"}
+        </button>
+      </div>
     </form>
   )
 }

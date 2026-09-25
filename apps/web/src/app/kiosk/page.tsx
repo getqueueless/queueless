@@ -1,7 +1,11 @@
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import Link from "next/link"
+import type { ReactNode } from "react"
 
+import { Logo, LogoMark } from "@/components/brand/Logo"
+import { TwoToneHeading } from "@/components/site/TwoToneHeading"
+import { ThemeToggle } from "@/components/theme/ThemeToggle"
 import { createClient } from "@/lib/supabase/server"
 
 import { IssuedTokenView } from "./issued-token-view"
@@ -11,6 +15,46 @@ import { TokenSlip } from "./token-slip"
 
 export const metadata: Metadata = {
   title: "Kiosk — Queueless",
+}
+
+// Reduced chrome on purpose, instead of PublicHeader/PublicFooter: this
+// terminal stays signed in to a staff account, so it offers no links out.
+// The public nav + footer would walk a patient from Home to "Admin
+// dashboard" on a signed-in device. Logo, a terminal tag, the theme toggle.
+function KioskShell({
+  lead,
+  accent,
+  intro,
+  narrow = false,
+  children,
+}: {
+  lead: string
+  accent: string
+  intro?: string
+  narrow?: boolean
+  children: ReactNode
+}) {
+  return (
+    <>
+      <header className={styles.header}>
+        <div className={styles.headerInner}>
+          <Logo size={26} />
+          <span className={styles.terminalTag}>Reception kiosk</span>
+          <ThemeToggle />
+        </div>
+      </header>
+      <main id="main" className={narrow ? `${styles.page} ${styles.narrow}` : styles.page}>
+        <div className={styles.band}>
+          <LogoMark size={340} className={styles.bandMark} />
+          <div className={styles.bandInner}>
+            <TwoToneHeading as="h1" lead={lead} accent={accent} onDark />
+            {intro ? <p className={styles.intro}>{intro}</p> : null}
+          </div>
+        </div>
+        <div className={styles.stage}>{children}</div>
+      </main>
+    </>
+  )
 }
 
 async function siteOrigin(): Promise<string> {
@@ -40,9 +84,8 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
 
   if (!signedIn) {
     return (
-      <main className={styles.page}>
+      <KioskShell lead="Kiosk sign-in" accent="required" narrow>
         <div className={styles.card}>
-          <h1 className={styles.title}>Kiosk sign-in required</h1>
           <p className={styles.subtitle}>
             This terminal needs a staff account signed in before it can issue
             walk-in tokens. Ask a supervisor to sign in on this device.
@@ -51,7 +94,7 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
             Sign in
           </Link>
         </div>
-      </main>
+      </KioskShell>
     )
   }
 
@@ -95,21 +138,18 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
       const statusUrl = `${origin}/t/${issuedId}`
 
       return (
-        <main className={styles.page}>
+        <KioskShell lead="Token" accent="issued">
           <IssuedTokenView number={number} serviceName={serviceName}>
             <TokenSlip statusUrl={statusUrl} serviceName={serviceName} number={number} code={code} />
           </IssuedTokenView>
-        </main>
+        </KioskShell>
       )
     }
   }
 
   return (
-    <main className={styles.page}>
+    <KioskShell lead="Walk-in" accent="kiosk" intro="Pick a service to issue a token.">
       <div className={styles.card}>
-        <h1 className={styles.title}>Walk-in kiosk</h1>
-        <p className={styles.subtitle}>Pick a service to issue a token.</p>
-
         {servicesError || !services || services.length === 0 ? (
           <p className={styles.emptyState}>
             {servicesError
@@ -121,6 +161,6 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
           <KioskForm services={services as ServiceOption[]} />
         )}
       </div>
-    </main>
+    </KioskShell>
   )
 }

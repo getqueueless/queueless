@@ -30,7 +30,7 @@ export function IssuedTokenView({
     <div className={styles.issued}>
       <style>{PAGE_RULE[printSize]}</style>
 
-      <div className={styles.noPrint}>
+      <div className={`${styles.tokenPanel} ${styles.noPrint}`}>
         <p className={styles.issuedLabel}>{serviceName}</p>
         <p className={styles.tokenNumber}>{number}</p>
         <p className={styles.hint}>Print this slip and hand it to the patient.</p>

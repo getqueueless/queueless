@@ -1,3 +1,4 @@
+import { Logo } from "@/components/brand/Logo"
 import { tokenQrSvg } from "@/lib/qr"
 
 import styles from "./kiosk.module.css"
@@ -20,6 +21,9 @@ export async function TokenSlip({
 
   return (
     <div className={styles.slip}>
+      <div className={styles.slipBrand}>
+        <Logo size={18} />
+      </div>
       <p className={styles.slipService}>{serviceName}</p>
       <p className={styles.slipNumber}>{code}</p>
       <p className={styles.slipMeta}>Token #{number}</p>
