@@ -1,0 +1,20 @@
+{
+  "private": true,
+  "packageManager": "pnpm@12.6.0",
+  "devDependencies": {
+    "turbo": "2.11.4"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "check-types": "turbo run check-types",
+    "db:up": "docker compose -f supabase/docker-compose.yml up -d --wait",
+    "db:down": "docker compose -f supabase/docker-compose.yml down",
+    "db:reset": "sh supabase/scripts/reset.sh",
+    "db:migrate": "sh supabase/scripts/migrate.sh",
+    "db:seed": "node --env-file=supabase/.env supabase/scripts/seed-users.mjs && sh supabase/scripts/seed.sh",
+    "db:test": "sh supabase/scripts/test.sh",
+    "loadtest": "node --env-file=supabase/.env supabase/loadtest/run.mjs"
+  }
+}
