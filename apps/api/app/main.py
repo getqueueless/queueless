@@ -8,6 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 
+from app.ai_client import get_deepseek_client
 from app.config import Settings
 from app.db import create_pool
 from app.errors import register_exception_handlers
@@ -16,7 +17,7 @@ from app.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.ml_runtime import load as load_ml
 from app.notifications import listen_task, poller_task
 from app.rate_limit import limiter
-from app.routes import admin, health, predict, staff
+from app.routes import admin, ai, health, predict, staff
 
 configure_logging()
 settings = Settings()
@@ -36,6 +37,7 @@ async def _cancel(task: asyncio.Task | None) -> None:
 async def lifespan(app: FastAPI):
     app.state.shutting_down = False
     load_ml(app)
+    app.state.deepseek_client = get_deepseek_client(settings)
     app.state.db_pool = await create_pool(settings)
     app.state.listener_task = asyncio.create_task(listen_task(settings, app.state.db_pool))
     app.state.poller_task = asyncio.create_task(
@@ -74,5 +76,6 @@ app.include_router(health.router)
 app.include_router(predict.router)
 app.include_router(admin.router)
 app.include_router(staff.router)
+app.include_router(ai.router)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
