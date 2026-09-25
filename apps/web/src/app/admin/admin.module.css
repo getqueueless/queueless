@@ -38,12 +38,36 @@
   gap: var(--space-xs);
 }
 
+.navShort {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 @media (max-width: 1023px) {
   .sidebar {
     width: 64px;
+    align-items: center;
   }
   .navLabel {
     display: none;
+  }
+  .navLink,
+  .signOut {
+    justify-content: center;
+    padding: 10px;
+  }
+  .navShort {
+    display: inline-flex;
+  }
+  .navLinkActive .navShort {
+    background: var(--color-primary-soft);
   }
 }
 
