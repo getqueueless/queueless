@@ -12,7 +12,7 @@ import {
   type ServiceRow,
   type TokenRow,
 } from "./data"
-import { fetchPrediction, mapServiceToPredictSlug } from "./predict"
+import { fetchPrediction } from "./predict"
 import styles from "./status.module.css"
 
 const STATUS_LABEL: Record<TokenRow["status"], string> = {
@@ -65,7 +65,7 @@ export function StatusView({
   const [predictedWaitMinutes, setPredictedWaitMinutes] = useState(initialPredictedWaitMinutes)
   const [predictedIsFallback, setPredictedIsFallback] = useState(initialPredictedIsFallback)
 
-  const predictSlug = service ? mapServiceToPredictSlug(service) : null
+  const serviceId = service?.id ?? null
 
   // Param left untyped -- contextually inferred as the hook's own `any`
   // (see useResilientChannel's note); narrowed to TokenRow right here instead.
@@ -116,9 +116,9 @@ export function StatusView({
       const ahead = await countTokensAhead(supabase, current)
       if (cancelled) return
       setQueueAhead(ahead)
-      if (ahead !== null && predictSlug) {
+      if (ahead !== null && serviceId) {
         const countersOpen = await countOpenCounters(supabase, current.service_id)
-        const prediction = await fetchPrediction(predictSlug, ahead, countersOpen)
+        const prediction = await fetchPrediction(serviceId, ahead, countersOpen)
         if (!cancelled && prediction) {
           setPredictedWaitMinutes(prediction.predictedWaitMinutes)
           setPredictedIsFallback(prediction.fallback)
@@ -132,7 +132,7 @@ export function StatusView({
       clearInterval(interval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token.status, predictSlug])
+  }, [token.status, serviceId])
 
   return (
     <main className={styles.page}>

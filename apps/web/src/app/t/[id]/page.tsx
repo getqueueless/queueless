@@ -9,7 +9,7 @@ import {
   fetchToken,
   isUuid,
 } from "./data"
-import { fetchPrediction, mapServiceToPredictSlug } from "./predict"
+import { fetchPrediction } from "./predict"
 import { StatusView } from "./status-view"
 import styles from "./status.module.css"
 
@@ -55,14 +55,11 @@ export default async function TokenStatusPage({ params }: { params: Promise<{ id
   if (token.status === "waiting") {
     queueAhead = await countTokensAhead(supabase, token)
     if (queueAhead !== null && service) {
-      const slug = mapServiceToPredictSlug(service)
-      if (slug) {
-        const countersOpen = await countOpenCounters(supabase, token.service_id)
-        const prediction = await fetchPrediction(slug, queueAhead, countersOpen)
-        if (prediction) {
-          predictedWaitMinutes = prediction.predictedWaitMinutes
-          predictedIsFallback = prediction.fallback
-        }
+      const countersOpen = await countOpenCounters(supabase, token.service_id)
+      const prediction = await fetchPrediction(service.id, queueAhead, countersOpen)
+      if (prediction) {
+        predictedWaitMinutes = prediction.predictedWaitMinutes
+        predictedIsFallback = prediction.fallback
       }
     }
   }

@@ -1,24 +1,7 @@
-// Best-effort bridge from a `services` row to the FastAPI /predict service's
-// fixed 5-slug preset (apps/api/app/routes/predict.py). There's no seed data
-// or shared enum yet tying services.code/name to that Literal, so this
-// guesses from the name/code text. If nothing matches, callers skip the ETA
-// card instead of guessing further -- see the report for the real fix.
-export type PredictSlug = "general_opd" | "pediatrics" | "ortho" | "dental" | "eye"
-
-const ALIASES: Array<[RegExp, PredictSlug]> = [
-  [/pediatric/i, "pediatrics"],
-  [/ortho/i, "ortho"],
-  [/dental|dentist/i, "dental"],
-  [/eye|ophthal/i, "eye"],
-  [/general/i, "general_opd"],
-]
-
-export function mapServiceToPredictSlug(service: { name: string; code: string }): PredictSlug | null {
-  for (const [pattern, slug] of ALIASES) {
-    if (pattern.test(service.name) || pattern.test(service.code)) return slug
-  }
-  return null
-}
+// Client for the API agent's FastAPI /predict route (apps/api/app/routes/predict.py).
+// service_id is the real `services.id` UUID -- the route validates it exists in
+// today's board_services and returns a model estimate or documented fallback,
+// so any real service can be sent directly (no client-side slug guessing).
 
 export type Prediction = { predictedWaitMinutes: number; fallback: boolean }
 
@@ -27,7 +10,7 @@ export type Prediction = { predictedWaitMinutes: number; fallback: boolean }
 // timezone (organizations.timezone) -- fine for a same-timezone hackathon
 // demo; add an org-timezone lookup if this ever runs across timezones.
 export async function fetchPrediction(
-  slug: PredictSlug,
+  serviceId: string,
   queueLenAhead: number,
   countersOpen: number,
 ): Promise<Prediction | null> {
@@ -39,9 +22,9 @@ export async function fetchPrediction(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        service: slug,
+        service_id: serviceId,
         hour: now.getHours(),
-        weekday: now.getDay(),
+        weekday: (now.getDay() + 6) % 7, // JS: 0=Sun -> API: 0=Mon
         queue_len_ahead: queueLenAhead,
         counters_open: countersOpen,
       }),

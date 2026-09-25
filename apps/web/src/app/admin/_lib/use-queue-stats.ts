@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import { describeSupabaseError } from "./describe-error"
-import { fetchPredictedWait, matchPredictService } from "./predict"
+import { fetchPredictedWait } from "./predict"
 import type { BoardServiceRow, ServiceRow, TokenRow } from "./types"
 
 // A filter that matches no real row -- used to keep the realtime hooks below
@@ -58,34 +58,23 @@ async function buildChart(
   const hours = [...byHour.keys()].sort((a, b) => a - b)
   if (hours.length === 0) return { chart: [], note: "Not enough called tokens yet to chart wait times." }
 
-  const predictService = matchPredictService(service)
   const weekday = (new Date().getDay() + 6) % 7 // JS: 0=Sun -> API: 0=Mon
 
   let note: string | null = null
-  if (!predictService) {
-    note = `Prediction not available yet -- "${service.name}" doesn't map to a known API demo service.`
-  }
-
   const chart: WaitChartPoint[] = []
   for (const hour of hours) {
     const waits = byHour.get(hour)!
     const actual = waits.reduce((a, b) => a + b, 0) / waits.length
 
-    let predicted = 0
-    if (predictService) {
-      const result = await fetchPredictedWait(apiBaseUrl, {
-        service: predictService,
-        hour,
-        weekday,
-        queueLenAhead: queueLength,
-        countersOpen,
-      })
-      if (result.ok) {
-        predicted = result.predictedWaitMinutes
-      } else if (!note) {
-        note = `Prediction not available yet -- ${result.reason}.`
-      }
-    }
+    const result = await fetchPredictedWait(apiBaseUrl, {
+      serviceId: service.id,
+      hour,
+      weekday,
+      queueLenAhead: queueLength,
+      countersOpen,
+    })
+    const predicted = result.ok ? result.predictedWaitMinutes : 0
+    if (!result.ok && !note) note = `Prediction not available yet -- ${result.reason}.`
 
     chart.push({ hour: `${hour.toString().padStart(2, "0")}:00`, predicted: Math.round(predicted), actual: Math.round(actual) })
   }

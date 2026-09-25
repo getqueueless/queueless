@@ -1,32 +1,11 @@
 // Client for the API agent's FastAPI /predict route (apps/api/app/routes/predict.py).
 // Must never throw into a render -- every caller gets back a tagged result and
 // degrades to "prediction not available" instead of crashing the dashboard.
-
-// Mirrors the `Service` Literal in apps/api/app/routes/predict.py and the
-// BASE_MINUTES keys in apps/api/scripts/generate_training_data.py. The demo
-// preset's 5 services are fixed; there is no live discovery endpoint for
-// them, so this list is hand-kept in sync with the API agent's code.
-const PREDICT_SERVICES = ["general_opd", "pediatrics", "ortho", "dental", "eye"] as const
-type PredictService = (typeof PREDICT_SERVICES)[number]
-
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-}
-
-// The DB agent's `services.code`/`.name` values aren't guaranteed to match
-// the API agent's Service slugs (no shared enum lands them together yet) --
-// best-effort match by slugified name, then by code, else give up gracefully.
-export function matchPredictService(service: { code: string; name: string }): PredictService | null {
-  const bySlug = slugify(service.name)
-  if ((PREDICT_SERVICES as readonly string[]).includes(bySlug)) return bySlug as PredictService
-  const byCode = slugify(service.code)
-  if ((PREDICT_SERVICES as readonly string[]).includes(byCode)) return byCode as PredictService
-  return null
-}
+//
+// service_id is the real `services.id` UUID. The route no longer takes a fixed
+// slug enum (see docs/api/model-card.md) -- it validates the id against
+// today's board_services and returns a model estimate or a documented
+// low-confidence fallback, so any real service can be sent directly.
 
 export type PredictResult =
   | { ok: true; predictedWaitMinutes: number; fallback: boolean }
@@ -34,7 +13,7 @@ export type PredictResult =
 
 export async function fetchPredictedWait(
   apiBaseUrl: string | undefined,
-  args: { service: PredictService; hour: number; weekday: number; queueLenAhead: number; countersOpen: number },
+  args: { serviceId: string; hour: number; weekday: number; queueLenAhead: number; countersOpen: number },
 ): Promise<PredictResult> {
   if (!apiBaseUrl) return { ok: false, reason: "NEXT_PUBLIC_API_BASE_URL is not configured" }
 
@@ -43,7 +22,7 @@ export async function fetchPredictedWait(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        service: args.service,
+        service_id: args.serviceId,
         hour: args.hour,
         weekday: args.weekday,
         queue_len_ahead: args.queueLenAhead,
