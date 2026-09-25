@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client"
 import type { DoctorRow, PayableToken } from "./data"
 import styles from "./pay.module.css"
 
-const RAZORPAY_SCRIPT_SRC = "https://checkout.razorpay.com/v2/checkout.js"
+const RAZORPAY_SCRIPT_SRC = "https://checkout.razorpay.com/v1/checkout.js"
 const CHECKOUT_THEME_COLOR = "#0cb7d6"
 
 type Phase = "idle" | "paying" | "verifying" | "paid" | "failed" | "expired"
