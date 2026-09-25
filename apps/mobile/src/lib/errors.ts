@@ -21,6 +21,13 @@ const AUTH_MESSAGES: Record<string, string> = {
   otp_expired: "That code's wrong or expired — request a new one.",
   over_email_send_rate_limit: 'Too many codes sent — wait a bit and try again.',
   over_request_rate_limit: 'Too many attempts — wait a moment and try again.',
+  invalid_credentials: 'Wrong email or password.',
+  email_not_confirmed: 'Confirm your email first. Sign in with a code instead and we’ll confirm it.',
+  user_already_exists: 'An account with this email already exists. Sign in instead.',
+  email_exists: 'An account with this email already exists. Sign in instead.',
+  weak_password: 'Choose a stronger password (at least 8 characters).',
+  same_password: 'Pick a password you haven’t used here before.',
+  otp_disabled: 'No account for that email yet. Create one instead.',
 };
 
 /** GoTrue (Supabase Auth) errors carry their own human-readable message — the RPC error map doesn't apply here. */
