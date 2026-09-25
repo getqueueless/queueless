@@ -18,7 +18,8 @@ export const metadata: Metadata = {
 }
 
 // Reduced chrome on purpose, instead of PublicHeader/PublicFooter: this
-// terminal stays signed in to a staff account, so it offers no links out.
+// terminal stays signed in to a staff account, so it offers no links out
+// (the signed-out gate alone links to /#status, with no session to leak).
 // The public nav + footer would walk a patient from Home to "Admin
 // dashboard" on a signed-in device. Logo, a terminal tag, the theme toggle.
 function KioskShell({
@@ -82,17 +83,28 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
   const { data: claims } = await supabase.auth.getClaims()
   const signedIn = Boolean(claims?.claims.sub)
 
+  // Non-breaking hyphens (U+2011) in headings: text-wrap: balance would
+  // otherwise split "SIGN-" / "IN" on a phone.
   if (!signedIn) {
     return (
-      <KioskShell lead="Kiosk sign-in" accent="required" narrow>
+      <KioskShell lead="Staff sign‑in" accent="needed" narrow>
         <div className={styles.card}>
           <p className={styles.subtitle}>
-            This terminal needs a staff account signed in before it can issue
-            walk-in tokens. Ask a supervisor to sign in on this device.
+            This terminal issues walk-in tokens once a staff member signs in.
+            Ask a supervisor to sign in on this device.
           </p>
           <Link href="/login?next=/kiosk" className={styles.signInCta}>
             Sign in
           </Link>
+          {/* The landing's "Get a token" lands patients here too. */}
+          <div className={styles.patientNote}>
+            <p>
+              <strong>Here for a token?</strong> Ask at the reception desk.
+            </p>
+            <Link href="/#status" className={styles.textLink}>
+              Check your status
+            </Link>
+          </div>
         </div>
       </KioskShell>
     )
@@ -139,7 +151,7 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
 
       return (
         <KioskShell lead="Token" accent="issued">
-          <IssuedTokenView number={number} serviceName={serviceName}>
+          <IssuedTokenView code={code} serviceName={serviceName}>
             <TokenSlip statusUrl={statusUrl} serviceName={serviceName} number={number} code={code} />
           </IssuedTokenView>
         </KioskShell>
@@ -148,12 +160,12 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
   }
 
   return (
-    <KioskShell lead="Walk-in" accent="kiosk" intro="Pick a service to issue a token.">
+    <KioskShell lead="Walk‑in" accent="kiosk" intro="Pick a service to issue a token.">
       <div className={styles.card}>
         {servicesError || !services || services.length === 0 ? (
           <p className={styles.emptyState}>
             {servicesError
-              ? "Couldn't load services right now. Ask staff, or "
+              ? "Couldn’t load services right now. Ask staff, or "
               : "No services are open right now. "}
             <Link href="/kiosk">refresh</Link> to try again.
           </p>

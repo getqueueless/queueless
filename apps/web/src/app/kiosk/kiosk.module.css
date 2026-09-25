@@ -1,7 +1,15 @@
 /* Public-screen treatment (DESIGN.md), terminal edition: MedWin's slate band
-   with the white card pulled up over it, numbered service cards, solid and
-   outlined cyan buttons. Body copy is Poppins, per the public-screen font
-   split. The printed slip is black-on-white in both themes. */
+   with the white card pulled up over it, service cards led by the service
+   code, solid and outlined cyan buttons. Body copy is Poppins, per the
+   public-screen font split. The printed slip is black-on-white in both
+   themes.
+
+   Contrast (light / dark), all AA: labels ink-secondary on surface 8.86 /
+   9.12; placeholder + paper-size spec ink-muted on surface 5.33 / 6.08;
+   selected service code accent-display on surface 3.55 (44px+ bold, large
+   text) / 6.68; error danger on danger-soft 4.51 / 5.68; "Check your status"
+   primary on surface 5.36 / 7.44; checked paper size primary on primary-soft
+   4.77 / 6.29; button text on-accent on accent 6.39 (both). */
 
 /* Reduced header -- see KioskShell in page.tsx for why there is no nav. */
 
@@ -45,11 +53,18 @@
   background: var(--color-canvas-soft);
   color: var(--color-ink);
   font-family: var(--font-display);
+  /* A touch terminal: no double-tap zoom delay, no grey tap flash (every
+     control draws its own pressed state). */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .band {
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* when the band grows, the heading stays on the card */
   padding: var(--space-xxl) var(--space-lg) 136px;
   background: var(--color-slate);
   color: var(--color-on-slate);
@@ -87,9 +102,19 @@
   width: min(560px, 100% - 2 * var(--space-lg));
 }
 
-/* Greedy wrap: balance splits "SIGN-IN" at its hyphen on a phone. */
-.bandInner h1 {
-  text-wrap: wrap;
+/* A kiosk is a fixed screen, not a scrolling page: on tablet and up, share
+   the spare height between the band (above) and the canvas (below) so the
+   card sits mid-screen instead of leaving a blank lower half. Content taller
+   than the viewport has no spare height, so nothing moves. */
+@media (min-width: 768px) {
+  .band {
+    flex-grow: 1;
+  }
+
+  .page::after {
+    content: "";
+    flex-grow: 1;
+  }
 }
 
 .intro {
@@ -125,6 +150,44 @@
   color: var(--color-ink-secondary);
   font-size: 16px;
   line-height: 1.6;
+  text-wrap: pretty;
+}
+
+/* Sign-in gate: the patient's way out, under the staff message. */
+.patientNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xxs) var(--space-md);
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-hairline);
+  color: var(--color-ink-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.patientNote strong {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: color 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.textLink:hover {
+  color: var(--color-primary-hover);
+  text-decoration-thickness: 2px;
 }
 
 /* Buttons: MedWin solid cyan (ink text -- white on cyan is 2.40:1) and
@@ -147,9 +210,9 @@
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
+    background-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .submit,
@@ -165,7 +228,8 @@
 }
 
 .submit:active:not(:disabled),
-.signInCta:active {
+.signInCta:active,
+.secondaryLink:active {
   transform: translateY(1px);
 }
 
@@ -187,7 +251,8 @@
 
 .submit:focus-visible,
 .signInCta:focus-visible,
-.secondaryLink:focus-visible {
+.secondaryLink:focus-visible,
+.textLink:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
@@ -200,15 +265,15 @@
   gap: var(--space-xl);
 }
 
+/* Sentence case at body-lg: the reader may be an anxious or older patient,
+   and tracked capitals read slower. */
 .label {
   display: block;
   margin-bottom: var(--space-sm);
   color: var(--color-ink-secondary);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.4;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .serviceGroup {
@@ -221,37 +286,26 @@
   border: none;
 }
 
-/* Numbered service card ("01 02 03 04"). The native radio stays in the DOM
-   for keyboard and screen readers; the card draws the state. */
+/* Service card led by its code (OPD, PED...), the prefix the printed token
+   will carry. The native radio stays in the DOM for keyboard and screen
+   readers; the card draws the state. */
 .serviceOption {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-xs);
-  min-height: 176px;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-height: 168px;
   padding: var(--space-lg);
-  overflow: hidden;
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   cursor: pointer;
   transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
-}
-
-/* Cyan bar across the top of the chosen card. */
-.serviceOption::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 4px;
-  background: var(--color-accent);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.2s ease;
+    border-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* Radio ring. ink-muted / primary so the state clears 3:1 non-text contrast
@@ -267,8 +321,8 @@
   border-radius: 50%;
   background: var(--color-surface);
   transition:
-    border-width 0.15s ease,
-    border-color 0.15s ease;
+    border-width 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .serviceOption:hover {
@@ -277,15 +331,15 @@
   transform: translateY(-2px);
 }
 
+.serviceOption:active {
+  transform: translateY(0);
+}
+
 .serviceOption:has(input:checked) {
   border-color: var(--color-primary);
   box-shadow:
     0 0 0 1px var(--color-primary),
     var(--shadow-card);
-}
-
-.serviceOption:has(input:checked)::before {
-  transform: scaleX(1);
 }
 
 .serviceOption:has(input:checked)::after {
@@ -306,18 +360,17 @@
   pointer-events: none;
 }
 
-.serviceIndex {
-  margin-bottom: auto;
-  padding-bottom: var(--space-md);
-  color: var(--color-ink-secondary);
-  font-size: clamp(40px, 4vw, 52px);
-  font-weight: 400;
+.serviceCode {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: clamp(44px, 6vw, 60px); /* numeral-card: the code replaces 01-04 */
+  font-weight: 700;
   line-height: 1;
-  font-variant-numeric: tabular-nums;
-  transition: color 0.15s ease;
+  letter-spacing: -0.01em;
+  transition: color 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.serviceOption:has(input:checked) .serviceIndex {
+.serviceOption:has(input:checked) .serviceCode {
   color: var(--color-accent-display);
 }
 
@@ -326,17 +379,6 @@
   font-size: 18px;
   font-weight: 700;
   line-height: 1.3;
-}
-
-.serviceCode {
-  padding: 2px var(--space-xs);
-  border-radius: var(--radius-xs);
-  background: var(--color-surface-sunken);
-  color: var(--color-ink-secondary);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
 }
 
 .formRow {
@@ -363,10 +405,12 @@
   color: var(--color-ink);
   font-family: var(--font-display);
   font-size: 16px;
+  caret-color: var(--color-primary);
 }
 
 .input::placeholder {
   color: var(--color-ink-muted);
+  opacity: 1;
 }
 
 .input:hover {
@@ -379,15 +423,24 @@
   border-color: var(--color-primary);
 }
 
+/* Error summary: a tinted panel with an icon, not a side stripe. */
 .errorSummary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
   padding: 14px var(--space-md);
-  border-left: 4px solid var(--color-danger);
+  border: 1px solid var(--color-danger);
   border-radius: var(--radius-sm);
   background: var(--color-danger-soft);
   color: var(--color-danger);
   font-size: 15px;
   font-weight: 700;
   line-height: 1.5;
+}
+
+.errorIcon {
+  flex: none;
+  margin-top: 1px;
 }
 
 .errorSummary:focus-visible {
@@ -411,10 +464,12 @@
   text-underline-offset: 3px;
 }
 
-/* Issued token: a ticket with a stub. The number on the left, the slip and
-   print controls on the right, split by a dashed tear line. */
+/* Issued token: a ticket with a stub. The code on the left, the slip and
+   print controls on the right, split by a dashed tear line. A cyan strip
+   runs along the top edge: this card IS the token (DESIGN.md motifs). */
 
 .issued {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   grid-template-areas:
@@ -424,64 +479,65 @@
   text-align: center;
 }
 
+/* Above the positioned stub columns; the notches sit above it in turn. */
+.issued::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  height: 6px;
+  background: var(--color-accent);
+}
+
 .tokenPanel {
   grid-area: token;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-md);
+  gap: var(--space-sm);
   padding: 56px var(--space-xl);
+  container-type: inline-size;
 }
 
-.issuedLabel {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
+/* token-number-kiosk, sized off the panel so a 7-character code
+   ("PED-006", ~4.1em in JetBrains Mono) never wraps or overflows. */
 .tokenNumber {
   margin: 0;
   color: var(--color-ink);
   font-family: var(--font-mono);
-  font-size: clamp(112px, 15vw, 200px);
+  font-size: min(152px, 21cqi);
   font-weight: 700;
-  line-height: 0.9;
+  line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.tokenNumber::after {
-  content: "";
-  display: block;
-  width: 64px;
-  height: 6px;
-  margin: var(--space-lg) auto 0;
-  border-radius: 3px;
-  background: var(--color-accent);
+.issuedLabel {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .hint {
   max-width: 30ch;
-  text-wrap: balance;
-  margin: 0;
+  margin: var(--space-md) 0 0;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-hairline);
   color: var(--color-ink-secondary);
   font-size: 16px;
   line-height: 1.5;
-}
-
-.printArea,
-.controls {
-  background: var(--color-surface-sunken);
-  border-left: 2px dashed var(--color-hairline-strong);
+  text-wrap: balance;
 }
 
 .printArea,
 .controls {
   position: relative;
+  background: var(--color-surface-sunken);
+  border-left: 2px dashed var(--color-hairline-strong);
 }
 
 /* Ticket notches where the tear line meets the card edge: circles in the
@@ -492,6 +548,7 @@
 .controls::after {
   content: "";
   position: absolute;
+  z-index: 2;
   left: -11px;
   width: 20px;
   height: 20px;
@@ -533,6 +590,8 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-xxs);
+  min-width: 0;
+  margin: 0;
   padding: var(--space-xxs);
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-md);
@@ -542,16 +601,32 @@
 .printSizeOption {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 0 var(--space-xs);
+  min-height: 52px;
+  padding: var(--space-xxs) var(--space-xs);
   border-radius: var(--radius-sm);
   color: var(--color-ink-secondary);
-  font-size: 13px;
-  font-weight: 700;
   line-height: 1.3;
   cursor: pointer;
+  transition:
+    background-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.printSizeOption:hover {
+  background: var(--color-surface-sunken);
+}
+
+.printSizeName {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.printSizeSpec {
+  color: var(--color-ink-muted);
+  font-size: 12px;
 }
 
 .printSizeOption input {
@@ -569,9 +644,22 @@
   box-shadow: inset 0 0 0 1px var(--color-primary);
 }
 
+.printSizeOption:has(input:checked) .printSizeSpec {
+  color: var(--color-primary);
+}
+
 .printSizeOption:has(input:focus-visible) {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .controls .submit,
@@ -735,7 +823,7 @@
   }
 
   .serviceOption {
-    min-height: 144px;
+    min-height: 128px;
     padding: var(--space-md);
   }
 
@@ -754,7 +842,7 @@
   }
 
   .tokenPanel {
-    padding: var(--space-xl) var(--space-md);
+    padding: 40px var(--space-md) var(--space-xl);
   }
 
   .printArea {
@@ -780,12 +868,15 @@
 
 @media (prefers-reduced-motion: reduce) {
   .serviceOption,
-  .serviceOption::before,
-  .serviceOption::after {
+  .serviceOption::after,
+  .serviceCode {
     transition: none;
   }
 
-  .serviceOption:hover {
+  .serviceOption:hover,
+  .submit:active:not(:disabled),
+  .signInCta:active,
+  .secondaryLink:active {
     transform: none;
   }
 }
@@ -814,6 +905,8 @@
     box-shadow: none;
   }
 
+  .page::after,
+  .issued::before,
   .printArea::before,
   .printArea::after {
     display: none;

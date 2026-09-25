@@ -25,11 +25,20 @@ export async function TokenSlip({
         <Logo size={18} />
       </div>
       <p className={styles.slipService}>{serviceName}</p>
-      <p className={styles.slipNumber}>{code}</p>
+      <p className={styles.slipNumber} translate="no">
+        {code}
+      </p>
       <p className={styles.slipMeta}>Token #{number}</p>
-      <div className={styles.slipQr} dangerouslySetInnerHTML={{ __html: svg }} />
+      <div
+        className={styles.slipQr}
+        role="img"
+        aria-label="QR code for this token's status page"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
       <p className={styles.slipHint}>Scan to track your turn</p>
-      <p className={styles.slipUrl}>{statusUrl}</p>
+      <p className={styles.slipUrl} translate="no">
+        {statusUrl}
+      </p>
     </div>
   )
 }
