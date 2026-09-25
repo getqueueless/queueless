@@ -720,3 +720,20 @@ under "Web app" above.
   `cash_report_by_staff` and `cash_report_by_doctor`). Fixed both to match the real, shipped
   signatures in `supabase/migrations/0041`-`0042`. Neither file had a caller yet, so this was a
   pure signature correction, not a behavior change to anything already working.
+
+## TV display: multilingual announcements
+
+- **Language selector (`/display/[service]`).** EN/HI/PA on the board itself — this is a fixed
+  public screen, not a visitor's own device, so there's nothing to remember per-viewer across
+  sessions; it's just a toggle on the wall.
+- **Translated announcements.** A called token's spoken line ("Token OPD-042, counter 3") is
+  translated through the FastAPI `/translate` route before `announce()` speaks it, for HI/PA.
+  Translation failing, being slow, or the browser having no matching voice for that language all
+  fall back to the plain English line — never silence, and the board's visual update (the called
+  token, the counter) never waits on the translate call either way.
+- **Doctor status strip.** Added `available`/`running late`/`on break`/`on leave` per doctor
+  (`doctor_status_today`, public-read) as a small strip on the board. Deliberately did **not**
+  build a doctor name against a specific called token: `board_counters`, the only anon-safe table
+  this public page reads, has no doctor column, and tokens' own `doctor_id` isn't exposed through
+  it — showing a doctor next to a called number here would be fabricated, not real, so it's left
+  out rather than faked.
