@@ -2,6 +2,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppVersionRow } from '@/components/app-version-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -140,6 +141,8 @@ export default function Settings() {
 
         <View style={styles.spacer} />
 
+        <AppVersionRow style={styles.version} />
+
         {error ? (
           <ThemedText type="bodySm" themeColor="danger" style={styles.error}>
             {error}
@@ -202,6 +205,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   spacer: { flex: 1, minHeight: Spacing.xl },
+  version: { marginBottom: Spacing.md },
   error: { marginBottom: Spacing.sm, textAlign: 'center' },
   signOutButton: {
     borderWidth: 1,

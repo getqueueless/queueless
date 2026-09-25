@@ -5,6 +5,7 @@ import { Appearance, Platform } from 'react-native';
 
 import { ThemeTransitionHost } from '@/components/ThemeTransition';
 import { ThemedView } from '@/components/themed-view';
+import { AndroidUpdateSheet } from '@/components/update-sheet';
 import { hideSplash } from '@/lib/splash';
 import { getThemePreference, subscribeThemePreference } from '@/lib/theme-preference';
 import { useSession } from '@/lib/use-session';
@@ -41,7 +42,10 @@ export default function RootLayout() {
   // Every theme change, from any screen, fades through the host's overlay.
   return (
     <ThemeTransitionHost>
-      <Slot />
+      <>
+        <Slot />
+        <AndroidUpdateSheet />
+      </>
     </ThemeTransitionHost>
   );
 }
