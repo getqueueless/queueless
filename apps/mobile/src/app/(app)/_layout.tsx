@@ -6,7 +6,11 @@ import { NotificationBanner } from '@/components/NotificationBanner';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { PENDING_NAME_KEY } from '@/app/(app)/name-entry';
 import { useTheme } from '@/hooks/use-theme';
-import { registerForPushNotificationsAsync, showLocalNotification } from '@/lib/notifications';
+import {
+  registerForPushNotificationsAsync,
+  showLocalNotification,
+  watchPushTokenRotation,
+} from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/use-session';
 
@@ -60,9 +64,10 @@ export default function AppLayout() {
   }, [userId, handleRow]);
 
   useEffect(() => {
-    if (!session) return;
-    registerForPushNotificationsAsync().catch(() => {});
-  }, [session]);
+    if (!userId) return;
+    registerForPushNotificationsAsync();
+    return watchPushTokenRotation();
+  }, [userId]);
 
   // One-time retry for a display-name write that failed on a previous boot (see
   // name-entry.tsx and docs/DECISIONS.md — profiles RLS for owner-column updates hadn't landed

@@ -7,6 +7,7 @@ import { ThemedView } from '@/components/themed-view';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapAuthError } from '@/lib/errors';
+import { unregisterPushTokenAsync } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { getThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme-preference';
 
@@ -25,6 +26,8 @@ export default function Settings() {
   async function handleSignOut() {
     setError(null);
     setSigningOut(true);
+    // Before signOut: once signed out, RLS can't see the row and the delete would match 0 rows.
+    await unregisterPushTokenAsync();
     const { error: signOutError } = await supabase.auth.signOut();
     // No manual redirect on success — (app)/_layout.tsx watches the session and redirects
     // to (auth) once it goes null. On failure, stop spinning and let the patient retry.
