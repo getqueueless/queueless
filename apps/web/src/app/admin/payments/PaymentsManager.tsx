@@ -81,12 +81,20 @@ export function PaymentsManager() {
       .limit(200)
     if (statusFilter !== "all") query = query.eq("status", statusFilter)
 
-    const { data, error: err } = await query
-    if (err) {
-      setError(err.message)
+    // A blocked/failed fetch (offline, CORS, DNS) rejects rather than
+    // resolving to { error }, unlike a Postgrest-level error -- without this
+    // the table was just silently staying empty with no feedback at all.
+    try {
+      const { data, error: err } = await query
+      if (err) {
+        setError(err.message)
+        setRows(null)
+      } else {
+        setRows(data as unknown as PaymentRow[])
+      }
+    } catch {
+      setError("Couldn't load payments. Try again.")
       setRows(null)
-    } else {
-      setRows(data as unknown as PaymentRow[])
     }
     setLoading(false)
   }
