@@ -1,79 +1,129 @@
 ---
-version: alpha
+version: beta
 name: Queueless-design-system
-description: "A calm, clinical interface language for a public-service queue system. Built on a near-white (light) / near-black (dark) neutral canvas with a single desaturated teal accent used only for primary actions and live-state emphasis. Inspired by the restraint of Linear (single chromatic accent, hairline-bordered surfaces, tight negative-tracked display type) and the quiet precision of Stripe (tabular figures for numbers that matter, generous section rhythm, pill-free but decisive buttons) — without reusing either brand's palette, wordmark, or literal token values. Built dark-first and light-first simultaneously: every color has a light and dark value from day one."
+description: "A bright, clinical public-service look after the MedWin hospital template: white base, one cyan accent, dark slate-teal sections, near-black ink, Poppins display type set bold and uppercase with a cyan second word. Public screens (landing, kiosk, token status, login) carry the full marketing treatment: numbered cards, overlapping hero card, rounded dark section, cyan-dot footer. Staff screens (counter, admin) take the same palette, radii and type pairing but stay dense and fast. Light is the default theme; dark is an explicit toggle. Every text colour pair is AA-checked by apps/web/brand/contrast-check.mjs."
 
 colors:
+  brand:
+    accent: "#0cb7d6"
+    accent-hover: "#2cc1db"
+    on-accent: "#252525"
+    slate: "#1a3237"
+    slate-deep: "#112427"
+    slate-overlay: "rgba(26, 50, 55, 0.84)"
+    on-slate: "#ffffff"
+    on-slate-muted: "#b3c6ca"
   light:
-    primary: "#1f6f74"
-    primary-hover: "#175a5e"
-    primary-press: "#124749"
-    primary-soft: "#e3f1f1"
+    primary: "#087589"
+    primary-hover: "#066474"
+    primary-press: "#055563"
+    primary-soft: "#e3f5f8"
     on-primary: "#ffffff"
+    accent-display: "#0a95ae"
     canvas: "#ffffff"
-    canvas-soft: "#f6f7f9"
+    canvas-soft: "#f5f8f9"
     surface: "#ffffff"
-    surface-sunken: "#eef0f3"
-    ink: "#14171c"
-    ink-secondary: "#4a4f5a"
-    ink-muted: "#717683"
-    hairline: "#e3e6eb"
-    hairline-strong: "#cdd2da"
+    surface-sunken: "#eef3f4"
+    ink: "#252525"
+    ink-secondary: "#4a4a4a"
+    ink-muted: "#6b6b6b"
+    hairline: "#e4e7e8"
+    hairline-strong: "#cfcfcf"
     success: "#197c53"
     success-soft: "#e3f4ea"
-    warning: "#9e5f0b"
+    warning: "#95590a"
     warning-soft: "#faf0dd"
     danger: "#c13b34"
     danger-soft: "#fbe8e6"
-    focus-ring: "#1f6f74"
+    focus-ring: "#087589"
   dark:
-    primary: "#4fb8ae"
-    primary-hover: "#6cc7bd"
-    primary-press: "#3d9a91"
-    primary-soft: "#123331"
-    on-primary: "#04201e"
-    canvas: "#0a0c0f"
-    canvas-soft: "#101317"
-    surface: "#14171c"
-    surface-sunken: "#0e1114"
-    ink: "#eef0f3"
-    ink-secondary: "#b7bcc6"
-    ink-muted: "#7d8290"
-    hairline: "#24282f"
-    hairline-strong: "#343941"
+    primary: "#2cc1db"
+    primary-hover: "#56cfe4"
+    primary-press: "#0cb7d6"
+    primary-soft: "#0e3339"
+    on-primary: "#0b1517"
+    accent-display: "#0cb7d6"
+    canvas: "#0b1517"
+    canvas-soft: "#0f1c1f"
+    surface: "#132428"
+    surface-sunken: "#0a1214"
+    ink: "#eef3f4"
+    ink-secondary: "#b8c6c9"
+    ink-muted: "#8fa3a7"
+    hairline: "#203539"
+    hairline-strong: "#2e474c"
     success: "#4cbf8b"
     success-soft: "#0f2b21"
     warning: "#dba24d"
     warning-soft: "#2e2211"
     danger: "#e5766f"
     danger-soft: "#301715"
-    focus-ring: "#4fb8ae"
+    focus-ring: "#2cc1db"
+
+shadows:
+  light:
+    card: "0 1px 2px rgba(26, 50, 55, 0.06), 0 10px 28px -12px rgba(26, 50, 55, 0.22)"
+    raised: "0 22px 48px -18px rgba(26, 50, 55, 0.4)"
+  dark:
+    card: "0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -12px rgba(0, 0, 0, 0.6)"
+    raised: "0 22px 48px -18px rgba(0, 0, 0, 0.75)"
+
+fonts:
+  display: "Poppins (400, 700) via next/font, --font-poppins"
+  body: "Inter (variable) via next/font, --font-inter"
+  mono: "JetBrains Mono via next/font, --font-jetbrains-mono"
 
 typography:
+  display-hero:
+    fontFamily: Poppins
+    fontSize: "clamp(32px, 5vw, 56px)"
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: 0.01em
+    textTransform: uppercase
+    note: "Landing hero only ('TAKE A TOKEN. LEAVE THE LINE.'), white on the slate overlay."
   display-lg:
-    fontFamily: Inter
-    fontSize: 40px
-    fontWeight: 600
+    fontFamily: Poppins
+    fontSize: "clamp(28px, 4vw, 40px)"
+    fontWeight: 700
     lineHeight: 1.15
-    letterSpacing: -0.6px
+    letterSpacing: 0.02em
+    textTransform: uppercase
+    note: "Two-tone section headings (TwoToneHeading). MedWin's 40px section title."
   display-md:
-    fontFamily: Inter
+    fontFamily: Poppins
     fontSize: 30px
-    fontWeight: 600
+    fontWeight: 700
     lineHeight: 1.2
-    letterSpacing: -0.4px
+    letterSpacing: 0
+    note: "Staff page titles and stat-tile values, sentence case."
+  numeral-card:
+    fontFamily: Poppins
+    fontSize: "clamp(44px, 6vw, 60px)"
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: 0
+    fontFeature: tnum
+    note: "The 01 02 03 04 on numbered cards."
   heading-lg:
-    fontFamily: Inter
+    fontFamily: Poppins
     fontSize: 22px
-    fontWeight: 600
+    fontWeight: 700
     lineHeight: 1.25
-    letterSpacing: -0.2px
+    letterSpacing: 0
   heading-md:
-    fontFamily: Inter
+    fontFamily: Poppins
     fontSize: 18px
-    fontWeight: 600
+    fontWeight: 700
     lineHeight: 1.3
-    letterSpacing: -0.1px
+    letterSpacing: 0
+  footer-heading:
+    fontFamily: Poppins
+    fontSize: 16px
+    fontWeight: 700
+    lineHeight: 1.3
+    letterSpacing: 0.06em
+    textTransform: uppercase
   heading-sm:
     fontFamily: Inter
     fontSize: 15px
@@ -81,10 +131,10 @@ typography:
     lineHeight: 1.4
     letterSpacing: 0
   body-lg:
-    fontFamily: Inter
+    fontFamily: "Poppins on public screens, Inter on staff screens"
     fontSize: 16px
     fontWeight: 400
-    lineHeight: 1.55
+    lineHeight: 1.6
     letterSpacing: 0
   body:
     fontFamily: Inter
@@ -110,6 +160,15 @@ typography:
     fontWeight: 500
     lineHeight: 1.2
     letterSpacing: 0
+    note: "Staff screens."
+  button-cta:
+    fontFamily: Poppins
+    fontSize: 14px
+    fontWeight: 700
+    lineHeight: 1.2
+    letterSpacing: 0.06em
+    textTransform: uppercase
+    note: "Public screens, MedWin's READ MORE / BOOK buttons."
   token-number:
     fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace"
     fontSize: 56px
@@ -147,6 +206,7 @@ rounded:
   md: 8px
   lg: 12px
   xl: 16px
+  section: "clamp(32px, 8vw, 120px)"
   pill: 9999px
 
 spacing:
@@ -166,6 +226,21 @@ components:
     typography: "{typography.button}"
     rounded: "{rounded.md}"
     padding: 8px 16px
+  button-accent:
+    backgroundColor: "{colors.brand.accent}"
+    textColor: "{colors.brand.on-accent}"
+    typography: "{typography.button-cta}"
+    rounded: "{rounded.sm}"
+    padding: 12px 28px
+    hover: "{colors.brand.accent-hover}"
+  button-outline:
+    backgroundColor: transparent
+    textColor: "{colors.ink}"
+    border: "1px solid {colors.hairline-strong}"
+    typography: "{typography.button-cta}"
+    rounded: "{rounded.sm}"
+    padding: 12px 28px
+    hover: "border {colors.brand.accent}, text {colors.primary}"
   button-secondary:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
@@ -178,6 +253,22 @@ components:
     typography: "{typography.body}"
     rounded: "{rounded.lg}"
     padding: 24px
+  card-public:
+    backgroundColor: "{colors.surface}"
+    shadow: "{shadows.card}"
+    rounded: "{rounded.lg}"
+    padding: 32px
+  card-overlap:
+    backgroundColor: "{colors.surface}"
+    shadow: "{shadows.raised}"
+    rounded: "{rounded.lg}"
+    padding: 40px
+    note: "Pulled up over the hero with a negative margin, MedWin's appointment box."
+  section-dark:
+    backgroundColor: "{colors.brand.slate}"
+    textColor: "{colors.brand.on-slate}"
+    rounded: "{rounded.section}"
+    padding: "{spacing.section} {spacing.lg}"
   stat-tile:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
@@ -217,133 +308,144 @@ components:
   text-input:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"
+    border: "1px solid {colors.hairline-strong}"
     typography: "{typography.body}"
-    rounded: "{rounded.md}"
-    padding: 8px 12px
+    rounded: "{rounded.sm}"
+    padding: 10px 14px
   top-nav:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body-sm}"
-    rounded: "{rounded.xs}"
-    height: 56px
+    height: 64px
 ---
 
 ## Overview
 
-Queueless is a public-service queue board first — a hospital OPD counter display, a staff console, a patient-facing status page. It has to read correctly from across a waiting room and stay legible under fluorescent light, so the system leans on **neutral canvas + one accent** rather than the bright primary-color-per-button style of typical hospital software.
+Queueless is a public-service queue platform; the demo preset is a hospital OPD. The look follows the MedWin hospital template: a bright white base, one cyan accent (`#0cb7d6`), dark slate-teal sections (`#1a3237`), near-black ink (`#252525`) and Poppins set bold and uppercase for headings, with the second word of a heading in cyan ("TAKE A **TOKEN**").
 
-`{colors.canvas}` is near-white in light mode (`#ffffff`) and near-black in dark mode (`#0a0c0f`) — never a saturated hospital blue. A two-step surface ladder (`{colors.surface}`, `{colors.surface-sunken}`) separates cards from page background using hairline borders, not shadow, the same way Linear separates panels on its dark canvas.
+There are two registers:
 
-The single chromatic accent is a desaturated teal (`{colors.primary}` `#1f6f74` light / `#4fb8ae` dark) — calmer than Linear's lavender or Stripe's indigo, chosen so it reads as "system," not "brand." It appears only on primary buttons, focus rings, and the "called" status badge. Status color otherwise stays semantic and sparse: success green for `done`, warning amber for tokens waiting too long, danger red for `no_show` — each with a `-soft` background variant for badges so color never has to shout.
+- **Public screens** (`/`, `/kiosk`, `/t/[id]`, `/login`): the full treatment. Two-tone uppercase headings, "01 02 03 04" numbered cards, a hero with a slate overlay and an overlapping white card, a dark section with big rounded corners, soft card shadows, and the cyan-dot footer. Shared chrome lives in `src/components/site/` (`PublicHeader`, `PublicFooter`, `TwoToneHeading`).
+- **Staff screens** (`/counter`, `/admin/**`): same palette, radii and display face, but dense. Hairline-bordered cards, Inter body text, sentence-case Poppins titles, no numbered cards or two-tone headings.
 
-Numbers are the product. Queue and token numbers render in `{typography.token-number}` — a monospace face with tabular figures, the same instinct as Stripe's `tnum` money type, applied here to queue numbers instead of currency so a token board never visually jitters as digits change width.
+`/display/[service]` (the TV board) is fixed to the slate-teal treatment and ignores the theme toggle.
 
-**Key characteristics:**
-- Neutral canvas + one accent (teal), both modes native from day one — never a light-only or dark-only page.
-- Two-step surface ladder + hairline borders carry hierarchy; shadows are avoided except a single soft lift on modals.
-- Display type at weight 600 with mild negative tracking (-0.6px at 40px down to 0 at body) — restrained, not Linear's -3px extreme.
-- Token/queue numbers are monospace + tabular, always the loudest element on a screen.
-- Status badges are pill-shaped soft-fill chips; primary actions are `{rounded.md}` 8px rectangles, never pills — a rectangle reads as "action," a pill reads as "state."
+The brand mark (`src/components/brand/Logo.tsx`, see `brand/BRAND.md`) is the same in every header.
+
+## Theme
+
+Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
+
+- `:root` holds the light values and every theme-independent token.
+- `:root[data-theme="dark"]` overrides the colour and shadow tokens.
+- A tiny inline script in `layout.tsx`'s `<head>` reads `localStorage["queueless-theme"]` and sets `data-theme` before first paint. A first-time visitor with nothing stored gets **light**, whatever their OS prefers.
+- `ThemeToggle` (`src/components/theme/ThemeToggle.tsx`) flips the attribute and stores the choice.
+- In a CSS Module, scope a dark-only rule as `:global(:root[data-theme="dark"]) .thing { ... }`. Do not use `@media (prefers-color-scheme)`.
 
 ## Colors
 
-### Brand & Accent
-- **Primary teal** (`{colors.primary}`): primary buttons, focus rings, the "called" status badge, active nav item. Used sparingly — one filled surface per view.
-- **Primary Soft** (`{colors.primary-soft}`): tinted background for the "called" badge and selected list rows.
+### Brand constants (both themes)
+- **Accent** `#0cb7d6`: button fills (with ink text), cyan dots, icons, the logo slip, and any cyan text on slate. It is **2.40:1 on white, which fails AA even for large text**, so it is never text on a light background.
+- **Accent Hover** `#2cc1db`: hover fill for accent buttons.
+- **On Accent** `#252525`: text on accent fills (6.39:1). White on cyan is 2.40:1; never use it.
+- **Slate** `#1a3237`: dark sections, the TV board, the icon tile. **Slate Deep** `#112427`: footer.
+- **Slate Overlay** `rgba(26,50,55,0.84)`: over hero photos. White text stays at 8.12:1 or better even over a pure-white pixel; cyan on the overlay falls to 3.39:1 there, so cyan on a photo is large text only.
+- **On Slate** `#ffffff` and **On Slate Muted** `#b3c6ca` for text on slate and slate-deep.
 
-### Surface
-- **Canvas** (`{colors.canvas}`): page background.
-- **Canvas Soft** (`{colors.canvas-soft}`): app-shell background behind cards (a half-step above canvas).
-- **Surface** (`{colors.surface}`): cards, panels, modals, the token tile.
-- **Surface Sunken** (`{colors.surface-sunken}`): inset rows, table stripes, the "waiting" badge.
-- **Hairline / Hairline Strong**: 1px borders; strong variant for focused inputs and table headers.
-
-### Text
-- **Ink**: primary text.
-- **Ink Secondary**: labels, table body on light backgrounds.
-- **Ink Muted**: timestamps, placeholder text, disabled labels.
-
-### Semantic
-- **Success** — `done` tokens, positive stat deltas.
-- **Warning** — a token waiting past its service's target time.
-- **Danger** — `no_show`, destructive actions, form errors.
-
-Every semantic color ships a `-soft` background pair for badges/banners so status never needs a saturated fill.
+### Theme colours
+- **Primary** (`#087589` light / `#2cc1db` dark): the AA-safe cyan. Links, small cyan text, filled buttons with white text, focus rings, the "called" badge. It clears 4.5:1 on white, canvas-soft and its own soft tint.
+- **Accent Display** (`#0a95ae` light / `#0cb7d6` dark): the cyan words in headings on light surfaces. Large text only (24px+, or bold 19px+): 3.55:1 on white. Inside a slate section use the brand accent instead (`TwoToneHeading onDark`).
+- **Ink** `#252525`, **Ink Secondary** `#4a4a4a`, **Ink Muted** `#6b6b6b`. MedWin's muted `#898989` is 3.50:1 on white and fails for body text, so it is not a token.
+- **Canvas / Canvas Soft / Surface / Surface Sunken**: page, app-shell behind cards, cards, inset rows.
+- **Hairline** `#e4e7e8` (card borders) and **Hairline Strong** `#cfcfcf` (MedWin's input border, table headers).
+- **Success / Warning / Danger**, each with a `-soft` badge background. These are now global, so route modules no longer need local copies.
 
 ## Typography
 
-**Font family:** Inter (variable), loaded via `next/font/google` — free, matches the negative-tracking-on-display feel both reference systems use as their own fallback/substitute. `JetBrains Mono` carries queue numbers only.
+**Font split (decision):**
+- **Poppins** (400/700, `--font-display`) is the display face sitewide: every heading, the wordmark, the numbered-card numerals and the public CTA buttons.
+- **Inter** (`--font-body`) is the body/UI face and the `body` default. Staff screens (`/counter`, `/admin/**`) keep it for compact, fast reading at 13–14px.
+- **Public screens** (`/`, `/kiosk`, `/t/[id]`, `/login`) set `font-family: var(--font-display)` on their root, so their body copy is Poppins 400 too. They are low-density with body text at 15–16px, where Poppins reads cleanly, and this matches MedWin's Poppins-only page.
+- **JetBrains Mono** (`--font-mono`) sets token numbers everywhere (tabular figures).
 
-| Token | Size | Weight | Line height | Tracking | Use |
+| Token | Face | Size | Weight | Case | Use |
 |---|---|---|---|---|---|
-| `display-lg` | 40px | 600 | 1.15 | -0.6px | Page hero ("Queue for General OPD") |
-| `display-md` | 30px | 600 | 1.2 | -0.4px | Section headers, stat tile value |
-| `heading-lg` | 22px | 600 | 1.25 | -0.2px | Card title |
-| `heading-md` | 18px | 600 | 1.3 | -0.1px | Sub-section title |
-| `heading-sm` | 15px | 600 | 1.4 | 0 | List item title |
-| `body-lg` | 16px | 400 | 1.55 | 0 | Lead paragraph |
-| `body` | 14px | 400 | 1.5 | 0 | Default UI text |
-| `body-sm` | 13px | 400 | 1.45 | 0 | Table cells, helper text |
-| `caption` | 12px | 500 | 1.35 | 0.1px | Badges, timestamps, eyebrow labels |
-| `button` | 14px | 500 | 1.2 | 0 | Button labels |
-| `token-number` | 56px | 700 | 1.0 | -0.5px | Queue/token numbers, tabular figures |
-
-Principles: display weight caps at 600 (never 700+, keeps the clinical calm); tracking only ever goes negative on display sizes and only ever slightly positive on `caption` (it is doing label duty); token numbers are the one place the system uses monospace and the one place it goes to weight 700.
+| `display-hero` | Poppins | 32–56px fluid | 700 | UPPER | Landing hero |
+| `display-lg` | Poppins | 28–40px fluid | 700 | UPPER, +0.02em | Two-tone section headings |
+| `display-md` | Poppins | 30px | 700 | Sentence | Staff page titles, stat values |
+| `numeral-card` | Poppins | 44–60px fluid | 400 | - | 01 02 03 04 |
+| `heading-lg` | Poppins | 22px | 700 | Sentence | Card titles |
+| `heading-md` | Poppins | 18px | 700 | Sentence | Sub-sections |
+| `footer-heading` | Poppins | 16px | 700 | UPPER, +0.06em | Cyan-dot footer headings |
+| `heading-sm` | Inter | 15px | 600 | Sentence | Staff list-item titles |
+| `body-lg` | Poppins / Inter | 16px | 400 | - | Lead copy |
+| `body` | Inter | 14px | 400 | - | Default UI text |
+| `body-sm` | Inter | 13px | 400 | - | Table cells, helper text |
+| `caption` | Inter | 12px | 500 | - | Badges, timestamps |
+| `button` | Inter | 14px | 500 | - | Staff buttons |
+| `button-cta` | Poppins | 14px | 700 | UPPER, +0.06em | Public CTAs |
+| `token-number*` | JetBrains Mono | 56 / 96 / fluid | 700 | - | Queue numbers |
 
 ## Layout
 
-- **Base unit:** 4px. Tokens: `{spacing.xxs}` 4 · `{spacing.xs}` 8 · `{spacing.sm}` 12 · `{spacing.md}` 16 · `{spacing.lg}` 24 · `{spacing.xl}` 32 · `{spacing.xxl}` 48 · `{spacing.section}` 64.
-- Card padding: `{spacing.lg}` 24px. Stat tiles: `{spacing.md}` 16–20px (denser, they tile in a row).
-- Content max-width ~960px for staff console screens; the TV/counter-display board is full-bleed and scales token tiles up, not the container.
-- Card grids: 3-up desktop → 2-up tablet → 1-up mobile.
+- **Base unit:** 4px. Spacing tokens run `xxs` 4, `xs` 8, `sm` 12, `md` 16, `lg` 24, `xl` 32, `xxl` 48, `section` 64.
+- **Public content** max-width is 1140px, with a 16px side gutter on mobile. **Staff console** content stays around 960px.
+- **Card grids:** 4-up for numbered cards on desktop, 2-up on tablet, 1-up on mobile. Other grids are 3 → 2 → 1.
 
 ## Elevation
 
-Flat by default. Cards lift with `{colors.surface}` fill + 1px `{colors.hairline}` border — no drop shadow. The only shadow in the system is a soft `0 8px 24px rgba(0,0,0,0.12)` under modals/dialogs, kept identical in both themes since it sits over a scrim.
+- **Public screens** use MedWin's soft shadows: `--shadow-card` on cards and `--shadow-raised` on the overlapping hero card and dialogs.
+- **Staff screens** stay flat, with `surface` fill and a 1px `hairline` border, because density matters more there than lift.
 
 ## Shapes
 
 | Token | Value | Use |
 |---|---|---|
-| `{rounded.xs}` | 4px | Table chrome, small chips |
-| `{rounded.sm}` | 6px | Inline tags |
-| `{rounded.md}` | 8px | Buttons, inputs — the "action" radius |
-| `{rounded.lg}` | 12px | Cards, stat tiles |
-| `{rounded.xl}` | 16px | The big token-number tile on the counter/TV display |
-| `{rounded.pill}` | 9999px | Status badges only — pill = state, never action |
+| `--radius-xs` | 4px | Table chrome, small chips |
+| `--radius-sm` | 6px | Public CTA buttons, inputs (MedWin's 5px) |
+| `--radius-md` | 8px | Staff buttons |
+| `--radius-lg` | 12px | Cards, stat tiles |
+| `--radius-xl` | 16px | The token tile |
+| `--radius-section` | 32–120px fluid | Dark slate section corners |
+| `--radius-pill` | 9999px | Status badges only |
 
 ## Components
 
-- **`button-primary`** — filled teal, white text, `{rounded.md}`. The one filled surface per screen.
-- **`button-secondary`** — `{colors.surface}` fill, 1px hairline border, `{colors.ink}` text. Everything that isn't the primary action.
-- **`card`** — `{colors.surface}` + hairline border, `{rounded.lg}`, 24px padding. Default container.
-- **`stat-tile`** — same card treatment, value rendered in `display-md`, label in `caption` above it. Used on the admin dashboard (queue length, avg. wait, no-show rate).
-- **`token-tile`** — the counter/TV display centerpiece: `{rounded.xl}`, big `token-number` type, counter label in `caption` beneath. This is the one component allowed to scale far beyond its base size for a physical display.
-- **`status-badge-*`** — pill, soft-fill background, semantic text color, `caption` type. One per token status: `waiting` (neutral), `called` (primary-soft), `done` (success-soft), `no_show` (danger-soft, also reused for `serving`→primary and any future terminal state).
-- **`text-input`** — `{colors.canvas}` fill (sits inside cards, so it needs to read as a cutout), hairline border, `{rounded.md}`. Focus state swaps border to `{colors.primary}` + a 2px `{colors.focus-ring}` outline at 40% opacity.
-- **`top-nav`** — 56px, `{colors.surface}` fill, hairline bottom border, service switcher left, role/staff identity right.
+- **`button-accent`**: cyan fill, **ink** text, uppercase Poppins. The MedWin solid button. It hovers to `accent-hover`.
+- **`button-outline`**: transparent with a `hairline-strong` border and ink text. On hover the border turns accent and the text turns primary. The MedWin READ MORE button.
+- **`button-primary`**: `primary` fill with white text. The staff-screen action button.
+- **`card-public`**: surface, `shadow-card`, `radius-lg`.
+- **`card-overlap`**: the same with `shadow-raised`, pulled up over the hero.
+- **`section-dark`**: slate fill, white text, `radius-section` corners.
+- **`TwoToneHeading`** (`src/components/site/TwoToneHeading.tsx`): `display-lg` with the lead words in ink and the accent words in `accent-display`, or brand accent with `onDark`.
+- **`PublicHeader` / `PublicFooter`** (`src/components/site/`): the logo, public nav, theme toggle, and a slate-deep footer with cyan-dot headings.
+- **`ThemeToggle`** (`src/components/theme/ThemeToggle.tsx`): a 40px icon button in every header.
+- **Status badges, token tile, stat tile, text input**: unchanged in shape. Inputs take `radius-sm` and the `hairline-strong` border.
 
 ## Do's and Don'ts
 
 ### Do
-- Keep exactly one filled accent surface per screen (the primary button).
+- Put cyan **text** on light backgrounds in `primary` (small) or `accent-display` (large). Put `accent` only on fills, dots, icons and slate backgrounds.
+- Put ink text on accent fills.
 - Render every queue/token number in `token-number` with tabular figures.
-- Ship both themes for every component before calling it done — this is a live demo on a projector, dark mode is not optional polish.
-- Use pill radius only for status; use `{rounded.md}` rectangles for anything clickable.
+- Ship both themes for every component, except the TV board, which is fixed.
+- Re-run `node brand/contrast-check.mjs` after changing any colour token.
 
 ### Don't
-- Don't add a second chromatic accent — status colors are semantic, not decorative.
-- Don't use drop shadows for card hierarchy — hairline borders + the surface ladder do that job.
-- Don't set display type above weight 600 or push tracking past -0.6px — this isn't a marketing page, it needs to stay calm under a hospital's fluorescent lights.
+- Don't put white text on `#0cb7d6`. It is 2.40:1.
+- Don't use `#898989` for text.
+- Don't use `@media (prefers-color-scheme)`. Theme is `data-theme` only.
+- Don't bring the numbered cards or two-tone headings into the counter console or admin tables.
+- Don't add a second chromatic accent. Status colours are semantic, not decorative.
 
 ## Responsive Behavior
 
 | Breakpoint | Width | Key change |
 |---|---|---|
-| Desktop | ≥1024px | Staff console: sidebar + content. TV board: token tiles at full scale. |
-| Tablet | 768–1023px | Sidebar collapses to icons; stat tiles 3-up → 2-up. |
-| Mobile | <768px | Patient status page only (staff console is not optimized for phone); single column, token tile stays large and centered. |
+| Desktop | ≥1024px | Staff console: sidebar + content. Public: 4-up numbered cards, hero card overlaps. |
+| Tablet | 768–1023px | Admin sidebar collapses to icons; grids go 2-up. |
+| Mobile | <768px | Public header nav collapses; single column; 16px side gutter; no horizontal scroll. |
 
-Touch targets ≥44px on any control a counter/staff user taps repeatedly (call next, mark done) — this is used standing at a counter, not sitting at a desk.
+Touch targets are at least 44px on any control a counter/staff user taps repeatedly (call next, mark done), and on public nav and CTAs.
 
-`/display/[service]` is the one screen meant to run at *any* size in that range at once, from a kiosk-adjacent laptop up to a wall-mounted TV, so every size on it (title, stat values, counter tiles, the "next up" list, and `token-number-board` above) is a `clamp(min, preferred-vw, max)` scaled to viewport width rather than a fixed ramp step — deliberate fluid type, not drift off the ramp.
+`/display/[service]` is the one screen meant to run at *any* size in that range at once, from a kiosk-adjacent laptop up to a wall-mounted TV. So every size on it (title, stat values, counter tiles, the "next up" list, and `token-number-board` above) is a `clamp(min, preferred-vw, max)` scaled to viewport width rather than a fixed ramp step. This is deliberate fluid type, not drift off the ramp.

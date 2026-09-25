@@ -1,51 +1,102 @@
-/* Tokens from DESIGN.md -- the source of truth for values. Add more as
-   screens need them, keep both light and dark defined together. */
+/* Tokens mirror DESIGN.md -- the source of truth for values. Edit both
+   together, and keep light and dark defined together.
+
+   Theme is attribute-driven, not OS-driven: :root is light (the default),
+   :root[data-theme="dark"] is dark. The inline script in layout.tsx sets the
+   attribute from localStorage before first paint; ThemeToggle flips it.
+   Every text/background pair below is checked by `node brand/contrast-check.mjs`. */
 :root {
-  --color-primary: #1f6f74;
-  --color-primary-hover: #175a5e;
-  --color-primary-press: #124749;
-  --color-primary-soft: #e3f1f1;
+  color-scheme: light;
+
+  /* Brand constants -- identical in both themes. */
+  --color-accent: #0cb7d6; /* MedWin cyan: fills, dots, icons. Never small text on white. */
+  --color-accent-hover: #2cc1db;
+  --color-on-accent: #252525; /* ink on cyan fills; white on cyan fails AA */
+  --color-slate: #1a3237; /* dark sections, hero overlay, TV board, icon tile */
+  --color-slate-deep: #112427; /* footer */
+  --color-slate-overlay: rgba(26, 50, 55, 0.84); /* over hero photos */
+  --color-on-slate: #ffffff;
+  --color-on-slate-muted: #b3c6ca;
+
+  /* Theme colors -- light. */
+  --color-primary: #087589; /* AA cyan: links, small text, filled buttons with white text */
+  --color-primary-hover: #066474;
+  --color-primary-press: #055563;
+  --color-primary-soft: #e3f5f8;
   --color-on-primary: #ffffff;
+  --color-accent-display: #0a95ae; /* cyan for large text only (>=24px, or bold >=19px) */
   --color-canvas: #ffffff;
-  --color-canvas-soft: #f6f7f9;
+  --color-canvas-soft: #f5f8f9;
   --color-surface: #ffffff;
-  --color-ink: #14171c;
-  --color-ink-secondary: #4a4f5a;
-  --color-ink-muted: #717683;
-  --color-hairline: #e3e6eb;
-  --color-hairline-strong: #cdd2da;
+  --color-surface-sunken: #eef3f4;
+  --color-ink: #252525;
+  --color-ink-secondary: #4a4a4a;
+  --color-ink-muted: #6b6b6b; /* MedWin's #898989 is 3.50:1 -- fails for body text */
+  --color-hairline: #e4e7e8;
+  --color-hairline-strong: #cfcfcf;
+  --color-success: #197c53;
+  --color-success-soft: #e3f4ea;
+  --color-warning: #95590a;
+  --color-warning-soft: #faf0dd;
   --color-danger: #c13b34;
   --color-danger-soft: #fbe8e6;
-  --color-focus-ring: #1f6f74;
+  --color-focus-ring: #087589;
 
+  --shadow-card: 0 1px 2px rgba(26, 50, 55, 0.06), 0 10px 28px -12px rgba(26, 50, 55, 0.22);
+  --shadow-raised: 0 22px 48px -18px rgba(26, 50, 55, 0.4);
+
+  /* Type. Display = Poppins everywhere; body = Inter (public screens set
+     font-family: var(--font-display) on their root -- see DESIGN.md). */
+  --font-display: var(--font-poppins), var(--font-inter), system-ui, sans-serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-section: clamp(32px, 8vw, 120px); /* the dark section's big rounded corners */
+  --radius-pill: 9999px;
+
+  --space-xxs: 4px;
   --space-xs: 8px;
   --space-sm: 12px;
   --space-md: 16px;
   --space-lg: 24px;
   --space-xl: 32px;
+  --space-xxl: 48px;
+  --space-section: 64px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-primary: #4fb8ae;
-    --color-primary-hover: #6cc7bd;
-    --color-primary-press: #3d9a91;
-    --color-primary-soft: #123331;
-    --color-on-primary: #04201e;
-    --color-canvas: #0a0c0f;
-    --color-canvas-soft: #101317;
-    --color-surface: #14171c;
-    --color-ink: #eef0f3;
-    --color-ink-secondary: #b7bcc6;
-    --color-ink-muted: #7d8290;
-    --color-hairline: #24282f;
-    --color-hairline-strong: #343941;
-    --color-danger: #e5766f;
-    --color-danger-soft: #301715;
-    --color-focus-ring: #4fb8ae;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-primary: #2cc1db;
+  --color-primary-hover: #56cfe4;
+  --color-primary-press: #0cb7d6;
+  --color-primary-soft: #0e3339;
+  --color-on-primary: #0b1517;
+  --color-accent-display: #0cb7d6;
+  --color-canvas: #0b1517;
+  --color-canvas-soft: #0f1c1f;
+  --color-surface: #132428;
+  --color-surface-sunken: #0a1214;
+  --color-ink: #eef3f4;
+  --color-ink-secondary: #b8c6c9;
+  --color-ink-muted: #8fa3a7;
+  --color-hairline: #203539;
+  --color-hairline-strong: #2e474c;
+  --color-success: #4cbf8b;
+  --color-success-soft: #0f2b21;
+  --color-warning: #dba24d;
+  --color-warning-soft: #2e2211;
+  --color-danger: #e5766f;
+  --color-danger-soft: #301715;
+  --color-focus-ring: #2cc1db;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -12px rgba(0, 0, 0, 0.6);
+  --shadow-raised: 0 22px 48px -18px rgba(0, 0, 0, 0.75);
 }
 
 html {
@@ -64,7 +115,7 @@ body {
   flex-direction: column;
   color: var(--color-ink);
   background: var(--color-canvas);
-  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -80,8 +131,8 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+/* Default focus ring; route modules may refine it but never remove it. */
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }

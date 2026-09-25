@@ -32,8 +32,9 @@ It is built on an 18 x 16 grid, where 1 unit is 1 px at 16 px tall. Every straig
 ## Palette
 | Name | Hex | Use |
 |---|---|---|
-| Cyan | `#0cb7d6` | The slip, fills and large display words. 5.63:1 on slate-teal, **2.40:1 on white**, so never use it for small text on white |
-| Cyan text | `#088197` | Small text and links on white (4.57:1) |
+| Cyan | `#0cb7d6` | The slip, fills, and text on slate-teal (5.63:1). **2.40:1 on white**, which fails AA even for large text, so it is never text on a light background |
+| Cyan display | `#0a95ae` | Large cyan words on white, such as the second word of a heading (3.55:1, large text only) |
+| Cyan text | `#087589` | Small text and links on white (5.36:1). Also 4.77:1 on the cyan tint `#e3f5f8` |
 | Slate-teal | `#1a3237` | TV display board, icon tile, dark sections. White on it is 13.5:1 |
 | Ink | `#252525` | Ring on light backgrounds and body text (15.3:1 on white). Text on cyan fills (6.39:1) |
 | White | `#ffffff` | Base colour, and the ring on dark backgrounds |
