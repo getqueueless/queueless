@@ -51,6 +51,7 @@ STRIDE-lite, one page. Scope: the Python FastAPI service in `apps/api` only.
 ## 5. Residual risk (stated, not hidden)
 
 - **Rate limiting is per-process.** `slowapi`'s default `MemoryStorage` is in-memory per worker process. With N horizontally-scaled replicas (or N uvicorn workers), the effective ceiling on any limited route becomes N times the configured value, since each process counts independently. Upgrade path: `Limiter(storage_uri="redis://...")` for a shared counter — not built for this hackathon.
+- **`tokens_issued_total` (the Prometheus metric) is per-process for the same reason, found while building it.** `app/notifications.py::_update_tokens_issued_metric`'s checkpoint of "the last row I counted" lives in a process-local variable — with N replicas, each independently re-scans and counts the same new rows since its own checkpoint, so summing this metric across replicas in Grafana would double/triple/N-count. Same upgrade path as the rate limiter (a shared cursor instead of N independent local ones), same call not to build it for this scale. `notification_delivery_lag_seconds` and the DeepSeek call metrics don't have this problem — they're observed once per actual event a specific replica handled, not via a periodic re-scan.
 - **Resolved this session, kept here for the record.** Three gaps previously documented in this
   section landed real fixes on `origin/main` via `supabase/migrations/0031_queueless_api_least_
   privilege.sql` and `0036_write_audit_for_api.sql`, both verified by reading the migrations

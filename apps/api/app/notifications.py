@@ -38,7 +38,18 @@ async def _update_tokens_issued_metric(pool: asyncpg.Pool) -> None:
     """tokens_issued_total, by service, since the last tick. The first
     call after (re)start only establishes the checkpoint -- otherwise
     every restart would spike the counter by however many tokens already
-    existed, which isn't "issued since we started watching"."""
+    existed, which isn't "issued since we started watching".
+
+    ponytail: _tokens_checkpoint is per-process, not shared across
+    replicas -- with N horizontally-scaled replicas, each independently
+    re-scans and counts the SAME new rows since its own checkpoint, so a
+    naive sum() across replicas' /metrics is N times inflated. Same class
+    of ceiling as slowapi's per-process rate limiter (already documented
+    in docs/api/threat-model.md's residual risk section) and the same
+    fix if it matters: a shared cursor (a DB row, Redis, or similar) N
+    replicas coordinate through, instead of N independent local
+    checkpoints. Not built here -- not worth the complexity for a
+    hackathon-scale single-replica deploy."""
     global _tokens_checkpoint
     now = await pool.fetchval("SELECT now()")
     if _tokens_checkpoint is not None:
