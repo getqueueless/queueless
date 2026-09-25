@@ -203,7 +203,7 @@ export default function CheckoutScreen() {
             onPress={() =>
               hold.kind === 'token'
                 ? router.replace({ pathname: '/(app)/token/[id]', params: { id: hold.id } })
-                : router.replace('/(app)/my-tokens')
+                : router.replace('/(app)/(tabs)/my-tokens')
             }
           />
         </ScrollView>

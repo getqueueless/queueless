@@ -135,7 +135,7 @@ export function LiveTokenHero() {
       </AnimatedPressable>
       {live.others > 0 ? (
         <AnimatedPressable
-          onPress={() => router.push('/(app)/my-tokens')}
+          onPress={() => router.push('/(app)/(tabs)/my-tokens')}
           accessibilityRole="link"
           style={styles.more}>
           <UIText variant="secondaryStrong" color="primaryText">
