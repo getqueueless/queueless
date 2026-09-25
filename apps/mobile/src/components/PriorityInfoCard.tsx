@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Rounded, Spacing } from '@/constants/theme';
+import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -13,10 +13,14 @@ export function PriorityInfoCard() {
   const theme = useTheme();
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.primarySoft, borderColor: theme.hairline }]}>
-      <ThemedText type="headingSm" themeColor="primary">
-        Senior citizen or pregnant?
-      </ThemedText>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderColor: theme.hairline },
+        CardShadow,
+      ]}>
+      <View style={[styles.accent, { backgroundColor: theme.primary }]} />
+      <ThemedText type="headingSm">Senior citizen or pregnant?</ThemedText>
       <ThemedText type="bodySm" themeColor="inkSecondary" style={styles.body}>
         Show this screen to any staff member. Once they scan or type the code above to verify
         you, you get a 15-minute arrival-time head start in the queue.
@@ -29,9 +33,10 @@ const styles = StyleSheet.create({
   card: {
     alignSelf: 'stretch',
     borderWidth: 1,
-    borderRadius: Rounded.lg,
+    borderRadius: Rounded.xl,
     padding: Spacing.md,
     gap: Spacing.xxs,
   },
+  accent: { width: 28, height: 4, borderRadius: Rounded.pill, marginBottom: Spacing.xxs },
   body: { marginTop: Spacing.xxs },
 });

@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { PriorityInfoCard } from '@/components/PriorityInfoCard';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Rounded, Spacing } from '@/constants/theme';
+import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
@@ -167,7 +167,7 @@ export default function TokenScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView type="canvasSoft" style={styles.container}>
         <SafeAreaView style={styles.center} edges={['bottom', 'left', 'right']}>
           <ActivityIndicator size="large" color={theme.primary} />
         </SafeAreaView>
@@ -177,16 +177,19 @@ export default function TokenScreen() {
 
   if (!status) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView type="canvasSoft" style={styles.container}>
         <SafeAreaView style={styles.center} edges={['bottom', 'left', 'right']}>
-          <ThemedText type="headingMd" style={styles.centerText}>
-            {errorMsg ?? "We couldn't find that ticket."}
-          </ThemedText>
-          <Pressable
-            onPress={() => router.back()}
-            style={[styles.secondaryButton, { borderColor: theme.hairlineStrong }]}>
-            <ThemedText type="button">Go back</ThemedText>
-          </Pressable>
+          <View
+            style={[styles.errorCard, { backgroundColor: theme.surface, borderColor: theme.hairline }, CardShadow]}>
+            <ThemedText type="headingMd" style={styles.centerText}>
+              {errorMsg ?? "We couldn't find that ticket."}
+            </ThemedText>
+            <Pressable
+              onPress={() => router.back()}
+              style={[styles.secondaryButton, { borderColor: theme.primaryOutline }]}>
+              <ThemedText type="button">Go back</ThemedText>
+            </Pressable>
+          </View>
         </SafeAreaView>
       </ThemedView>
     );
@@ -197,15 +200,18 @@ export default function TokenScreen() {
   const eta = formatEta(status.eta_seconds);
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView type="canvasSoft" style={styles.container}>
       <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content}>
-          <ThemedText type="tokenNumber" style={styles.tokenCode}>
-            {status.code}
-          </ThemedText>
-          <ThemedText type="body" themeColor="inkSecondary" style={styles.centerText}>
-            {status.service_name}
-          </ThemedText>
+          <View
+            style={[styles.tokenCard, { backgroundColor: theme.surface, borderColor: theme.hairline }, CardShadow]}>
+            <ThemedText type="tokenNumber" style={styles.tokenCode}>
+              {status.code}
+            </ThemedText>
+            <ThemedText type="body" themeColor="inkSecondary" style={styles.centerText}>
+              {status.service_name}
+            </ThemedText>
+          </View>
 
           <ThemedText type="headingMd" style={styles.centerText}>
             {STATUS_LABELS[status.status]}
@@ -229,7 +235,7 @@ export default function TokenScreen() {
                   <ThemedText
                     key={step.key}
                     type="caption"
-                    themeColor={i <= currentStepIndex ? 'primary' : 'inkMuted'}
+                    themeColor={i <= currentStepIndex ? 'ink' : 'inkMuted'}
                     style={styles.progressLabelText}>
                     {step.label}
                   </ThemedText>
@@ -239,8 +245,13 @@ export default function TokenScreen() {
           ) : null}
 
           {status.counter_name ? (
-            <View style={[styles.counterBanner, { backgroundColor: theme.primarySoft }]}>
-              <ThemedText type="headingLg" themeColor="primary" style={styles.centerText}>
+            <View
+              style={[
+                styles.counterBanner,
+                { backgroundColor: theme.primarySoft, borderColor: theme.primaryOutline },
+                CardShadow,
+              ]}>
+              <ThemedText type="headingLg" themeColor="ink" style={styles.centerText}>
                 Called to {status.counter_name}
               </ThemedText>
             </View>
@@ -293,13 +304,22 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.lg, gap: Spacing.md },
   centerText: { textAlign: 'center' },
   content: { padding: Spacing.lg, alignItems: 'center', gap: Spacing.lg },
-  tokenCode: { textAlign: 'center', marginTop: Spacing.md },
+  tokenCard: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: Rounded.xl,
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  tokenCode: { textAlign: 'center' },
   progressBlock: { alignSelf: 'stretch', gap: Spacing.xxs },
   progressTrack: { flexDirection: 'row', gap: Spacing.xxs, height: 8 },
   progressSegment: { flex: 1, borderRadius: Rounded.pill },
   progressLabels: { flexDirection: 'row' },
   progressLabelText: { flex: 1, textAlign: 'center' },
-  counterBanner: { alignSelf: 'stretch', borderRadius: Rounded.lg, padding: Spacing.md },
+  counterBanner: { alignSelf: 'stretch', borderWidth: 1, borderRadius: Rounded.xl, padding: Spacing.md },
   cancelButton: {
     alignSelf: 'stretch',
     minHeight: 48,
@@ -315,5 +335,12 @@ const styles = StyleSheet.create({
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  errorCard: {
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderRadius: Rounded.xl,
+    padding: Spacing.xl,
   },
 });
