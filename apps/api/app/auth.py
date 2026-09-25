@@ -14,6 +14,13 @@ class AuthedUser:
     user_id: UUID
 
 
+@dataclass(frozen=True)
+class AuthedProfile:
+    user_id: UUID
+    role: str
+    org_id: UUID | None
+
+
 def decode_token(token: str, settings: Settings) -> dict:
     try:
         return jwt.decode(
@@ -45,22 +52,31 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="invalid subject claim") from exc
 
 
-# In-process TTL cache for the authoritative app role. This is the ceiling on
-# how fast a revoked staff member is actually locked out -- not instant.
-_ROLE_CACHE: dict[UUID, tuple[str, float]] = {}
+# In-process TTL cache for the authoritative app role + org. This is the
+# ceiling on how fast a revoked staff member is actually locked out -- not
+# instant. Role and org_id are cached together, one lookup, one cache: an
+# org-scoped route and a role-only route must never see different data.
+_PROFILE_CACHE: dict[UUID, tuple[str, UUID | None, float]] = {}
+
+
+async def get_profile(pool: asyncpg.Pool, user_id: UUID, ttl_seconds: float) -> AuthedProfile | None:
+    cached = _PROFILE_CACHE.get(user_id)
+    now = time.monotonic()
+    if cached is not None and cached[2] > now:
+        role, org_id, _ = cached
+        return AuthedProfile(user_id=user_id, role=role, org_id=org_id)
+    # profiles.id is the PK (references auth.users.id directly) -- there is no
+    # profiles.user_id column in the real schema (supabase/migrations/0002).
+    row = await pool.fetchrow("SELECT role, org_id FROM profiles WHERE id = $1", user_id)
+    if row is None:
+        return None
+    _PROFILE_CACHE[user_id] = (row["role"], row["org_id"], now + ttl_seconds)
+    return AuthedProfile(user_id=user_id, role=row["role"], org_id=row["org_id"])
 
 
 async def get_role(pool: asyncpg.Pool, user_id: UUID, ttl_seconds: float) -> str | None:
-    cached = _ROLE_CACHE.get(user_id)
-    now = time.monotonic()
-    if cached is not None and cached[1] > now:
-        return cached[0]
-    # profiles.id is the PK (references auth.users.id directly) -- there is no
-    # profiles.user_id column in the real schema (supabase/migrations/0002).
-    role = await pool.fetchval("SELECT role FROM profiles WHERE id = $1", user_id)
-    if role is not None:
-        _ROLE_CACHE[user_id] = (role, now + ttl_seconds)
-    return role
+    profile = await get_profile(pool, user_id, ttl_seconds)
+    return profile.role if profile else None
 
 
 def require_role(*allowed: str):
@@ -73,5 +89,24 @@ def require_role(*allowed: str):
         if role not in allowed:
             raise HTTPException(status_code=403, detail="forbidden")
         return user
+
+    return dependency
+
+
+def require_org_role(*allowed: str):
+    """Like require_role, but returns the caller's AuthedProfile (with
+    org_id) for routes that must scope their own query by it. Never accept
+    an org_id from the client (path/query/body) for this purpose -- the
+    server-looked-up org_id here is the only one any route may filter by."""
+
+    async def dependency(
+        request: Request,
+        user: AuthedUser = Depends(get_current_user),
+        settings: Settings = Depends(_get_settings),
+    ) -> AuthedProfile:
+        profile = await get_profile(request.app.state.db_pool, user.user_id, settings.role_cache_ttl_seconds)
+        if profile is None or profile.role not in allowed:
+            raise HTTPException(status_code=403, detail="forbidden")
+        return profile
 
     return dependency

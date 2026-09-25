@@ -20,7 +20,8 @@ DATABASE_URL = f"postgresql://postgres:postgres@localhost:{HOST_PORT}/postgres"
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS profiles (
     id uuid PRIMARY KEY,
-    role text NOT NULL
+    role text NOT NULL,
+    org_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS services (

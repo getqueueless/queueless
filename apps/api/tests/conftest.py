@@ -49,7 +49,7 @@ async def db_pool(postgres):
     await pool.close()
 
 
-from app.auth import get_current_user, require_role  # noqa: E402
+from app.auth import get_current_user, require_org_role, require_role  # noqa: E402
 
 test_router = APIRouter()
 
@@ -62,6 +62,11 @@ async def _identity(user=Depends(get_current_user)):
 @test_router.get("/_test/staff-only")
 async def _staff_only(user=Depends(require_role("staff", "admin"))):
     return {"user_id": str(user.user_id)}
+
+
+@test_router.get("/_test/org-scoped")
+async def _org_scoped(profile=Depends(require_org_role("staff", "admin"))):
+    return {"user_id": str(profile.user_id), "org_id": str(profile.org_id)}
 
 
 _test_router_included = False
