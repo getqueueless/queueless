@@ -68,3 +68,9 @@ One line per deviation from the plan/spec, with why.
   `${MAILER_AUTOCONFIRM:-false}` so the VPS (real SMTP configured) actually requires the emailed
   code. Local `.env` must set `MAILER_AUTOCONFIRM=true` (added to `.env` and `.env.example`) or
   local signups will hang unconfirmed against the noop mailer.
+- 2026-09-25: The local Docker stack (compose project `queueless`) is shared across whatever
+  sessions run on this machine against this checkout -- found committed "QA Admin"/"QA Staff"
+  rows in `audit_log` from a concurrent session's own testing, not mine. Fixed `072_audit_triggers`
+  which asserted absolute table-wide `count(*)` and broke against that unrelated data; every
+  count-based assertion must scope by the specific `entity_id`/`token_id`/etc. the test itself
+  created, never a bare table-wide count. Applies to any future test too.

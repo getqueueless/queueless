@@ -45,21 +45,21 @@ select is(
 
 delete from public.counter_services where counter_id = 'cccccccc-0000-0000-0000-0000000000b1' and service_id = 'bbbbbbbb-0000-0000-0000-0000000000b1';
 select is(
-  (select count(*)::int from public.audit_log where entity = 'counter_services' and action = 'DELETE'),
+  (select count(*)::int from public.audit_log where entity = 'counter_services' and entity_id = 'cccccccc-0000-0000-0000-0000000000b1' and action = 'DELETE'),
   1, 'unlinking a counter from a service logs an audit row too'
 );
 
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-0000000000b1', 'p072@queueless.test');
 update public.profiles set full_name = 'Renamed' where id = '55555555-0000-0000-0000-0000000000b1';
 select is(
-  (select count(*)::int from public.audit_log where entity = 'profiles'),
+  (select count(*)::int from public.audit_log where entity = 'profiles' and entity_id = '55555555-0000-0000-0000-0000000000b1'),
   0, 'a plain name/phone edit does not get audited'
 );
 
 update public.profiles set role = 'staff', org_id = '44444444-4444-4444-4444-444444444490'
   where id = '55555555-0000-0000-0000-0000000000b1';
 select is(
-  (select count(*)::int from public.audit_log where entity = 'profiles'),
+  (select count(*)::int from public.audit_log where entity = 'profiles' and entity_id = '55555555-0000-0000-0000-0000000000b1'),
   1, 'a role change does get audited'
 );
 
