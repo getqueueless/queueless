@@ -613,3 +613,13 @@ One line per deviation from the plan/spec, with why.
   a narrower path -- not fixed here, out of scope for this branch, but it blocks `test.sh`'s
   fail-fast loop from ever reaching later files (alphabetical order), so anyone running the full
   suite locally should know a green run right now requires skipping or fixing this file first.
+- 2026-09-26 (mobile auth, review round): `experimental.appendPkceFlowIdToRedirects` is on, so
+  every emailed link carries `sb_flow_id` and finds its own PKCE verifier (verified on prod:
+  reset link -> `queueless://auth/callback?code=…&sb_flow_id=…` -> recovery session). Without it
+  any later sign-in attempt overwrote the one shared verifier and broke earlier links. Sign-up
+  now sets the typed password after the code is verified: GoTrue keeps the old (random) password
+  when the address already existed unconfirmed. "Send reset link" has the same 65 s cooldown as
+  the code screens.
+- 2026-09-26 (ci): each waiting iOS run holds one idle ubuntu runner while it polls (60 s). Only
+  this workflow uses Actions today, so nothing else is starved; runs created before the skip
+  logic (up to #45) still build one by one, later ones skip themselves when superseded.
