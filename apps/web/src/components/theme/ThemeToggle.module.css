@@ -32,11 +32,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 64x44 hit area around the 28px pill. */
+/* 64x48 hit area around the 28px pill. */
 .toggle::before {
   content: "";
   position: absolute;
-  inset: -8px -4px;
+  inset: -10px -4px;
 }
 
 :global(:root[data-theme="dark"]) .toggle {
