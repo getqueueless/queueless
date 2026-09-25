@@ -6,7 +6,7 @@
 // doesn't exist. It also picks up the requested `realtime: { worker: true }`
 // option, which the shared factory does not set.
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -32,55 +32,117 @@ const supabase = createBrowserClient(
 // and `service:<id>` (channelName IS the topic name for this mode -- pass
 // one of those, not an arbitrary label), both firing a `token_update` event.
 // `table`/`filter` are ignored when broadcastEvent is set.
+//
+// Ref-counted per channelName: two hooks subscribing to the same topic (e.g.
+// a live department strip and a token tracker both on `service:<id>` when
+// both happen to be mounted on the same page) used to each open their OWN
+// RealtimeChannel object for the identical topic on this module's one shared
+// socket. Only whichever instance's own reconnect logic happened to fire
+// (tab visibility, CHANNEL_ERROR) knew to rebuild its channel -- the other
+// kept dispatching off (or waiting on) a channel object the server had
+// already dropped, silently dead until its own unrelated re-render
+// happened to reconnect it. One real channel per topic now; every hook
+// instance just adds/removes its own callback from that topic's listener
+// set, and the shared entry owns the one reconnect/backoff cycle.
+type Listener = (payload: unknown) => void
+
+type Entry = {
+  channel: RealtimeChannel
+  listeners: Set<Listener>
+  table?: string
+  filter?: string
+  broadcastEvent?: string
+  retry: number
+  timer: ReturnType<typeof setTimeout> | null
+  handleVisible: () => void
+  handleOnline: () => void
+}
+
+const registry = new Map<string, Entry>()
+
+function dispatch(channelName: string, payload: unknown) {
+  registry.get(channelName)?.listeners.forEach((fn) => fn(payload))
+}
+
+function buildChannel(channelName: string, table: string | undefined, filter: string | undefined, broadcastEvent: string | undefined): RealtimeChannel {
+  const channel = supabase.channel(channelName)
+  if (broadcastEvent) {
+    channel.on('broadcast', { event: broadcastEvent }, ({ payload }) => dispatch(channelName, payload))
+  } else {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: table!, filter }, (payload) => dispatch(channelName, payload))
+  }
+  return channel
+}
+
+function subscribeEntry(channelName: string) {
+  const entry = registry.get(channelName)
+  if (!entry) return
+  entry.channel.subscribe((status) => {
+    const current = registry.get(channelName)
+    if (!current) return
+    if (status === 'SUBSCRIBED') { current.retry = 0; return }
+    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+      const attempt = current.retry++
+      const delay = Math.min(1000 * 2 ** attempt, 30_000) + Math.random() * 500
+      if (current.timer) clearTimeout(current.timer)
+      current.timer = setTimeout(() => reconnect(channelName), delay)
+    }
+  })
+}
+
+function reconnect(channelName: string) {
+  const entry = registry.get(channelName)
+  if (!entry) return
+  supabase.removeChannel(entry.channel)
+  entry.channel = buildChannel(channelName, entry.table, entry.filter, entry.broadcastEvent)
+  subscribeEntry(channelName)
+}
+
+function acquire(channelName: string, table: string | undefined, filter: string | undefined, broadcastEvent: string | undefined, onEvent: Listener) {
+  let entry = registry.get(channelName)
+  if (!entry) {
+    const handleVisible = () => { if (document.visibilityState === 'visible') reconnect(channelName) }
+    const handleOnline = () => reconnect(channelName)
+    entry = {
+      channel: buildChannel(channelName, table, filter, broadcastEvent),
+      listeners: new Set(),
+      table,
+      filter,
+      broadcastEvent,
+      retry: 0,
+      timer: null,
+      handleVisible,
+      handleOnline,
+    }
+    registry.set(channelName, entry)
+    document.addEventListener('visibilitychange', handleVisible)
+    window.addEventListener('online', handleOnline)
+    subscribeEntry(channelName)
+  }
+  entry.listeners.add(onEvent)
+}
+
+function release(channelName: string, onEvent: Listener) {
+  const entry = registry.get(channelName)
+  if (!entry) return
+  entry.listeners.delete(onEvent)
+  if (entry.listeners.size > 0) return
+  if (entry.timer) clearTimeout(entry.timer)
+  document.removeEventListener('visibilitychange', entry.handleVisible)
+  window.removeEventListener('online', entry.handleOnline)
+  supabase.removeChannel(entry.channel)
+  registry.delete(channelName)
+}
+
 export function useResilientChannel({ channelName, table, filter, broadcastEvent, onEvent }: {
   channelName: string; table?: string; filter?: string; broadcastEvent?: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onEvent: (payload: any) => void
 }) {
-  const channelRef = useRef<RealtimeChannel | null>(null)
-  const retryRef = useRef(0)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const mountedRef = useRef(true)
-
   useEffect(() => {
-    mountedRef.current = true
-    const clearTimer = () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null } }
-    const teardown = () => {
-      clearTimer()
-      if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
-    }
-    function connect() {
-      if (!mountedRef.current) return
-      teardown()
-      const channel = broadcastEvent
-        ? supabase
-            .channel(channelName)
-            .on('broadcast', { event: broadcastEvent }, ({ payload }) => onEvent(payload))
-        : supabase
-            .channel(channelName)
-            .on('postgres_changes', { event: '*', schema: 'public', table: table!, filter }, onEvent)
-      channel.subscribe((status) => {
-        if (!mountedRef.current) return
-        if (status === 'SUBSCRIBED') { retryRef.current = 0; return }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          const attempt = retryRef.current++
-          const delay = Math.min(1000 * 2 ** attempt, 30_000) + Math.random() * 500
-          clearTimer()
-          timerRef.current = setTimeout(connect, delay)
-        }
-      })
-      channelRef.current = channel
-    }
-    connect()
-    const handleVisible = () => { if (document.visibilityState === 'visible') connect() }
-    const handleOnline = () => connect()
-    document.addEventListener('visibilitychange', handleVisible)
-    window.addEventListener('online', handleOnline)
+    acquire(channelName, table, filter, broadcastEvent, onEvent)
     return () => {
-      mountedRef.current = false
-      document.removeEventListener('visibilitychange', handleVisible)
-      window.removeEventListener('online', handleOnline)
-      teardown()
+      release(channelName, onEvent)
     }
   }, [channelName, table, filter, broadcastEvent, onEvent])
 }
