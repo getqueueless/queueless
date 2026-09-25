@@ -187,3 +187,39 @@ staying open.
 Scaling note: `postgres_changes` checks RLS once per subscriber; past a few thousand
 concurrent screens, switch to Realtime Broadcast (`realtime.broadcast_changes` from a
 trigger) — works self-hosted, no infra change, just not needed at hackathon scale.
+
+## Seeding prod
+
+`supabase/scripts/seed.sh` builds the whole demo dataset and is **safe to rerun** — every
+step is guarded (`on conflict do nothing`, existence checks, or an idempotent upsert), so
+running it twice never duplicates accounts, config, or history.
+
+What it creates:
+- **Accounts**, via the admin API: `admin@lpu.lol` (promoted to `role='admin'`),
+  `counter1@lpu.lol`/`counter2@lpu.lol`/`counter3@lpu.lol` (staff), and thirty patients
+  `patient01@example.test`..`patient30@example.test`. Passwords are random
+  (`openssl rand -base64 18`) and land in `supabase/.env.demo` (gitignored, `chmod 600`) the
+  first time each account is created; reruns reuse the same passwords from that file instead
+  of locking anyone out.
+- **Org/services/counters/appointment slots**: City Hospital (Demo), the four services
+  (OPD/PED/ORT/PHA), six counters, their service links, staff-to-counter assignments, and
+  15-minute appointment slots for today and tomorrow.
+- **14 days of synthetic history**: thousands of realistic completed/no-show tickets across
+  the four services, walked through the real state machine (`waiting`→`called`→`serving`→
+  `done`, or `→no_show`) with realistic timestamps — this is what gives `avg_service_secs`
+  real signal instead of sitting on the `default_service_secs` fallback all morning.
+- Finishes by calling `demo-reset.sh`, so a fresh run and a rerun both end in the same
+  "ready for judges" state.
+
+**Not fed anywhere else:** the ML wait-time predictor (`apps/api/scripts/train.py` +
+`generate_training_data.py`) does **not** read this seeded history. It trains on its own
+synthetic generator, intentionally kept separate — don't present the seeded history as
+training data for the model.
+
+## Resetting between demo runs
+
+`supabase/scripts/demo-reset.sh` clears and rebuilds only **today's live queue** — tokens
+whose `service_day` is today, and today's per-service numbering counter. It never touches
+accounts, org/services/counters config, or any of the 14 days of history. Run it right
+before each judge walkthrough to get a clean, believable "right now" queue (some waiting,
+a couple of desks actively serving) without re-running the whole seed.
