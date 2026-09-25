@@ -90,6 +90,11 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   // counter_id -> token_code already voiced, so a reconnect/unrelated update never repeats
   // (or, before sound is unlocked, never queues up) an announcement for an old call.
   const announcedRef = useRef<Map<string, string>>(new Map())
+  // Counters this service's counter_services rows point at (QA #9: this board's "Now
+  // serving" grid was showing every counter hospital-wide, not just this department's).
+  // null means "scope unknown yet or query failed" -- loadCounters falls back to the
+  // unscoped list rather than going blank.
+  const counterIdsRef = useRef<string[] | null>(null)
 
   const loadBoardService = useCallback(async () => {
     const { data } = await supabase
@@ -103,10 +108,14 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   }, [serviceId])
 
   const loadCounters = useCallback(async () => {
-    const { data } = await supabase
+    let query = supabase
       .from("board_counters")
       .select("counter_id, counter_name, state, token_code, token_status")
       .order("counter_name", { ascending: true })
+    if (counterIdsRef.current && counterIdsRef.current.length > 0) {
+      query = query.in("counter_id", counterIdsRef.current)
+    }
+    const { data } = await query
     const rows = (data as BoardCounter[] | null) ?? []
     setCounters(rows)
     return rows
@@ -135,37 +144,43 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     }
   }, [serviceId])
 
-  // Initial load, inline (not the loadBoardService/loadCounters callbacks below, which exist
-  // for the realtime handlers to re-run). Seeds `announcedRef` from whatever's already on the
-  // board so an unrelated change to an already-serving counter never fires a stale
+  // Initial load, inline for board_services (loadBoardService/loadCounters below exist for
+  // the realtime handlers to re-run). Resolves this service's own counter_ids first so the
+  // very first counters fetch is already scoped (QA #9) rather than flashing the unscoped
+  // hospital-wide list for one round-trip. Seeds `announcedRef` from whatever's already on
+  // the board so an unrelated change to an already-serving counter never fires a stale
   // announcement on first render.
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      supabase
-        .from("board_services")
-        .select("service_id, waiting_count, served_count, no_show_count, last_called_code, avg_service_secs")
+    async function init() {
+      const { data: csRows } = await supabase
+        .from("counter_services")
+        .select("counter_id")
         .eq("service_id", serviceId)
-        .order("day", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("board_counters")
-        .select("counter_id, counter_name, state, token_code, token_status")
-        .order("counter_name", { ascending: true }),
-    ]).then(([boardRes, countersRes]) => {
+      if (cancelled) return
+      counterIdsRef.current = csRows && csRows.length > 0 ? csRows.map((r) => r.counter_id as string) : null
+
+      const [boardRes, rows] = await Promise.all([
+        supabase
+          .from("board_services")
+          .select("service_id, waiting_count, served_count, no_show_count, last_called_code, avg_service_secs")
+          .eq("service_id", serviceId)
+          .order("day", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        loadCounters(),
+      ])
       if (cancelled) return
       setBoard((boardRes.data as BoardService | null) ?? null)
-      const rows = (countersRes.data as BoardCounter[] | null) ?? []
-      setCounters(rows)
       for (const row of rows) {
         if (row.token_code) announcedRef.current.set(row.counter_id, row.token_code)
       }
-    })
+    }
+    init()
     return () => {
       cancelled = true
     }
-  }, [serviceId])
+  }, [serviceId, loadCounters])
 
   // Doctor status strip. There is no doctor-per-token path in this schema
   // (tokens has service_id + counter_id only, no doctor_id -- see
@@ -249,6 +264,28 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     table: "board_counters",
     onEvent: onCounterEvent,
   })
+
+  // Fallback for QA #1 -- same reasoning as t/[id]/status-view.tsx: a 10s poll plus a
+  // refetch on tab focus caps staleness even if postgres_changes goes quiet on an
+  // already-open tab. loadBoardService/loadCounters are already idempotent GETs, safe to
+  // call on a timer.
+  useEffect(() => {
+    const refetch = () => {
+      loadBoardService()
+      loadCounters()
+    }
+    const interval = setInterval(refetch, 10_000)
+    const handleVisible = () => {
+      if (document.visibilityState === "visible") refetch()
+    }
+    document.addEventListener("visibilitychange", handleVisible)
+    window.addEventListener("focus", refetch)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", handleVisible)
+      window.removeEventListener("focus", refetch)
+    }
+  }, [loadBoardService, loadCounters])
 
   function handleEnableSound() {
     unlockSpeech()

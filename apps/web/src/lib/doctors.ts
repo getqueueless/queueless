@@ -31,12 +31,11 @@ export type DoctorShift = {
 // signed-out landing page's "01 02 03 04" services teaser and the signed-in
 // patient app.
 //
-// NOTE for whoever builds booking: `appointment_slots` (0005) is per-SERVICE,
-// not per-doctor -- there is no doctor_id column on a slot. "Book a slot with
-// this doctor" is a UI framing only: show the doctor's `doctor_schedules` as
-// informational shift times, but `book_appointment(p_slot)` books the
-// service's own slot, not a specific doctor. Don't invent a doctor_id filter
-// on appointment_slots that doesn't exist in the schema.
+// NOTE for whoever builds booking: appointment_slots gained a doctor_id
+// column in 0039_doctor_aware_slots_and_tokens.sql (nullable -- some slots
+// stay service-wide). Booking screens should filter
+// `.eq("doctor_id", doctorId)` when booking against a specific doctor, the
+// same way apps/mobile's doctor/[doctorId].tsx already does.
 export async function listDoctorsForService(
   supabase: SupabaseClient,
   serviceId: string,
