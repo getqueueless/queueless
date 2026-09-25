@@ -14,6 +14,9 @@ type StaffProfile = {
 
 const EMPTY_FORM = { email: "", full_name: "", role: "staff" as "staff" | "admin" }
 
+// "26 Sept 2026" in the viewer's locale, not an ambiguous 26/09/2026.
+const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" })
+
 export function StaffManager() {
   const [staff, setStaff] = useState<StaffProfile[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -101,70 +104,80 @@ export function StaffManager() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 24 }}>
+    <div className={styles.stack}>
       {loadError && (
         <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
           {loadError}
         </div>
       )}
 
-      <div className={styles.card}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Role</th>
-              <th scope="col">Joined</th>
-              <th scope="col">
-                <span className={styles.srOnly}>Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {(staff ?? []).map((s) => (
-              <tr key={s.id}>
-                <td>{s.full_name ?? "—"}</td>
-                <td>
-                  <select
-                    className={styles.select}
-                    value={s.role}
-                    disabled={busy}
-                    onChange={(e) => changeRole(s.id, e.target.value as StaffProfile["role"])}
-                  >
-                    <option value="staff">Staff</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </td>
-                <td>{new Date(s.created_at).toLocaleDateString()}</td>
-                <td>
-                  <button type="button" className={styles.buttonDanger} onClick={() => removeStaff(s.id)} disabled={busy}>
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {staff && staff.length === 0 && (
+      {/* Without a list there is nothing to tabulate; the alert above says why. */}
+      {(staff || !loadError) && (
+        <div className={styles.card}>
+          <table className={styles.table} aria-busy={!staff || undefined}>
+            <thead>
               <tr>
-                <td colSpan={4} style={{ color: "var(--color-ink-muted)" }}>
-                  No staff yet.
-                </td>
+                <th scope="col">Name</th>
+                <th scope="col">Role</th>
+                <th scope="col">Joined</th>
+                <th scope="col">
+                  <span className={styles.srOnly}>Actions</span>
+                </th>
               </tr>
-            )}
-            {!staff && !loadError && (
-              <tr>
-                <td colSpan={4} style={{ color: "var(--color-ink-muted)" }}>
-                  Loading…
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className={styles.card}>
-        <div className={styles.pageSubtitle} style={{ marginBottom: 12 }}>
-          Add staff
+            </thead>
+            <tbody>
+              {(staff ?? []).map((s) => {
+                const who = s.full_name ?? "unnamed staff member"
+                return (
+                  <tr key={s.id}>
+                    <td>{s.full_name ?? <span className={styles.cellMuted}>No name set</span>}</td>
+                    <td>
+                      <select
+                        name="role"
+                        aria-label={`Role for ${who}`}
+                        className={styles.select}
+                        value={s.role}
+                        disabled={busy}
+                        onChange={(e) => changeRole(s.id, e.target.value as StaffProfile["role"])}
+                      >
+                        <option value="staff">Staff</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </td>
+                    <td>{DATE_FORMAT.format(new Date(s.created_at))}</td>
+                    <td>
+                      <div className={styles.buttonRow}>
+                        <button type="button" className={styles.buttonDanger} onClick={() => removeStaff(s.id)} disabled={busy}>
+                          Remove<span className={styles.srOnly}> {who}</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {staff && staff.length === 0 && (
+                <tr>
+                  <td colSpan={4} className={styles.emptyCell}>
+                    No staff yet. Create the first account with the form below.
+                  </td>
+                </tr>
+              )}
+              {!staff && (
+                <tr>
+                  <td colSpan={4} className={styles.emptyCell}>
+                    Loading staff…
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
+      )}
+
+      <section className={styles.card} aria-labelledby="staff-form-title">
+        <h2 id="staff-form-title" className={styles.cardTitle}>
+          Add staff
+        </h2>
         {formError && (
           <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
             {formError}
@@ -175,7 +188,10 @@ export function StaffManager() {
             <label htmlFor="staff-email">Email</label>
             <input
               id="staff-email"
+              name="email"
               type="email"
+              autoComplete="off"
+              spellCheck={false}
               className={styles.input}
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -186,6 +202,8 @@ export function StaffManager() {
             <label htmlFor="staff-name">Full name</label>
             <input
               id="staff-name"
+              name="full_name"
+              autoComplete="off"
               className={styles.input}
               value={form.full_name}
               onChange={(e) => setForm({ ...form, full_name: e.target.value })}
@@ -196,6 +214,7 @@ export function StaffManager() {
             <label htmlFor="staff-role">Role</label>
             <select
               id="staff-role"
+              name="role"
               className={styles.select}
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value as "staff" | "admin" })}
@@ -210,7 +229,7 @@ export function StaffManager() {
             </button>
           </div>
         </form>
-      </div>
+      </section>
     </div>
   )
 }

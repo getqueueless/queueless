@@ -13,7 +13,16 @@ export default async function AdminDashboardPage() {
     .order("name")
 
   if (error) {
-    return <div className={`${styles.banner} ${styles.bannerDanger}`}>{describeSupabaseError(error)}</div>
+    return (
+      <div>
+        <div className={styles.pageHeader}>
+          <div>
+            <h1 className={styles.pageTitle}>Dashboard</h1>
+          </div>
+        </div>
+        <div className={`${styles.banner} ${styles.bannerDanger}`}>{describeSupabaseError(error)}</div>
+      </div>
+    )
   }
 
   return <DashboardClient services={(data ?? []) as ServiceRow[]} />

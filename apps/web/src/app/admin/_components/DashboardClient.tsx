@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useMemo, useState } from "react"
 
 import { useQueueStats } from "../_lib/use-queue-stats"
@@ -9,12 +10,26 @@ import { StatTile } from "./StatTile"
 import { WaitComparisonChart } from "./WaitComparisonChart"
 import styles from "../admin.module.css"
 
+const NO_DATA = "No data yet"
+
 function fmtMinutes(v: number | null): string {
-  return v == null ? "—" : `${Math.round(v)}m`
+  return v == null ? NO_DATA : `${Math.round(v)}m`
 }
 
 function fmtPercent(v: number | null): string {
-  return v == null ? "—" : `${Math.round(v * 100)}%`
+  return v == null ? NO_DATA : `${Math.round(v * 100)}%`
+}
+
+function DashboardHeader({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className={styles.pageHeader}>
+      <div>
+        <h1 className={styles.pageTitle}>Dashboard</h1>
+        <p className={styles.pageSubtitle}>Live queue stats, refreshed automatically.</p>
+      </div>
+      {children}
+    </div>
+  )
 }
 
 export function DashboardClient({ services }: { services: ServiceRow[] }) {
@@ -24,21 +39,31 @@ export function DashboardClient({ services }: { services: ServiceRow[] }) {
 
   if (services.length === 0) {
     return (
-      <div className={styles.banner}>
-        No services yet -- add one under <strong>Services</strong> to see live queue stats.
+      <div>
+        <DashboardHeader />
+        <div className={styles.banner}>
+          No services yet. Add one on the{" "}
+          <Link href="/admin/services" className={styles.inlineLink}>
+            Services
+          </Link>{" "}
+          page to see live queue stats here.
+        </div>
       </div>
     )
   }
 
+  // buildChart only returns a note next to chart rows when /predict failed,
+  // and then every "predicted" value is a placeholder 0.
+  const predictionDown = chart.length > 0 && chartNote != null
+  const note = predictionDown
+    ? "Predictions aren't available yet. The prediction service can't be reached, so the chart shows actual wait only."
+    : chartNote
+
   return (
     <div>
-      <div className={styles.pageHeader}>
-        <div>
-          <h1 className={styles.pageTitle}>Dashboard</h1>
-          <div className={styles.pageSubtitle}>Live queue stats, refreshed automatically.</div>
-        </div>
+      <DashboardHeader>
         <ServiceSelect services={services} value={serviceId} onChange={setServiceId} />
-      </div>
+      </DashboardHeader>
 
       {error && (
         <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
@@ -46,7 +71,7 @@ export function DashboardClient({ services }: { services: ServiceRow[] }) {
         </div>
       )}
 
-      <div className={styles.statGrid}>
+      <div className={styles.statGrid} aria-busy={loading || undefined}>
         <StatTile label="Queue length" value={loading ? "…" : String(stats?.queueLength ?? 0)} />
         <StatTile label="Avg. wait" value={loading ? "…" : fmtMinutes(stats?.avgWaitMinutes ?? null)} muted={stats?.avgWaitMinutes == null && !loading} />
         <StatTile label="Avg. service time" value={loading ? "…" : fmtMinutes(stats?.avgServiceMinutes ?? null)} muted={stats?.avgServiceMinutes == null && !loading} />
@@ -54,21 +79,20 @@ export function DashboardClient({ services }: { services: ServiceRow[] }) {
         <StatTile label="No-show rate" value={loading ? "…" : fmtPercent(stats?.noShowRate ?? null)} muted={stats?.noShowRate == null && !loading} />
       </div>
 
-      <div className={styles.card}>
-        <div className={styles.pageSubtitle} style={{ marginBottom: 12 }}>
-          Peak hours -- predicted vs. actual wait
-        </div>
-        {chartNote && (
-          <div role="status" className={styles.banner}>
-            {chartNote}
-          </div>
-        )}
+      <section className={styles.card} aria-labelledby="wait-chart-title">
+        <h2 id="wait-chart-title" className={styles.cardTitle}>
+          Peak hours: predicted vs. actual wait
+        </h2>
+        {/* Mounted up front so a note that arrives later is announced. */}
+        <div role="status">{note && <div className={styles.banner}>{note}</div>}</div>
         {chart.length > 0 ? (
-          <WaitComparisonChart data={chart} />
+          <WaitComparisonChart data={chart} showPredicted={!predictionDown} />
+        ) : loading ? (
+          <div className={styles.chartPlaceholder} aria-hidden="true" />
         ) : (
-          !chartNote && <div className={styles.banner}>No data yet for today.</div>
+          !note && <div className={styles.banner}>No wait-time data for today yet.</div>
         )}
-      </div>
+      </section>
     </div>
   )
 }

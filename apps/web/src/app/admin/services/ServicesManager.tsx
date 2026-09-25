@@ -113,8 +113,15 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
     await refresh()
   }
 
+  // Edit fills the form below the table; take focus there so the change is
+  // visible (and announced) instead of happening off-screen.
+  function editAndFocus(s: ServiceRow) {
+    startEdit(s)
+    document.getElementById("svc-code")?.focus()
+  }
+
   return (
-    <div style={{ display: "grid", gap: 24 }}>
+    <div className={styles.stack}>
       {error && (
         <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
           {error}
@@ -128,9 +135,15 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
               <th scope="col">Code</th>
               <th scope="col">Name</th>
               <th scope="col">Status</th>
-              <th scope="col">Default service</th>
-              <th scope="col">No-show after</th>
-              <th scope="col">Daily cap</th>
+              <th scope="col" className={styles.num}>
+                Default service
+              </th>
+              <th scope="col" className={styles.num}>
+                No-show after
+              </th>
+              <th scope="col" className={styles.num}>
+                Daily cap
+              </th>
               <th scope="col">
                 <span className={styles.srOnly}>Actions</span>
               </th>
@@ -138,24 +151,24 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
           </thead>
           <tbody>
             {services.map((s) => (
-              <tr key={s.id}>
-                <td>{s.code}</td>
+              <tr key={s.id} className={editingId === s.id ? styles.rowEditing : undefined}>
+                <td translate="no">{s.code}</td>
                 <td>{s.name}</td>
                 <td>
                   <span className={s.is_open ? `${styles.badge} ${styles.badgeSuccess}` : `${styles.badge} ${styles.badgeMuted}`}>
                     {s.is_open ? "Open" : "Closed"}
                   </span>
                 </td>
-                <td>{s.default_service_secs}s</td>
-                <td>{s.no_show_minutes}m</td>
-                <td>{s.max_tokens_per_day}</td>
+                <td className={styles.num}>{s.default_service_secs}s</td>
+                <td className={styles.num}>{s.no_show_minutes}m</td>
+                <td className={styles.num}>{s.max_tokens_per_day}</td>
                 <td>
                   <div className={styles.buttonRow}>
-                    <button type="button" className={styles.buttonSecondary} onClick={() => startEdit(s)}>
-                      Edit
+                    <button type="button" className={styles.buttonSecondary} onClick={() => editAndFocus(s)}>
+                      Edit<span className={styles.srOnly}> {s.name}</span>
                     </button>
                     <button type="button" className={styles.buttonDanger} onClick={() => onDelete(s.id)} disabled={busy}>
-                      Delete
+                      Delete<span className={styles.srOnly}> {s.name}</span>
                     </button>
                   </div>
                 </td>
@@ -163,8 +176,8 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
             ))}
             {services.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ color: "var(--color-ink-muted)" }}>
-                  No services yet.
+                <td colSpan={7} className={styles.emptyCell}>
+                  No services yet. Add the first one with the form below.
                 </td>
               </tr>
             )}
@@ -172,36 +185,55 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
         </table>
       </div>
 
-      <div className={styles.card}>
-        <div className={styles.pageSubtitle} style={{ marginBottom: 12 }}>
+      <section className={styles.card} aria-labelledby="svc-form-title">
+        <h2 id="svc-form-title" className={styles.cardTitle}>
           {editingId ? "Edit service" : "New service"}
-        </div>
+        </h2>
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>
-            <label htmlFor="svc-code">Code (max 3 chars)</label>
+            <label htmlFor="svc-code">Code</label>
             <input
               id="svc-code"
+              name="code"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
               className={styles.input}
               value={form.code}
               maxLength={3}
               onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+              aria-describedby="svc-code-hint"
               required
             />
+            <p id="svc-code-hint" className={styles.hint}>
+              Up to 3 characters, printed on every token (OPD becomes OPD-001).
+            </p>
           </div>
           <div className={styles.field}>
             <label htmlFor="svc-name">Name</label>
-            <input id="svc-name" className={styles.input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            <input
+              id="svc-name"
+              name="name"
+              autoComplete="off"
+              className={styles.input}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
           </div>
           <label className={styles.checkboxRow}>
-            <input type="checkbox" checked={form.is_open} onChange={(e) => setForm({ ...form, is_open: e.target.checked })} />
+            <input type="checkbox" name="is_open" checked={form.is_open} onChange={(e) => setForm({ ...form, is_open: e.target.checked })} />
             Open for new tokens
           </label>
           <div className={styles.field}>
             <label htmlFor="svc-secs">Default service time (seconds)</label>
             <input
               id="svc-secs"
+              name="default_service_secs"
               type="number"
+              inputMode="numeric"
               min={0}
+              autoComplete="off"
               className={styles.input}
               value={form.default_service_secs}
               onChange={(e) => setForm({ ...form, default_service_secs: e.target.value })}
@@ -211,8 +243,11 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
             <label htmlFor="svc-noshow">No-show after (minutes)</label>
             <input
               id="svc-noshow"
+              name="no_show_minutes"
               type="number"
+              inputMode="numeric"
               min={0}
+              autoComplete="off"
               className={styles.input}
               value={form.no_show_minutes}
               onChange={(e) => setForm({ ...form, no_show_minutes: e.target.value })}
@@ -222,8 +257,11 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
             <label htmlFor="svc-cap">Max tokens per day</label>
             <input
               id="svc-cap"
+              name="max_tokens_per_day"
               type="number"
+              inputMode="numeric"
               min={0}
+              autoComplete="off"
               className={styles.input}
               value={form.max_tokens_per_day}
               onChange={(e) => setForm({ ...form, max_tokens_per_day: e.target.value })}
@@ -240,7 +278,7 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
             )}
           </div>
         </form>
-      </div>
+      </section>
     </div>
   )
 }

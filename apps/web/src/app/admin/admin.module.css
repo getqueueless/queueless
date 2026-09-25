@@ -16,6 +16,8 @@
   font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.5;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(12, 183, 214, 0.18);
 }
 
 :global(:root[data-theme="dark"]) .root {
@@ -72,6 +74,7 @@
   height: 100vh;
   height: 100dvh;
   overflow-y: auto;
+  scrollbar-color: var(--rail-rule) transparent;
   padding: var(--space-lg) var(--space-sm) var(--space-md);
   display: flex;
   flex-direction: column;
@@ -83,7 +86,9 @@
   box-shadow: inset -1px 0 0 var(--rail-rule);
 }
 
-/* The global primary focus ring is too dark on slate; cyan is 5.6:1 there. */
+/* The global primary focus ring is 2.52:1 on slate; cyan is 5.63:1 there
+   (6.71:1 on slate-deep). The nav also carries data-surface="slate" for
+   the proposed global on-slate ring. */
 .sidebar :focus-visible {
   outline-color: var(--color-accent);
 }
@@ -145,7 +150,7 @@
   top: 10px;
   bottom: 10px;
   width: 3px;
-  border-radius: 0 3px 3px 0;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   background: var(--color-accent);
 }
 
@@ -248,24 +253,16 @@
   min-width: 0;
 }
 
-/* display-md, with a short cyan rule above it -- the one brand flourish
-   the staff screens get in place of the public two-tone headings. */
+/* display-md, sentence case. No cyan rule above it: the cyan leading-edge
+   stripe is kept for surfaces that are the token itself, and the sidebar
+   already carries the brand on these screens. */
 .pageTitle {
   font-family: var(--font-display);
   font-size: 30px;
   font-weight: 700;
   line-height: 1.2;
   color: var(--color-ink);
-}
-
-.pageTitle::before {
-  content: "";
-  display: block;
-  width: 32px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--color-accent);
-  margin-bottom: var(--space-sm);
+  text-wrap: balance;
 }
 
 .pageSubtitle {
@@ -273,45 +270,37 @@
   font-size: 14px;
   color: var(--color-ink-muted);
   max-width: 68ch;
+  text-wrap: pretty;
 }
 
-.pageSubtitle code {
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-  padding: 1px 5px;
-  border-radius: var(--radius-xs);
-  background: var(--color-surface-sunken);
+/* Vertical rhythm between the cards of one page. */
+.stack {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.stack > .banner {
+  margin-bottom: 0;
 }
 
 .card {
-  min-width: 0; /* lets a card shrink inside the managers' grid wrappers */
+  min-width: 0; /* lets a card shrink inside the .stack grid */
   background: var(--color-surface);
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
 }
 
-/* A card's own title reuses .pageSubtitle in the markup; inside a card it
-   reads as heading-md with a cyan dot, MedWin's footer-heading motif. */
-.card > .pageSubtitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  margin-top: 0;
+/* heading-md. Plain: the cyan dot is kept for footer headings and real
+   state indicators (the status badges below). */
+.cardTitle {
+  margin-bottom: var(--space-md);
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
   line-height: 1.3;
   color: var(--color-ink);
-}
-
-.card > .pageSubtitle::before {
-  content: "";
-  width: 10px;
-  height: 10px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--color-accent);
+  text-wrap: balance;
 }
 
 /* ---------- Dashboard ---------- */
@@ -362,7 +351,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* "No data" in place of a number: body-lg in muted ink, on the same 36px
+   line box as a 30px value so a row of tiles keeps one baseline. */
 .statValueMuted {
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 36px;
   color: var(--color-ink-muted);
 }
 
@@ -373,23 +368,46 @@
   .statTile:last-child:nth-child(odd) {
     grid-column: 1 / -1;
   }
+  /* heading-lg on phones. */
   .statValue {
-    font-size: 24px;
+    font-size: 22px;
   }
-  .card > .pageSubtitle {
-    font-size: 16px;
+  .statValueMuted {
+    font-size: 14px;
+    line-height: 1.2;
+    padding-block: 4px;
   }
 }
 
-/* Priority lanes: a read-only ordered list. */
-.card > ol li {
+/* Priority lanes: a read-only ranking, so the numbers carry the order. */
+.lanes {
+  display: grid;
+  gap: 6px;
+  padding-left: 24px;
+  color: var(--color-ink);
+}
+
+.lanes li {
+  padding-left: var(--space-xxs);
   text-transform: capitalize;
 }
 
-.card > ol li::marker {
+.lanes li::marker {
   color: var(--color-primary);
   font-family: var(--font-mono);
   font-weight: 700;
+}
+
+/* Holds the chart's 320px while the first load runs, so nothing jumps. */
+.chartPlaceholder {
+  height: 320px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+/* Chart legend text: ink, never the series colour. */
+.legendLabel {
+  color: var(--color-ink-secondary);
 }
 
 /* Recharts' default hover band is light grey; keep it on-token. */
@@ -399,9 +417,9 @@
 
 /* ---------- Banners ---------- */
 
+/* A sunken box with an even hairline all round, no coloured side stripe. */
 .banner {
   border: 1px solid var(--color-hairline);
-  border-left: 3px solid var(--color-accent);
   background: var(--color-surface-sunken);
   color: var(--color-ink-secondary);
   border-radius: var(--radius-md);
@@ -409,13 +427,27 @@
   font-size: 13px;
   line-height: 1.5;
   margin-bottom: var(--space-md);
+  text-wrap: pretty;
 }
 
 .bannerDanger {
-  border-color: var(--color-danger-soft);
-  border-left-color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 30%, var(--color-danger-soft));
   background: var(--color-danger-soft);
   color: var(--color-danger);
+}
+
+/* Inline link inside a banner or an empty-state row. */
+.inlineLink {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.inlineLink:hover {
+  color: var(--color-primary-hover);
+  text-decoration-thickness: 2px;
 }
 
 /* ---------- Tables ---------- */
@@ -426,6 +458,7 @@
   position: relative; /* contains the absolutely placed .srOnly header too */
   padding: 0;
   overflow-x: auto;
+  scrollbar-color: var(--color-hairline-strong) transparent;
   /* Scroll shadows: the edge that still has hidden columns gets a soft
      shade; the "local" covers slide over it once that edge is reached. */
   background:
@@ -463,8 +496,10 @@
   vertical-align: middle;
 }
 
+/* Short identifiers (OPD-2) never break at their hyphen; the card scrolls. */
 .table td:first-child {
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .table tbody tr:last-child td {
@@ -475,10 +510,45 @@
   background: var(--color-canvas-soft);
 }
 
+/* The row whose values are loaded into the edit form below the table. */
+.table tbody tr.rowEditing td,
+.table tbody tr.rowEditing:hover td {
+  background: var(--color-primary-soft);
+}
+
+/* Numeric columns: right-aligned tabular figures so digits line up. */
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Unassigned", "None", "No name set": a value that is absent, not a dash. */
+.table .cellMuted {
+  font-weight: 400;
+  white-space: nowrap;
+  color: var(--color-ink-muted);
+}
+
+/* Empty table: says what is missing and where to add it. */
+.table td.emptyCell {
+  padding: var(--space-lg) var(--space-md);
+  font-weight: 400;
+  white-space: normal;
+  color: var(--color-ink-muted);
+}
+
 .table .buttonRow {
   flex-wrap: nowrap;
   justify-content: flex-end;
   margin-top: 0;
+}
+
+/* Row actions are compact where the pointer is precise; touch keeps 44px. */
+@media (pointer: fine) {
+  .table .buttonSecondary {
+    min-height: 34px;
+    padding: 5px 14px;
+  }
 }
 
 /* ---------- Forms ---------- */
@@ -543,20 +613,48 @@ fieldset.field {
   cursor: not-allowed;
 }
 
-/* The role picker inside a staff row stays compact. */
-.table .select {
-  min-height: 36px;
-  padding: 6px 10px;
+/* The role picker inside a staff row matches the compact row actions. */
+@media (pointer: fine) {
+  .table .select {
+    min-height: 34px;
+    padding: 5px 10px;
+  }
+}
+
+/* A group of checkboxes under one legend. */
+.fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.fieldset > legend {
+  padding: 0;
+  margin-bottom: var(--space-xxs);
+}
+
+/* body-sm helper line under a field, tied to it with aria-describedby. */
+.hint {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-ink-muted);
 }
 
 .checkboxRow {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  min-height: 32px;
+  min-height: 36px;
   font-size: 14px;
   color: var(--color-ink);
   cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .checkboxRow {
+    min-height: 44px;
+  }
 }
 
 .checkboxRow input {
@@ -617,12 +715,17 @@ fieldset.field {
   color: var(--color-primary);
 }
 
+.buttonSecondary:active:not(:disabled) {
+  background: var(--color-primary-soft);
+}
+
 .buttonDanger {
   composes: buttonSecondary;
   color: var(--color-danger);
 }
 
-.buttonDanger:hover:not(:disabled) {
+.buttonDanger:hover:not(:disabled),
+.buttonDanger:active:not(:disabled) {
   border-color: var(--color-danger);
   background: var(--color-danger-soft);
   color: var(--color-danger);

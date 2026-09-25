@@ -24,7 +24,7 @@ export default async function ServicesPage() {
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Services</h1>
-          <div className={styles.pageSubtitle}>Departments patients take a token for.</div>
+          <p className={styles.pageSubtitle}>Departments patients take a token for.</p>
         </div>
       </div>
       {error ? (

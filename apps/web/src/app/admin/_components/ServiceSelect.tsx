@@ -12,6 +12,7 @@ export function ServiceSelect({
 }) {
   return (
     <select
+      name="service"
       className={styles.select}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}

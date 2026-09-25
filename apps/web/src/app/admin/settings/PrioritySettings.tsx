@@ -41,53 +41,55 @@ export function PrioritySettings({ org }: { org: OrganizationRow }) {
   }
 
   return (
-    <div style={{ display: "grid", gap: 24 }}>
-      <div className={styles.card}>
-        <div className={styles.pageSubtitle} style={{ marginBottom: 12 }}>
+    <div className={styles.stack}>
+      <section className={styles.card} aria-labelledby="lanes-title">
+        <h2 id="lanes-title" className={styles.cardTitle}>
           Lanes, in priority order
-        </div>
-        <ol style={{ paddingLeft: 20, display: "grid", gap: 6 }}>
+        </h2>
+        <ol className={styles.lanes}>
           {LANES.map((lane) => (
-            <li key={lane} style={{ color: "var(--color-ink)" }}>
-              {lane}
-            </li>
+            <li key={lane}>{lane}</li>
           ))}
         </ol>
-      </div>
+      </section>
 
-      <div className={styles.card}>
-        <div className={styles.pageSubtitle} style={{ marginBottom: 12 }}>
+      <section className={styles.card} aria-labelledby="head-start-title">
+        <h2 id="head-start-title" className={styles.cardTitle}>
           Priority head start
-        </div>
+        </h2>
         {error && (
           <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
             {error}
           </div>
         )}
-        {saved && (
-          <div role="status" className={styles.banner}>
-            Saved.
-          </div>
-        )}
+        {/* Mounted up front so "saved" is announced when it appears. */}
+        <div role="status">{saved && <div className={styles.banner}>Head start saved.</div>}</div>
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>
-            <label htmlFor="head-start">Minutes a priority-lane token is treated as having arrived earlier</label>
+            <label htmlFor="head-start">Head start (minutes)</label>
             <input
               id="head-start"
+              name="head_start_minutes"
               type="number"
+              inputMode="numeric"
               min={0}
+              autoComplete="off"
               className={styles.input}
               value={minutes}
               onChange={(e) => setMinutes(e.target.value)}
+              aria-describedby="head-start-hint"
             />
+            <p id="head-start-hint" className={styles.hint}>
+              How many minutes earlier a priority-lane token is treated as having arrived.
+            </p>
           </div>
           <div className={styles.buttonRow}>
             <button type="submit" className={styles.buttonPrimary} disabled={busy}>
-              Save
+              {busy ? "Saving…" : "Save head start"}
             </button>
           </div>
         </form>
-      </div>
+      </section>
     </div>
   )
 }

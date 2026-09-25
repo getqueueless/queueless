@@ -10,7 +10,7 @@ export default function StaffPage() {
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Staff</h1>
-          <div className={styles.pageSubtitle}>Counter staff and admins for your organization.</div>
+          <p className={styles.pageSubtitle}>Counter staff and admins for your organization.</p>
         </div>
       </div>
       <StaffManager />

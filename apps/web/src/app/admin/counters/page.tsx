@@ -22,25 +22,26 @@ export default async function CountersPage() {
   ])
 
   const error = countersRes.error ?? servicesRes.error
-  if (error) {
-    return <div className={`${styles.banner} ${styles.bannerDanger}`}>{describeSupabaseError(error)}</div>
-  }
 
   return (
     <div>
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Counters</h1>
-          <div className={styles.pageSubtitle}>Desks staff serve from, and which services each one handles.</div>
+          <p className={styles.pageSubtitle}>Desks staff serve from, and which services each one handles.</p>
         </div>
       </div>
-      <CountersManager
-        initialCounters={(countersRes.data ?? []) as CounterRow[]}
-        services={(servicesRes.data ?? []) as ServiceRow[]}
-        initialLinks={(linksRes.data ?? []) as { counter_id: string; service_id: string }[]}
-        staff={(staffRes.data ?? []).map((p) => ({ id: p.id as string, full_name: p.full_name as string | null }))}
-        orgId={profile?.org_id ?? null}
-      />
+      {error ? (
+        <div className={`${styles.banner} ${styles.bannerDanger}`}>{describeSupabaseError(error)}</div>
+      ) : (
+        <CountersManager
+          initialCounters={(countersRes.data ?? []) as CounterRow[]}
+          services={(servicesRes.data ?? []) as ServiceRow[]}
+          initialLinks={(linksRes.data ?? []) as { counter_id: string; service_id: string }[]}
+          staff={(staffRes.data ?? []).map((p) => ({ id: p.id as string, full_name: p.full_name as string | null }))}
+          orgId={profile?.org_id ?? null}
+        />
+      )}
     </div>
   )
 }

@@ -50,7 +50,7 @@ export function AdminNav({ orgName }: { orgName: string | null }) {
   }
 
   return (
-    <nav className={styles.sidebar} aria-label="Admin">
+    <nav className={styles.sidebar} aria-label="Admin" data-surface="slate">
       <div className={styles.sidebarInner}>
         <div className={styles.brand}>
           {/* Wrapped: Logo sets display inline, which would beat the rail's display:none. */}

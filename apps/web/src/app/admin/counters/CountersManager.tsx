@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 
 import { createClient } from "@/lib/supabase/client"
@@ -129,14 +130,20 @@ export function CountersManager({
     await refresh()
   }
 
-  function serviceNames(counterId: string): string {
+  function serviceCodes(counterId: string): string[] {
     const ids = links.filter((l) => l.counter_id === counterId).map((l) => l.service_id)
-    const names = services.filter((s) => ids.includes(s.id)).map((s) => s.code)
-    return names.length ? names.join(", ") : "—"
+    return services.filter((s) => ids.includes(s.id)).map((s) => s.code)
+  }
+
+  // Edit fills the form below the table; take focus there so the change is
+  // visible (and announced) instead of happening off-screen.
+  function editAndFocus(c: CounterRow) {
+    startEdit(c)
+    document.getElementById("ctr-name")?.focus()
   }
 
   return (
-    <div style={{ display: "grid", gap: 24 }}>
+    <div className={styles.stack}>
       {error && (
         <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
           {error}
@@ -157,40 +164,50 @@ export function CountersManager({
             </tr>
           </thead>
           <tbody>
-            {counters.map((c) => (
-              <tr key={c.id}>
-                <td>{c.name}</td>
-                <td>
-                  <span
-                    className={
-                      c.state === "open"
-                        ? `${styles.badge} ${styles.badgeSuccess}`
-                        : c.state === "paused"
-                          ? `${styles.badge} ${styles.badgeWarning}`
-                          : `${styles.badge} ${styles.badgeMuted}`
-                    }
-                  >
-                    {c.state}
-                  </span>
-                </td>
-                <td>{staff.find((s) => s.id === c.staff_id)?.full_name ?? "—"}</td>
-                <td>{serviceNames(c.id)}</td>
-                <td>
-                  <div className={styles.buttonRow}>
-                    <button type="button" className={styles.buttonSecondary} onClick={() => startEdit(c)}>
-                      Edit
-                    </button>
-                    <button type="button" className={styles.buttonDanger} onClick={() => onDelete(c.id)} disabled={busy}>
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {counters.map((c) => {
+              const codes = serviceCodes(c.id)
+              const assigned = c.staff_id ? staff.find((s) => s.id === c.staff_id) : undefined
+              return (
+                <tr key={c.id} className={editingId === c.id ? styles.rowEditing : undefined}>
+                  <td>{c.name}</td>
+                  <td>
+                    <span
+                      className={
+                        c.state === "open"
+                          ? `${styles.badge} ${styles.badgeSuccess}`
+                          : c.state === "paused"
+                            ? `${styles.badge} ${styles.badgeWarning}`
+                            : `${styles.badge} ${styles.badgeMuted}`
+                      }
+                    >
+                      {c.state}
+                    </span>
+                  </td>
+                  <td>
+                    {!c.staff_id ? (
+                      <span className={styles.cellMuted}>Unassigned</span>
+                    ) : (
+                      (assigned?.full_name ?? <span className={styles.cellMuted}>Unnamed staff</span>)
+                    )}
+                  </td>
+                  <td>{codes.length ? codes.join(", ") : <span className={styles.cellMuted}>None</span>}</td>
+                  <td>
+                    <div className={styles.buttonRow}>
+                      <button type="button" className={styles.buttonSecondary} onClick={() => editAndFocus(c)}>
+                        Edit<span className={styles.srOnly}> {c.name}</span>
+                      </button>
+                      <button type="button" className={styles.buttonDanger} onClick={() => onDelete(c.id)} disabled={busy}>
+                        Delete<span className={styles.srOnly}> {c.name}</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
             {counters.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ color: "var(--color-ink-muted)" }}>
-                  No counters yet.
+                <td colSpan={5} className={styles.emptyCell}>
+                  No counters yet. Add the first one with the form below.
                 </td>
               </tr>
             )}
@@ -198,18 +215,27 @@ export function CountersManager({
         </table>
       </div>
 
-      <div className={styles.card}>
-        <div className={styles.pageSubtitle} style={{ marginBottom: 12 }}>
+      <section className={styles.card} aria-labelledby="ctr-form-title">
+        <h2 id="ctr-form-title" className={styles.cardTitle}>
           {editingId ? "Edit counter" : "New counter"}
-        </div>
+        </h2>
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>
             <label htmlFor="ctr-name">Name</label>
-            <input id="ctr-name" className={styles.input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            <input
+              id="ctr-name"
+              name="name"
+              autoComplete="off"
+              spellCheck={false}
+              className={styles.input}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
           </div>
           <div className={styles.field}>
             <label htmlFor="ctr-state">State</label>
-            <select id="ctr-state" className={styles.select} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value as CounterState })}>
+            <select id="ctr-state" name="state" className={styles.select} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value as CounterState })}>
               <option value="closed">Closed</option>
               <option value="open">Open</option>
               <option value="paused">Paused</option>
@@ -217,25 +243,32 @@ export function CountersManager({
           </div>
           <div className={styles.field}>
             <label htmlFor="ctr-staff">Staff</label>
-            <select id="ctr-staff" className={styles.select} value={form.staff_id} onChange={(e) => setForm({ ...form, staff_id: e.target.value })}>
+            <select id="ctr-staff" name="staff_id" className={styles.select} value={form.staff_id} onChange={(e) => setForm({ ...form, staff_id: e.target.value })}>
               <option value="">Unassigned</option>
               {staff.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.full_name ?? s.id}
+                  {s.full_name ?? `Unnamed staff (${s.id.slice(0, 8)})`}
                 </option>
               ))}
             </select>
           </div>
-          <fieldset className={styles.field} style={{ border: "none", padding: 0, margin: 0 }}>
-            <legend className={styles.label} style={{ padding: 0 }}>
-              Handles services
-            </legend>
+          <fieldset className={`${styles.field} ${styles.fieldset}`}>
+            <legend className={styles.label}>Handles services</legend>
             {services.map((s) => (
               <label key={s.id} className={styles.checkboxRow}>
-                <input type="checkbox" checked={form.serviceIds.includes(s.id)} onChange={() => toggleService(s.id)} />
+                <input type="checkbox" name="service_ids" value={s.id} checked={form.serviceIds.includes(s.id)} onChange={() => toggleService(s.id)} />
                 {s.name}
               </label>
             ))}
+            {services.length === 0 && (
+              <p className={styles.hint}>
+                No services yet.{" "}
+                <Link href="/admin/services" className={styles.inlineLink}>
+                  Add a service
+                </Link>{" "}
+                first, then pick it here.
+              </p>
+            )}
           </fieldset>
           <div className={styles.buttonRow}>
             <button type="submit" className={styles.buttonPrimary} disabled={busy}>
@@ -248,7 +281,7 @@ export function CountersManager({
             )}
           </div>
         </form>
-      </div>
+      </section>
     </div>
   )
 }
