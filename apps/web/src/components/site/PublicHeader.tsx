@@ -55,7 +55,8 @@ export async function PublicHeader({ current, tone = "surface", liveToken = true
           Skip to content
         </a>
         <div className={styles.inner}>
-          <Link href="/" className={styles.brand}>
+          {/* Signed in, the logo is the way back to your own dashboard; "Home" stays "/". */}
+          <Link href={user ? roleLandingPath(profile) : "/"} aria-label="Queueless" className={styles.brand}>
             <Logo size={26} />
           </Link>
           <HeaderMenu>
