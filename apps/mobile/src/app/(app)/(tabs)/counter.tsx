@@ -122,7 +122,12 @@ export default function Counter() {
   // on every Realtime event for this org's tokens (never replays missed events, so also on
   // reconnect) — mirrors the pattern already used on Home/token detail.
   const refetch = useCallback(async () => {
-    if (!selectedCounterId || !orgId) return;
+    if (!orgId) return;
+    // Desk states change through set_counter_state (here or on another device), so the list is
+    // re-read on every refetch; otherwise "Call next" stays disabled after opening the desk.
+    const { data: counterRows } = await supabase.from('counters').select('id, name, state').eq('org_id', orgId).order('name');
+    if (counterRows) setCounters(counterRows as CounterRow[]);
+    if (!selectedCounterId) return;
     const today = todayDateString();
 
     const { data: csRows } = await supabase
