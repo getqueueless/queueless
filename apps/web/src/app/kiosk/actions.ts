@@ -7,8 +7,6 @@ import { createClient } from "@/lib/supabase/server"
 
 export type IssueTokenState = { error: string | null }
 
-export const initialIssueTokenState: IssueTokenState = { error: null }
-
 // tokens_walk_in_label_len (supabase/migrations/0004_tokens.sql) requires
 // 1..40 chars once trimmed.
 function cleanLabel(raw: FormDataEntryValue | null): string | null {

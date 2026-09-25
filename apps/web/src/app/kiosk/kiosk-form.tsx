@@ -2,8 +2,9 @@
 
 import { useActionState, useEffect, useRef } from "react"
 
-import { initialIssueTokenState, issueToken } from "./actions"
+import { issueToken } from "./actions"
 import styles from "./kiosk.module.css"
+import { initialIssueTokenState } from "./state"
 
 export type ServiceOption = { id: string; name: string; code: string }
 
