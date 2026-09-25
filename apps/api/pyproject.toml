@@ -1,0 +1,33 @@
+[project]
+name = "queueless-api"
+version = "0.1.0"
+description = "Queueless backend API: auth, push notifications, no-show scheduler, wait-time ML"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "asyncpg>=0.30",
+    "pyjwt>=2.9",
+    "pydantic-settings>=2.6",
+    "structlog>=24.4",
+    "slowapi>=0.1.9",
+    "prometheus-fastapi-instrumentator>=7.0",
+    "exponent-server-sdk>=2.1",
+    "scikit-learn>=1.5",
+    "pandas>=2.2",
+    "joblib>=1.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
