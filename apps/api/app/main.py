@@ -18,6 +18,7 @@ from app.ml_runtime import load as load_ml
 from app.notifications import listen_task, poller_task
 from app.rate_limit import limiter
 from app.routes import admin, ai, health, predict, staff
+from app.summary import daily_summary_loop
 from app.translate import TranslateDeps
 
 configure_logging()
@@ -52,12 +53,24 @@ async def lifespan(app: FastAPI):
     app.state.poller_task = asyncio.create_task(
         poller_task(app.state.db_pool, settings.poll_interval_seconds, translate_deps=translate_deps)
     )
+    app.state.daily_summary_task = asyncio.create_task(
+        daily_summary_loop(
+            app.state.db_pool,
+            app.state.deepseek_client,
+            settings.deepseek_model,
+            settings.deepseek_max_tokens,
+            settings.daily_summary_hour_ist,
+            settings.daily_summary_timezone,
+            settings.daily_summary_lock_key,
+        )
+    )
     try:
         yield
     finally:
         app.state.shutting_down = True
         await _cancel(app.state.listener_task)
         await _cancel(app.state.poller_task)
+        await _cancel(app.state.daily_summary_task)
         await app.state.db_pool.close()
 
 

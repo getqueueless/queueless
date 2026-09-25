@@ -156,6 +156,19 @@ LANGUAGE sql STABLE AS $$
   GROUP BY lane_rank ORDER BY lane_rank;
 $$;
 
+-- Doesn't exist in supabase/migrations yet -- see docs/DECISIONS.md for the
+-- CREATE TABLE + grant the DB agent needs to add.
+CREATE TABLE IF NOT EXISTS ops_summaries (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id uuid NOT NULL,
+    day date NOT NULL,
+    report text NOT NULL,
+    ai_generated boolean NOT NULL DEFAULT true,
+    aggregates jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (org_id, day)
+);
+
 CREATE TABLE IF NOT EXISTS notifications (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id uuid NOT NULL,
