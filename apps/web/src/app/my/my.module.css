@@ -99,7 +99,8 @@
   isolation: isolate;
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: auto auto var(--overhang);
+  /* A tall card's extra height lands under the tiles, as band padding. */
+  grid-template-rows: auto 1fr var(--overhang);
   column-gap: var(--gap);
   width: min(var(--max), 100% - 2 * var(--gutter));
   margin-inline: auto;
@@ -167,7 +168,7 @@
 .heroActions {
   grid-column: 1 / 8;
   grid-row: 2;
-  align-self: end;
+  align-self: start;
   margin: var(--space-xl) 0 var(--space-xxl);
 }
 
