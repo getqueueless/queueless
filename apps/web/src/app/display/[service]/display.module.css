@@ -1,175 +1,451 @@
-/* Local-only tokens: rounded.xl and the success/warning pair from DESIGN.md aren't in
-   globals.css yet (owned by another concurrent agent) -- kept here rather than added there,
-   per this feature's file-ownership boundary. Values match DESIGN.md verbatim. */
+/* TV display board. A fixed public screen read from ~5 m, so it ignores the
+   site's light/dark toggle: the palette is pinned here on the board root,
+   where :root[data-theme] can't reach it. Brand constants, hardcoded.
+   Contrast (WCAG 2.x, computed):
+     ink #fff        16.09 on bg, 13.50 on tile
+     muted #b3c6ca    9.07 on bg,  7.62 on tile
+     dim #8fa9ae      6.48 on bg,  5.44 on tile
+     accent #0cb7d6   6.71 on bg,  5.63 on tile
+     on-accent #112427 on accent 6.71
+   Everything is sized in em off one viewport-driven base, so a laptop, a
+   1080p TV and a 4K TV all get the same composition at their own scale. */
 .page {
-  --radius-xl: 16px;
-  --color-surface-sunken: #eef0f3;
-  --color-warning: #a9660c;
-  --color-warning-soft: #faf0dd;
+  --b-bg: #112427; /* slate-deep */
+  --b-tile: #1a3237; /* slate */
+  --b-ink: #ffffff;
+  --b-muted: #b3c6ca;
+  --b-dim: #8fa9ae; /* finished tokens, closed counters */
+  --b-accent: #0cb7d6;
+  --b-on-accent: #112427;
+  --b-line: rgb(179 198 202 / 0.16);
+  --b-line-strong: rgb(179 198 202 / 0.34);
+  --b-gap: clamp(16px, 1.9vw, 80px);
+  --b-rule: max(1px, 0.055vw); /* hairlines and borders thicken on a 4K panel */
+  --b-border: max(2px, 0.11vw);
+  --color-focus-ring: var(--b-accent);
 
+  color-scheme: dark;
+  flex: 1;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xl);
-  padding: var(--space-xl) clamp(var(--space-lg), 4vw, var(--space-xl));
-  background: var(--color-canvas);
-  color: var(--color-ink);
+  gap: var(--b-gap);
+  padding: var(--b-gap);
+  background: var(--b-bg);
+  color: var(--b-ink);
+  font-family: var(--font-display);
+  font-size: clamp(16px, 1.1vw, 48px);
+  line-height: 1.2;
 }
 
-:global(:root[data-theme="dark"]) .page {
-  --color-surface-sunken: #0e1114;
-  --color-warning: #dba24d;
-  --color-warning-soft: #2e2211;
-}
+/* ---- Tap-to-enable-sound overlay ---- */
 
 .unlockOverlay {
   position: fixed;
   inset: 0;
   z-index: 50;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.9em;
+  padding: var(--b-gap);
   border: none;
-  background: color-mix(in srgb, var(--color-canvas) 92%, transparent);
-  color: var(--color-ink);
+  background: rgb(17 36 39 / 0.94);
+  backdrop-filter: blur(6px);
+  color: var(--b-ink);
   font: inherit;
-  font-size: clamp(24px, 4vw, 40px);
-  font-weight: 600;
-  letter-spacing: -0.4px;
+  font-size: clamp(24px, 2em, 96px);
+  font-weight: 700;
+  line-height: 1.15;
+  text-wrap: balance;
   cursor: pointer;
 }
 
+/* Speaker glyph on a cyan disc: the only thing on screen that asks for a tap. */
+.unlockOverlay::before {
+  content: "";
+  width: 2.6em;
+  height: 2.6em;
+  border-radius: 50%;
+  background: var(--b-accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23112427' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 5 6 9H3v6h3l5 4z' fill='%23112427'/%3E%3Cpath d='M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13'/%3E%3C/svg%3E")
+    center / 52% no-repeat;
+}
+
+.unlockOverlay:focus-visible {
+  outline: max(3px, 0.16vw) solid var(--b-accent);
+  outline-offset: -0.5em;
+}
+
+/* ---- Header: brand, service name, day stats ---- */
+
 .header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-lg);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "brand stats"
+    "title stats";
+  align-items: end;
+  gap: 0.6em 2em;
+  padding-bottom: var(--b-gap);
+  border-bottom: var(--b-rule) solid var(--b-line);
+}
+
+.brand {
+  grid-area: brand;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 1.15em;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.brandMark {
+  height: 1em;
+  width: auto;
+  flex: none;
 }
 
 .title {
-  margin: 0;
-  font-size: clamp(32px, 4vw, 56px);
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.6px;
+  grid-area: title;
+  font-size: 2.6em;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
 .stats {
+  grid-area: stats;
   display: flex;
-  gap: var(--space-md);
-  margin: 0;
 }
 
 .stat {
-  min-width: 140px;
-  padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  text-align: center;
+  padding-inline: 1.4em;
+  border-left: var(--b-rule) solid var(--b-line-strong);
+}
+
+.stat:first-child {
+  border-left: none;
+}
+
+.stat:last-child {
+  padding-right: 0;
 }
 
 .stat dt {
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.1px;
-  color: var(--color-ink-muted);
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--b-muted);
+  white-space: nowrap;
 }
 
 .stat dd {
-  margin: 0;
-  font-size: clamp(20px, 2vw, 30px);
-  font-weight: 600;
-  letter-spacing: -0.4px;
+  margin-top: 0.1em;
+  font-size: 2.3em;
+  font-weight: 700;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
+/* ---- Now serving ---- */
+
 .counters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
-  gap: var(--space-lg);
   flex: 1;
+  display: grid;
+  /* Three columns on a landscape screen, more once there are enough counters
+     that a third row would push the board off a 16:9 screen; one on a phone. */
+  --cols: 30%;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(260px, var(--cols))), 1fr));
+  grid-template-rows: auto;
+  grid-auto-rows: 1fr;
+  gap: calc(var(--b-gap) * 0.7);
+}
+
+/* Column count follows the counter count. This needs :has(); an
+   older TV browser without it keeps three columns and scrolls. */
+.counters:not(:has(> .counterTile:nth-of-type(3))) {
+  --cols: 45%;
+}
+
+.counters:not(:has(> .counterTile:nth-of-type(2))) {
+  --cols: 100%;
+}
+
+.counters:has(> .counterTile:nth-of-type(7)) {
+  --cols: 22%;
+}
+
+.counters:has(> .counterTile:nth-of-type(9)) {
+  --cols: 17.5%;
+}
+
+.counters:has(> .counterTile:nth-of-type(11)) {
+  --cols: 14.5%;
+}
+
+/* MedWin's cyan-dot heading, reused for both section labels. */
+.sectionTitle,
+.nextUpTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 1em;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sectionTitle {
+  grid-column: 1 / -1;
+}
+
+.sectionTitle::before,
+.nextUpTitle::before {
+  content: "";
+  flex: none;
+  width: 0.75em;
+  height: 0.75em;
+  border-radius: 50%;
+  background: var(--b-accent);
 }
 
 .counterTile {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  padding: var(--space-lg);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
+  gap: 0.55em;
+  padding: 1.2em 1.4em;
+  border: var(--b-border) solid var(--b-line);
+  border-radius: 0.75em;
+  background: var(--b-tile);
   text-align: center;
 }
 
-.counterTile[data-state="open"] {
-  border-color: var(--color-primary);
-}
-
-.counterTile[data-state="paused"] {
-  opacity: 0.75;
-}
-
-.counterTile[data-state="closed"] {
-  opacity: 0.5;
-  background: var(--color-surface-sunken);
-}
-
 .counterName {
-  margin: 0;
-  font-size: clamp(18px, 2vw, 28px);
-  font-weight: 600;
-  color: var(--color-ink-secondary);
+  font-size: 1.8em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--b-muted);
 }
 
+/* Sized off the tile's own width (cqi) so "OPD-002" always fits on one
+   line, capped by viewport height so two rows still fit a 16:9 screen. */
 .tokenNumber {
-  margin: 0;
-  font-family: var(--font-jetbrains-mono), ui-monospace, SF Mono, Menlo, monospace;
-  font-size: clamp(64px, 10vw, 180px);
+  font-family: var(--font-mono);
+  font-size: min(21cqi, 12vh);
   font-weight: 700;
   line-height: 1;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Status label under the number. Pure decoration for a sighted audience at
+   distance; the token and counter name above carry the information. */
+.counterTile::after {
+  content: none;
+  padding: 0.3em 0.9em;
+  border: var(--b-border) solid var(--b-line-strong);
+  border-radius: var(--radius-pill);
+  font-size: 0.85em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--b-muted);
+}
+
+.counterTile[data-status="called"]::after {
+  content: "Now calling";
+}
+
+.counterTile[data-status="serving"]::after {
+  content: "Serving";
+}
+
+.counterTile[data-status="done"]::after,
+.counterTile[data-status="skipped"]::after,
+.counterTile[data-status="no_show"]::after,
+.counterTile[data-status="cancelled"]::after {
+  content: "Last called";
+}
+
+.counterTile[data-state="paused"][data-status]::after {
+  content: "Paused";
+}
+
+.counterTile[data-state="closed"][data-status]::after {
+  content: "Closed";
+}
+
+/* Called = the one thing to look for: a solid cyan tile. */
+.counterTile[data-state="open"][data-status="called"] {
+  border-color: var(--b-accent);
+  background: var(--b-accent);
+  color: var(--b-on-accent);
+  box-shadow: 0 0 2.5em -0.5em rgb(12 183 214 / 0.55);
+}
+
+.counterTile[data-state="open"][data-status="called"] .counterName {
+  color: var(--b-on-accent);
+}
+
+.counterTile[data-state="open"][data-status="called"]::after {
+  border-color: var(--b-on-accent);
+  background: var(--b-on-accent);
+  color: var(--b-accent);
+}
+
+.counterTile[data-state="open"][data-status="serving"] {
+  border-color: var(--b-accent);
+}
+
+.counterTile[data-state="open"][data-status="serving"]::after {
+  border-color: var(--b-accent);
+  color: var(--b-accent);
+}
+
+/* Finished at this counter: still shown, but stepped back. */
+.counterTile[data-status="done"] .tokenNumber,
+.counterTile[data-status="skipped"] .tokenNumber,
+.counterTile[data-status="no_show"] .tokenNumber,
+.counterTile[data-status="cancelled"] .tokenNumber,
+.counterTile:not([data-status]) .tokenNumber {
+  color: var(--b-dim);
+}
+
+/* No token: "—" for an idle open counter, the state word otherwise. */
+.counterTile:not([data-state="open"]):not([data-status]) .tokenNumber {
+  font-family: var(--font-display);
+  font-size: min(7.5cqi, 4.5vh);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.counterTile[data-state="paused"],
+.counterTile[data-state="closed"] {
+  border-style: dashed;
+  border-color: var(--b-line-strong);
+  background: transparent;
+}
+
+.counterTile[data-state="closed"] .counterName,
+.counterTile[data-state="closed"] .tokenNumber {
+  color: var(--b-dim);
 }
 
 .empty {
   grid-column: 1 / -1;
   align-self: center;
+  justify-self: center;
+  padding: 1.2em 2em;
+  border: var(--b-border) dashed var(--b-line-strong);
+  border-radius: 0.75em;
+  font-size: 1.5em;
+  color: var(--b-muted);
   text-align: center;
-  color: var(--color-ink-muted);
-  font-size: clamp(18px, 2vw, 24px);
 }
+
+/* ---- Next up: one step down from now serving ---- */
 
 .nextUp {
-  border-top: 1px solid var(--color-hairline);
-  padding-top: var(--space-lg);
-}
-
-.nextUpTitle {
-  margin: 0 0 var(--space-sm);
-  font-size: clamp(16px, 1.6vw, 22px);
-  font-weight: 600;
-  color: var(--color-ink-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75em 1.5em;
+  padding-top: var(--b-gap);
+  border-top: var(--b-rule) solid var(--b-line);
 }
 
 .nextUpList {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-md);
-  margin: 0;
-  padding: 0;
+  gap: 0.6em;
   list-style: none;
 }
 
 .nextUpList li {
-  padding: var(--space-xs) var(--space-md);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-sunken);
-  font-family: var(--font-jetbrains-mono), ui-monospace, SF Mono, Menlo, monospace;
-  font-size: clamp(20px, 2.4vw, 36px);
+  padding: 0.15em 0.6em;
+  border: var(--b-border) solid var(--b-line-strong);
+  border-radius: 0.3em;
+  font-family: var(--font-mono);
+  font-size: 1.8em;
   font-weight: 700;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
+  color: var(--b-muted);
+}
+
+/* The very next token reads white with a cyan edge; the rest step back. */
+.nextUpList li:first-child {
+  border-color: var(--b-accent);
+  color: var(--b-ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .counterTile[data-state="open"][data-status="called"] {
+    animation: calling 2.4s ease-in-out infinite;
+  }
+
+  .unlockOverlay::before {
+    animation: calling 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes calling {
+  50% {
+    box-shadow: 0 0 1.2em -0.5em rgb(12 183 214 / 0.3);
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "brand"
+      "title"
+      "stats";
+  }
+
+  .title {
+    font-size: 2.2em;
+  }
+
+  .stat {
+    flex: 1;
+    padding-inline: 0.9em;
+  }
+
+  .stat:first-child {
+    padding-left: 0;
+  }
+
+  .stat dt {
+    font-size: 0.7em;
+  }
+
+  .stat dd {
+    font-size: 1.8em;
+  }
+
+  .counterTile {
+    padding: 1em;
+  }
+
+  .nextUpList li {
+    font-size: 1.5em;
+  }
 }

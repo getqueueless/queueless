@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { LogoMark } from "@/components/brand/Logo"
 import { createClient } from "@/lib/supabase/client"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import { announce, unlockSpeech } from "@/lib/speech/announce"
@@ -215,6 +216,10 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
       )}
 
       <header className={styles.header}>
+        <p className={styles.brand}>
+          <LogoMark className={styles.brandMark} />
+          Queueless
+        </p>
         <h1 className={styles.title}>{label}</h1>
         <dl className={styles.stats}>
           <div className={styles.stat}>
@@ -233,9 +238,15 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
       </header>
 
       <section className={styles.counters} aria-label="Now serving">
+        <h2 className={styles.sectionTitle}>Now serving</h2>
         {sortedCounters.length === 0 && <p className={styles.empty}>No counters open yet.</p>}
         {sortedCounters.map((c) => (
-          <div key={c.counter_id} className={styles.counterTile} data-state={c.state}>
+          <div
+            key={c.counter_id}
+            className={styles.counterTile}
+            data-state={c.state}
+            data-status={c.token_status ?? undefined}
+          >
             <p className={styles.counterName}>{c.counter_name}</p>
             <p className={styles.tokenNumber}>
               {c.token_code ?? (c.state === "open" ? "—" : c.state)}
