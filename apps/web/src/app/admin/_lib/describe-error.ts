@@ -10,7 +10,7 @@ export function describeSupabaseError(error: { code?: string; message?: string }
   if (!error) return "Something went wrong."
 
   if (error.code === "42501" || error.code === "PGRST301") {
-    return "Live data isn't available yet -- database permissions (RLS + grants) haven't been deployed."
+    return "Live data isn't available yet. Database permissions (RLS and grants) haven't been deployed."
   }
   if (error.code === "42P01") {
     return "This table hasn't been migrated yet."

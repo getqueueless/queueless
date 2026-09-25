@@ -74,7 +74,7 @@ async function buildChart(
       countersOpen,
     })
     const predicted = result.ok ? result.predictedWaitMinutes : 0
-    if (!result.ok && !note) note = `Prediction not available yet -- ${result.reason}.`
+    if (!result.ok && !note) note = `Prediction not available yet: ${result.reason}.`
 
     chart.push({ hour: `${hour.toString().padStart(2, "0")}:00`, predicted: Math.round(predicted), actual: Math.round(actual) })
   }
