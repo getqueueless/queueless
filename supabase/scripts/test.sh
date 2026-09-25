@@ -9,7 +9,7 @@ $PSQL -c "create extension if not exists pgtap with schema extensions" >/dev/nul
 for f in tests/*.test.sql; do
   [ -e "$f" ] || continue
   echo "=== $f ==="
-  if ! $PSQL -f "$f"; then
+  if ! $PSQL < "$f"; then
     echo "FAIL $f"
     exit 1
   fi
