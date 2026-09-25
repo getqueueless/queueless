@@ -10,8 +10,8 @@ docker build -t queueless-api "$REPO/apps/api"
 
 # Read secrets without echoing them.
 get() { grep -m1 "^$1=" "$REPO/supabase/.env" | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'; }
-PGPASS=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1],safe=""))' "$(get POSTGRES_PASSWORD)")
-DB="postgresql://postgres:${PGPASS}@supabase-db:5432/postgres"
+PGPASS=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1],safe=""))' "$(get QUEUELESS_API_DB_PASSWORD)")
+DB="postgresql://queueless_api:${PGPASS}@supabase-db:5432/postgres"
 
 sudo mkdir -p "$(dirname "$ENV_OUT")"
 sudo chown "$(id -u):$(id -g)" "$(dirname "$ENV_OUT")"
