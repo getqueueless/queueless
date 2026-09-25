@@ -41,7 +41,7 @@ const TOPICS: Record<string, { title: string; intro: string; points: Point[]; fo
     intro: 'Short and simple.',
     points: [
       { title: 'Unpaid holds cost nothing', text: 'A booking waiting for payment holds your place for 10 minutes. Nothing is charged, and the hold is released if you don’t pay.', icon: icon('timer', 'timer'), tone: 'amber' },
-      { title: 'Cancel 2 hours ahead: full refund', text: 'Cancel a paid appointment at least 2 hours before its time and the full fee is refunded automatically.', icon: icon('arrow.uturn.backward.circle', 'currency_exchange'), tone: 'green' },
+      { title: 'Cancel 2 hours ahead: full refund', text: 'Cancel a paid appointment at least 2 hours before its time and the full fee is refunded automatically to your original payment method.', icon: icon('arrow.uturn.backward.circle', 'currency_exchange'), tone: 'green' },
       { title: 'Later than that, or a no-show', text: 'Cancelling less than 2 hours before, or not turning up, has no automatic refund. The hospital’s admin may still review it.', icon: icon('clock.badge.exclamationmark', 'schedule'), tone: 'rose' },
       { title: 'Doctor on leave? Full refund', text: 'If your doctor goes on leave for the day of your paid booking, the full fee is refunded automatically.', icon: icon('person.badge.shield.checkmark', 'verified_user'), tone: 'blue' },
       { title: 'Walk-in tokens are non-refundable', text: 'Once a paid walk-in token is issued it can’t be refunded. You can still cancel it to give your place to the next patient.', icon: icon('ticket', 'confirmation_number'), tone: 'orange' },
