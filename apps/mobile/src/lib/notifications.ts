@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 import { deletePushToken, OWNED_BY_ANOTHER_ACCOUNT, type PushPlatform, savePushToken } from '@/lib/push-tokens';
 import { supabase } from '@/lib/supabase';
+import { getAlertsEnabled } from '@/lib/notification-preference';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -36,6 +37,8 @@ let lastDeviceToken: string | null = null;
  * `(app)/_layout.tsx`, which is the reliable mechanism and works with zero push wiring.
  */
 export async function registerForPushNotificationsAsync(userId: string): Promise<void> {
+  // Queue alerts switched off in Profile: don't register this device for pushes.
+  if (!getAlertsEnabled()) return;
   try {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
@@ -125,6 +128,7 @@ export function watchPushTokenRotation(userId: string): () => void {
 
 /** Fires an immediate local notification — the reliable fallback that works in Expo Go. */
 export async function showLocalNotification(title: string, body: string): Promise<void> {
+  if (!getAlertsEnabled()) return;
   await Notifications.scheduleNotificationAsync({
     content: { title, body },
     trigger: null,
