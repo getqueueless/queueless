@@ -104,6 +104,7 @@
 /* ---------- empty state ---------- */
 
 .empty {
+  justify-content: center;
   align-items: flex-start;
   gap: var(--space-sm);
 }
@@ -129,6 +130,7 @@
 
 .emptyText {
   max-width: 36ch;
+  margin-bottom: var(--space-sm);
   color: var(--color-ink-secondary);
   font-size: 15px;
   line-height: 1.6;

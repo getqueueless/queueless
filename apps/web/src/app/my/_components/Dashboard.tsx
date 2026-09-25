@@ -3,12 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { AnimatedHeading } from "@/components/motion/AnimatedHeading"
 
-import { ClaimTicketForm } from "../ClaimTicketForm"
 import { DoctorActions } from "../DoctorActions"
 import styles from "../my.module.css"
 import { loadActiveToken, type ActiveToken, type Org } from "./data"
 import { dayKey, firstName } from "./format"
 import { ArrowIcon, TicketIcon } from "./icons"
+import { ClaimDialog, QuickActions } from "./QuickActions"
 import { TokenCard } from "./TokenCard"
 import t from "./TokenCard.module.css"
 import ui from "./ui.module.css"
@@ -60,20 +60,19 @@ export function Dashboard({ supabase, userId, fullName, org, now, doctors }: Das
             <TokenSlot token={token} />
           </Suspense>
         </div>
+
+        <div className={styles.heroActions}>
+          <QuickActions />
+        </div>
       </section>
 
       <div className={styles.body}>
-        <section className={styles.full} aria-labelledby="claim-heading">
-          <h2 id="claim-heading" className={styles.sectionTitle}>
-            Claim a paper ticket
-          </h2>
-          <ClaimTicketForm />
-        </section>
-
         <div id="doctors" className={styles.full}>
           <DoctorActions doctors={doctors} />
         </div>
       </div>
+
+      <ClaimDialog />
     </div>
   )
 }

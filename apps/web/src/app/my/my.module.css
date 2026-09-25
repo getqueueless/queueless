@@ -151,10 +151,24 @@
   font-size: 16px;
 }
 
+/* Stretched from the greeting's top to one overhang past the band, so a
+   short card (the empty state) still hangs over the edge like a tall one. */
 .heroCard {
   grid-column: 8 / -1;
   grid-row: 1 / 4;
+  display: flex;
+  flex-direction: column;
+}
+
+.heroCard > * {
+  flex: 1;
+}
+
+.heroActions {
+  grid-column: 1 / 8;
+  grid-row: 2;
   align-self: end;
+  margin: var(--space-xl) 0 var(--space-xxl);
 }
 
 /* ---------- sections below the hero ---------- */
@@ -198,6 +212,12 @@
   .heroCard {
     grid-column: 1;
     grid-row: 2 / 4;
+  }
+
+  .heroActions {
+    grid-column: 1;
+    grid-row: 4;
+    margin: var(--space-lg) 0 0;
   }
 
   .body {

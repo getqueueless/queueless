@@ -45,6 +45,9 @@ export function ClaimTicketForm() {
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="e.g. OPD-014"
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
           required
           className={styles.claimInput}
         />
