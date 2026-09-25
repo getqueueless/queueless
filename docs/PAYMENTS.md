@@ -114,3 +114,19 @@ Razorpay test mode, UPI: `success@razorpay` always captures, any other UPI id fa
 test number from Razorpay's docs. `RAZORPAY_WEBHOOK_SECRET` in prod must match exactly what's
 configured in the Razorpay dashboard's webhook (`https://api.lpu.lol/payments/razorpay/webhook`,
 events `payment.captured`, `payment.failed`, `order.paid`, `refund.processed`, `refund.failed`).
+
+**Verified end to end against prod on 2026-09-25**, real HTTP calls throughout (`start_paid_booking`
+over `sb.lpu.lol` PostgREST, `/payments/order` and `/payments/verify` over `api.lpu.lol`, a real
+Razorpay test-mode checkout): a `pending_payment` hold (`OPD-008`, ₹250, Dr. Rajesh Iyer) → a real
+Razorpay order (`order_TgQai1ozRKdyg3`) → checkout.js's card+OTP flow (test Mastercard
+`5267 3181 8797 5449`, OTP `1234`) → `payment_TgQbRwI7mb6mTD` captured → `/payments/verify`'s HMAC
+check passed → the token read back `status: "waiting"` from a fresh, independent REST call. The
+`/v1/checkout.js` URL fix (below) was caught and shipped during this same pass — the first attempt
+404'd on the wrong script path.
+
+**Found, not fixed here (Razorpay dashboard config, not code):** UPI does not appear as a payment
+method in the live checkout widget for this merchant account — only Cards, Netbanking and Wallet
+are enabled, confirmed by inspecting the actual rendered payment-method list, not just the API
+response. The page's own banner tells patients to pay with `success@razorpay` (UPI), which is not
+actually selectable right now. Whoever has the Razorpay dashboard needs to enable UPI as a payment
+method there; no `apps/web`/`apps/api` change is needed once that's on.
