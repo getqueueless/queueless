@@ -4,7 +4,11 @@ import Link from "next/link"
 import { LogoMark } from "@/components/brand/Logo"
 import { PublicFooter } from "@/components/site/PublicFooter"
 import { PublicHeader } from "@/components/site/PublicHeader"
+import { roleLandingPath } from "@/lib/auth/redirect"
+import { getMyProfile } from "@/lib/supabase/get-role"
+import { createClient } from "@/lib/supabase/server"
 
+import { AlreadySignedIn } from "./AlreadySignedIn"
 import { LoginCard } from "./LoginCard"
 import styles from "./login.module.css"
 
@@ -30,6 +34,13 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const params = await searchParams
   const next = safeNextPath(params.next)
 
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const profile = user ? await getMyProfile(supabase, user.id) : null
+  const dashboardHref = next || roleLandingPath(profile)
+
   return (
     <>
       <PublicHeader current="signin" />
@@ -47,7 +58,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               Sign in to <span className={styles.accent}>Queueless</span>
             </h1>
           </div>
-          <LoginCard next={next} />
+          {user ? (
+            <AlreadySignedIn name={profile?.fullName ?? user.email ?? "your account"} role={profile?.role ?? "user"} dashboardHref={dashboardHref} />
+          ) : (
+            <LoginCard next={next} />
+          )}
         </div>
 
         <p className={styles.aside}>
