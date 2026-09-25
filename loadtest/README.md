@@ -20,8 +20,21 @@ latency there was 3.6-5.3s, an artifact of the tunnel, not the DB itself; on the
 runs at native localhost speed), `call_next` raced cleanly with zero double-calls, and
 cleanup left nothing behind (`organizations` row gone, all `@loadtest.invalid`
 `auth.users` rows gone — checked directly against prod after the run). The full
-100/200/500/1000-wide escalation has **not** been run — see "Run on prod" below for the
-exact command; infra runs that one.
+100/200/500/1000-wide escalation is in progress against prod (infra runs it, see "Run on
+prod" below for the exact command) — real results so far:
+
+| Wave | p95 | Error rate | Duplicate numbers | Throughput |
+|---|---|---|---|---|
+| 100 | 500 ms | 0% | 0 | 183 tok/s |
+| 200 | 1.33 s | 0% | 0 | *(not recorded)* |
+| 500 | *(pending)* | | | |
+| 1000 | *(pending)* | | | |
+
+(500 and 1000 hit a real, since-fixed bug on the first attempt — `services.
+max_tokens_per_day` defaults to 500/day and every wave targets the same service with
+numbering that climbs across waves, so `issue_token` 409'd `queue_full` past a
+cumulative 500 tokens. Fixed: the loadtest service is now created with
+`max_tokens_per_day=100000`. Rerunning 500/1000 with the fix.)
 
 **Found and fixed while verifying:** `issue_token` 403s with `profile_incomplete` since
 migration 0037 — a probe using un-completed test patients never got past that. Also,

@@ -1038,6 +1038,18 @@ under "Web app" above.
   on every completed ticket) scanned a service's *entire history*, not just today's, since it had
   no supporting index — 17.1ms and growing with a full-table scan, 0.1ms with the new one, a
   ~150x difference that would only get worse over the queue's lifetime.
+- **Concurrency load test, live against prod (separate from the query-plan pass above).**
+  `loadtest/load_test.py` fires real, escalating concurrent `issue_token` waves against prod
+  (100, then 200, then 500, then 1000), created via its own fully isolated throwaway org — never
+  the demo queue or a real patient. Real results so far: **100 concurrent → p95 500ms, 0% error
+  rate, 0 duplicate ticket numbers, 183 tokens/sec; 200 concurrent → p95 1.33s, 0% error rate, 0
+  duplicates.** Zero duplicate numbers across both waves confirms the real DB constraint
+  (`tokens_service_day_number_unique`) holds under real concurrent load, not just in theory. The
+  500/1000 waves are still running as of this note (a real bug was found and fixed first:
+  `services.max_tokens_per_day` defaults to 500/day, and this test's own numbering climbs across
+  waves on one service, so a cumulative total past 500 legitimately hit `queue_full` — the
+  loadtest service is now created with `max_tokens_per_day=100000`) — full numbers in
+  `loadtest/README.md` once that rerun finishes.
 
 ## Shared UI kit for the app redesign
 
