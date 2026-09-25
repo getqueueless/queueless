@@ -3,7 +3,8 @@ import os
 import time
 import uuid
 
-os.environ.setdefault("SUPABASE_JWT_SECRET", "test-secret")
+TEST_JWT_SECRET = "test-secret-at-least-32-bytes-long-xxxx"
+os.environ.setdefault("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@localhost:55432/postgres")
 os.environ.setdefault(
     "DATABASE_URL_DIRECT", "postgresql://postgres:postgres@localhost:55432/postgres"
@@ -14,11 +15,10 @@ import asyncpg
 import jwt
 import pytest
 import pytest_asyncio
+from fastapi import APIRouter, Depends
 from fastapi.testclient import TestClient
 
 from scripts import dev_db
-
-TEST_JWT_SECRET = "test-secret"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -47,10 +47,26 @@ async def db_pool(postgres):
     await pool.close()
 
 
+from app.auth import get_current_user, require_role  # noqa: E402
+
+test_router = APIRouter()
+
+
+@test_router.get("/_test/identity")
+async def _identity(user=Depends(get_current_user)):
+    return {"user_id": str(user.user_id)}
+
+
+@test_router.get("/_test/staff-only")
+async def _staff_only(user=Depends(require_role("staff", "admin"))):
+    return {"user_id": str(user.user_id)}
+
+
 @pytest.fixture
 def client(postgres):
     from app.main import app
 
+    app.include_router(test_router)
     with TestClient(app) as c:
         yield c
 
