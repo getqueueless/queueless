@@ -53,3 +53,171 @@
   padding: var(--space-section) var(--space-lg);
   max-width: 640px;
 }
+
+.section {
+  margin-top: var(--space-section);
+}
+
+.sectionTitle {
+  margin-bottom: var(--space-md);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.empty {
+  color: var(--color-ink-muted);
+}
+
+.line {
+  color: var(--color-ink);
+}
+
+.tokenList,
+.doctorList,
+.slotList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  list-style: none;
+  padding: 0;
+}
+
+.tokenLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.tokenLink:hover {
+  border-color: var(--color-ink-muted);
+}
+
+.tokenLink:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.tokenCode {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.editProfileLink {
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.claimForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.claimLabel {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.claimRow {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.claimInput {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.claimInput:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.claimSubmit {
+  min-height: 44px;
+  padding: 0 var(--space-lg);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.claimSubmit:hover {
+  background: var(--color-accent-hover, var(--color-accent));
+}
+
+.claimSubmit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.claimError {
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+.doctorCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.doctorCardName {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.doctorCardMeta {
+  color: var(--color-ink-muted);
+  font-size: 13px;
+}
+
+.slotList {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.slotButton {
+  min-height: 38px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.slotButton:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.slotButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
