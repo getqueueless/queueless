@@ -53,18 +53,25 @@ export function CounterConsole({
   const [current, setCurrent] = useState<TokenRow | null>(initialToken)
   const [banner, setBanner] = useState<Banner>(null)
   const [pending, setPending] = useState(false)
-  const [now, setNow] = useState(() => Date.now())
+  // Starts null (not Date.now()) so server and client render the same
+  // "00:00" on the first pass -- seeding this from the wall clock made the
+  // server's render timestamp and the client's hydration timestamp differ by
+  // however many ms/seconds passed in between, throwing a hydration
+  // mismatch (React error #418). The real ticking value is only ever set
+  // client-side, after mount, once hydration has already committed.
+  const [now, setNow] = useState<number | null>(null)
   const pendingRef = useRef(false)
 
   // One-second ticker for the "since call started" timer, only while there's
   // something to time.
   useEffect(() => {
     if (!current?.called_at) return
+    setNow(Date.now())
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [current?.called_at])
 
-  const elapsedLabel = current?.called_at
+  const elapsedLabel = current?.called_at && now !== null
     ? formatElapsed(Math.max(0, Math.floor((now - new Date(current.called_at).getTime()) / 1000)))
     : "00:00"
 
