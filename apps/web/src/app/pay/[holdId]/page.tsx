@@ -6,7 +6,7 @@ import { PublicFooter } from "@/components/site/PublicFooter"
 import { PublicHeader } from "@/components/site/PublicHeader"
 import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { createClient } from "@/lib/supabase/server"
-import { fetchDoctor, fetchPayableToken, isUuid } from "./data"
+import { fetchDoctor, fetchPayableHold, isUuid } from "./data"
 import { PayView } from "./pay-view"
 import styles from "./pay.module.css"
 
@@ -38,24 +38,24 @@ function NotFoundCard() {
   )
 }
 
-export default async function PayPage({ params }: { params: Promise<{ tokenId: string }> }) {
-  const { tokenId } = await params
-  if (!isUuid(tokenId)) {
+export default async function PayPage({ params }: { params: Promise<{ holdId: string }> }) {
+  const { holdId } = await params
+  if (!isUuid(holdId)) {
     return <NotFoundCard />
   }
 
   const supabase = await createClient()
-  const token = await fetchPayableToken(supabase, tokenId)
-  if (!token) {
+  const hold = await fetchPayableHold(supabase, holdId)
+  if (!hold) {
     return <NotFoundCard />
   }
 
-  const doctor = token.doctor_id ? await fetchDoctor(supabase, token.doctor_id) : null
+  const doctor = hold.doctor_id ? await fetchDoctor(supabase, hold.doctor_id) : null
 
   return (
     <>
       <PublicHeader />
-      <PayView tokenId={tokenId} initialToken={token} doctor={doctor} />
+      <PayView holdId={holdId} initialHold={hold} doctor={doctor} />
       <PublicFooter />
     </>
   )

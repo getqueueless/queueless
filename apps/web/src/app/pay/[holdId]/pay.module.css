@@ -172,6 +172,189 @@
   text-wrap: pretty;
 }
 
+.doctorCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  text-align: left;
+  margin-bottom: var(--space-lg);
+}
+
+.avatar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.doctorInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.doctorName {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.doctorSpecialty {
+  font-size: 13px;
+  color: var(--color-ink-secondary);
+}
+
+.doctorWhen {
+  margin-top: var(--space-xxs);
+  font-size: 13px;
+  color: var(--color-ink-secondary);
+}
+
+.patientRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--color-hairline);
+  border-bottom: 1px solid var(--color-hairline);
+  margin-bottom: var(--space-lg);
+}
+
+.patientName {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.patientPhone {
+  display: block;
+  font-size: 13px;
+  color: var(--color-ink-secondary);
+}
+
+.editLink {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.priceBreakdown {
+  text-align: left;
+  margin-bottom: var(--space-lg);
+}
+
+.priceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xxs) 0;
+  font-size: 14px;
+  color: var(--color-ink-secondary);
+}
+
+.priceRowTotal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-hairline);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.waived {
+  color: var(--color-success, #1a9c5c);
+}
+
+.policy {
+  margin: 0 0 var(--space-lg);
+  color: var(--color-ink-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.stickyBar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin: 0 calc(-1 * var(--space-xl)) calc(-1 * var(--space-xxl));
+  padding: var(--space-md) var(--space-xl);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-hairline);
+}
+
+.stickyTotal {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.checkCircle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-success, #1a9c5c);
+  color: var(--color-on-accent);
+}
+
+.receipt {
+  width: 100%;
+  text-align: left;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-soft);
+}
+
+.receiptRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-xxs) 0;
+  font-size: 13px;
+  color: var(--color-ink-secondary);
+}
+
+.receiptRow span:last-child {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  word-break: break-all;
+  text-align: right;
+}
+
+@media (max-width: 767px) {
+  .stickyBar {
+    margin: 0 calc(-1 * var(--space-md)) calc(-1 * var(--space-xl));
+    padding: var(--space-md);
+  }
+}
+
 @media (max-width: 767px) {
   .band {
     padding: var(--space-xl) var(--space-md) 104px;
