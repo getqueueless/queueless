@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 import { Logo, LogoMark } from "@/components/brand/Logo"
 import { ThemeToggle } from "@/components/theme/ThemeToggle"
@@ -69,16 +70,36 @@ function Icon({ children }: { children: React.ReactNode }) {
 export function AdminNav({ orgName }: { orgName: string | null }) {
   const pathname = usePathname()
   const router = useRouter()
+  // Phone width only (see the 639px block in admin.module.css) -- the
+  // sidebar is the 224px/64px-rail flex column at every wider size
+  // regardless of this state, CSS just doesn't read data-open there.
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- closes the mobile menu after a nav click changes the route, see react.dev/learn/you-might-not-need-an-effect#fetching-data
+    setOpen(false)
+  }, [pathname])
 
   async function signOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push("/staff?tab=password")
+    router.push("/login")
   }
 
   return (
-    <nav className={styles.sidebar} aria-label="Admin" data-surface="slate">
-      <div className={styles.sidebarInner}>
+    <>
+      <button
+        type="button"
+        className={styles.menuButton}
+        aria-label={open ? "Close menu" : "Open menu"}
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Icon>{open ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</Icon>
+      </button>
+      <div className={styles.backdrop} data-open={open} onClick={() => setOpen(false)} aria-hidden="true" />
+      <nav className={styles.sidebar} data-open={open} aria-label="Admin" data-surface="slate">
+        <div className={styles.sidebarInner}>
         <div className={styles.brand}>
           {/* Wrapped: Logo sets display inline, which would beat the rail's display:none. */}
           <span className={styles.brandFull}>
@@ -112,7 +133,8 @@ export function AdminNav({ orgName }: { orgName: string | null }) {
           </button>
           <ThemeToggle />
         </div>
-      </div>
-    </nav>
+        </div>
+      </nav>
+    </>
   )
 }

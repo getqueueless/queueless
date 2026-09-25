@@ -222,6 +222,110 @@
   }
 }
 
+.menuButton,
+.backdrop {
+  display: none;
+}
+
+/* Phone: the icon rail itself is too cramped to be worth keeping on-screen
+   permanently, so below 640px the sidebar goes off-canvas (a full-width
+   labelled panel, same as desktop) behind a hamburger button, and content
+   gets the full viewport width back. */
+@media (max-width: 639px) {
+  .menuButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: var(--space-sm);
+    left: var(--space-sm);
+    z-index: 70;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--color-hairline-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    cursor: pointer;
+  }
+
+  .backdrop[data-open="true"] {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 90;
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: var(--shadow-raised);
+  }
+
+  .sidebar[data-open="true"] {
+    transform: translateX(0);
+  }
+
+  .sidebarInner {
+    align-items: stretch;
+    padding: var(--space-lg) var(--space-sm) var(--space-md);
+  }
+
+  .brand {
+    padding: 0 var(--space-sm) var(--space-lg);
+    align-items: flex-start;
+    align-self: auto;
+  }
+
+  .brandFull {
+    display: inline-flex;
+  }
+
+  .brandOrg {
+    display: block;
+  }
+
+  .brandMark {
+    display: none;
+  }
+
+  .navLabel {
+    display: inline;
+  }
+
+  .navLink,
+  .signOut {
+    justify-content: flex-start;
+    align-self: auto;
+    padding: 10px var(--space-sm);
+    min-height: 48px;
+  }
+
+  .navLinkActive::before {
+    left: calc(-1 * var(--space-sm));
+  }
+
+  .sidebarFoot {
+    flex-direction: row;
+    align-self: auto;
+  }
+
+  .signOut {
+    flex: 1;
+  }
+
+  .content {
+    padding-top: calc(var(--space-lg) + 52px);
+  }
+}
+
 /* ---------- Content ---------- */
 
 .content {
