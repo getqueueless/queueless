@@ -93,6 +93,7 @@ function buildHourBuckets(tokens: TokenRow[]): HourBucket[] {
 
 // Every admin sub-screen hangs off this list — the stack has no other way in.
 const MANAGE_LINKS: { href: string; label: string; hint: string }[] = [
+  { href: '/admin/doctors', label: 'Doctors', hint: 'Shifts, breaks, leave, today’s status' },
   { href: '/admin/services', label: 'Services', hint: 'Open, close, timings' },
   { href: '/admin/counters', label: 'Counters', hint: 'Names, state, services served' },
   { href: '/admin/staff', label: 'Staff', hint: 'Roles for your team' },

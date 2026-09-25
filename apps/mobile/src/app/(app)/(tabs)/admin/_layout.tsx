@@ -17,6 +17,8 @@ export default function AdminLayout() {
         headerRight: () => <SignOutButton />,
       }}>
       <Stack.Screen name="index" options={{ title: 'Admin' }} />
+      <Stack.Screen name="doctors" options={{ title: 'Doctors' }} />
+      <Stack.Screen name="doctor" options={{ title: 'Doctor' }} />
       <Stack.Screen name="services" options={{ title: 'Services' }} />
       <Stack.Screen name="counters" options={{ title: 'Counters' }} />
       <Stack.Screen name="staff" options={{ title: 'Staff' }} />
