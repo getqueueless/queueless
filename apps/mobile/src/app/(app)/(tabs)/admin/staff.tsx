@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LabeledInput } from '@/components/admin/labeled-input';
 import { ThemedView } from '@/components/themed-view';
-import { Button, Card, MIN_TAP, Radius, SectionHeader, UIText, type IconName } from '@/components/ui';
+import { Card, MIN_TAP, Radius, SectionHeader, UIText } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
@@ -49,11 +48,6 @@ export default function AdminStaff() {
   const [membersLoading, setMembersLoading] = useState(true);
   const [membersError, setMembersError] = useState<string | null>(null);
 
-  const [query, setQuery] = useState('');
-  const [searchBusy, setSearchBusy] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [searched, setSearched] = useState(false);
-  const [unassigned, setUnassigned] = useState<ProfileRow[]>([]);
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -85,28 +79,6 @@ export default function AdminStaff() {
     setMembers((data ?? []) as ProfileRow[]);
   }
 
-  async function handleSearch() {
-    const q = query.trim();
-    if (!q || searchBusy) return;
-    setSearchBusy(true);
-    setSearchError(null);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, phone, role')
-      .is('org_id', null)
-      .eq('role', 'patient')
-      .ilike('full_name', `%${q}%`)
-      .order('full_name', { ascending: true })
-      .limit(20);
-    setSearchBusy(false);
-    setSearched(true);
-    if (error) {
-      setSearchError(mapSupabaseError(error));
-      return;
-    }
-    setUnassigned((data ?? []) as ProfileRow[]);
-  }
-
   async function handleSetRole(profile: ProfileRow, role: Role) {
     if (busyId || !orgId || role === profile.role) return;
     setBusyId(profile.id);
@@ -117,7 +89,6 @@ export default function AdminStaff() {
       setActionError(mapSupabaseError(error));
       return;
     }
-    setUnassigned((prev) => prev.filter((p) => p.id !== profile.id));
     reloadMembers();
   }
 
@@ -194,73 +165,20 @@ export default function AdminStaff() {
           </Card>
 
           <View style={styles.sectionGap}>
-            <SectionHeader title="Promote a patient" accent="patient" />
+            <SectionHeader title="Add staff" accent="staff" />
           </View>
-          <UIText variant="secondary">Search unassigned patients by name — looking someone up by email needs the web admin console.</UIText>
-
-          <View style={styles.searchRow}>
-            <View style={styles.flex}>
-              <LabeledInput
-                label="Name"
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Patient's name"
-                onSubmitEditing={handleSearch}
-                returnKeyType="search"
-              />
-            </View>
-            <Button label="Search" size="md" icon={SEARCH_ICON} loading={searchBusy} disabled={!query.trim()} onPress={handleSearch} />
-          </View>
-
-          {searchError ? (
-            <UIText variant="secondary" color="danger">
-              {searchError}
-            </UIText>
-          ) : null}
-
-          {searched && !searchError ? (
-            <Card style={styles.listCard}>
-              {unassigned.length === 0 ? (
-                <UIText color="inkSecondary" style={styles.cardPadding}>
-                  No unassigned patients match that name.
-                </UIText>
-              ) : (
-                unassigned.map((p, i) => (
-                  <View key={p.id} style={[styles.memberRow, i > 0 && { borderTopWidth: 1, borderColor: theme.hairline }]}>
-                    <View style={styles.memberInfo}>
-                      <UIText variant="bodyStrong">{memberLabel(p)}</UIText>
-                      {p.phone ? <UIText variant="secondary">{p.phone}</UIText> : null}
-                    </View>
-                    <View style={styles.roleRow}>
-                      <Button
-                        label="Make staff"
-                        variant="secondary"
-                        size="md"
-                        disabled={busyId === p.id}
-                        onPress={() => handleSetRole(p, 'staff')}
-                        style={styles.flex}
-                      />
-                      <Button
-                        label="Make admin"
-                        variant="secondary"
-                        size="md"
-                        disabled={busyId === p.id}
-                        onPress={() => handleSetRole(p, 'admin')}
-                        style={styles.flex}
-                      />
-                    </View>
-                  </View>
-                ))
-              )}
-            </Card>
-          ) : null}
+          {/* set_member_role now refuses patient -> staff (patient_reassignment_blocked) and 0045
+              hides profiles outside the org, so new staff are invited from the web admin. */}
+          <UIText variant="secondary">
+            New staff are invited from the web admin console (lpu.lol/admin/staff). Patient accounts can&apos;t be
+            turned into staff accounts.
+          </UIText>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
 }
 
-const SEARCH_ICON: IconName = { ios: 'magnifyingglass', android: 'search', web: 'search' };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -283,5 +201,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   capitalize: { textTransform: 'capitalize' },
-  searchRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.xs },
 });
