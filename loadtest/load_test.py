@@ -122,24 +122,51 @@ async def create_test_user(
         return user_id
 
 
+CLEANUP_CHUNK_SIZE = 50
+
+
+async def _chunked_delete(client: httpx.AsyncClient, table: str, column: str, values: list[str], label: str) -> None:
+    """Deletes `WHERE column IN (values)` in chunks -- found live at real
+    scale (300+ tokens): a single `in.(...)` filter with hundreds of UUIDs
+    makes a URL long enough for Kong/PostgREST to reject it, the delete
+    silently 400s, and every downstream step (the org cascade, then every
+    user delete) fails on the FK this was supposed to clear first."""
+    for i in range(0, len(values), CLEANUP_CHUNK_SIZE):
+        chunk = values[i:i + CLEANUP_CHUNK_SIZE]
+        resp = await client.delete(
+            f"{SUPABASE_URL}/rest/v1/{table}", headers=SERVICE_HEADERS,
+            params={column: f"in.({','.join(chunk)})"},
+        )
+        if resp.status_code >= 400:
+            print(f"WARNING: {label} cleanup (chunk {i // CLEANUP_CHUNK_SIZE}) got {resp.status_code}: {resp.text[:200]}")
+
+
 async def delete_org_and_dependents(client: httpx.AsyncClient, org_id: str) -> None:
     """organizations -> tokens cascades (on delete cascade), but tokens ->
     notifications does NOT (no cascade on notifications_token_id_fkey) --
     found live: deleting the org directly 409s with a FK violation the
-    moment any token in it has a notification. Clear those first."""
+    moment any token in it has a notification. Clear those first, in
+    chunks (see _chunked_delete). Order matches what actually worked
+    against a real 300-token/300-user prod run, not just the org-cascade
+    theory: notifications -> tokens (explicit, not just relying on the
+    org cascade to reach them) -> profiles (org_id set null by the org
+    cascade, not deleted -- explicit delete here means auth.users deletes
+    below never hit a leftover profile->tokens block) -> the org itself
+    (services/counters/counter_services/board_* all cascade from it)."""
     resp = await client.get(
         f"{SUPABASE_URL}/rest/v1/tokens", headers=SERVICE_HEADERS,
-        params={"select": "id", "org_id": f"eq.{org_id}"},
+        params={"select": "id,patient_id", "org_id": f"eq.{org_id}"},
     )
     resp.raise_for_status()
-    token_ids = [row["id"] for row in resp.json()]
+    rows = resp.json()
+    token_ids = [row["id"] for row in rows]
+    patient_ids = [row["patient_id"] for row in rows if row.get("patient_id")]
+
     if token_ids:
-        resp = await client.delete(
-            f"{SUPABASE_URL}/rest/v1/notifications", headers=SERVICE_HEADERS,
-            params={"token_id": f"in.({','.join(token_ids)})"},
-        )
-        if resp.status_code >= 400:
-            print(f"WARNING: notifications cleanup got {resp.status_code}: {resp.text[:200]}")
+        await _chunked_delete(client, "notifications", "token_id", token_ids, "notifications")
+        await _chunked_delete(client, "tokens", "id", token_ids, "tokens")
+    if patient_ids:
+        await _chunked_delete(client, "profiles", "id", patient_ids, "profiles")
 
     resp = await client.delete(
         f"{SUPABASE_URL}/rest/v1/organizations", headers=SERVICE_HEADERS, params={"id": f"eq.{org_id}"},
@@ -288,44 +315,85 @@ async def run_issue_token_wave(jwts: list[str], service_id: str, concurrency_lab
 
 
 async def call_next_loop(client: httpx.AsyncClient, staff_jwt: str, counter_id: str, claimed: list, max_calls: int) -> None:
+    """Races until the queue is genuinely empty, not just once per desk --
+    `tokens_one_per_desk` blocks a SECOND call_next on the same counter
+    while its current token is still 'called'/'serving' (409
+    counter_busy), so without completing each claimed token, a desk can
+    only ever claim exactly one, no matter how many times this loops
+    (found live: 60 waiting, only 2 total claimed). complete_token moves
+    'serving' -> 'done', freeing the desk for the next call_next -- the
+    same real staff action a real desk performs, just done immediately
+    rather than after a real consultation, since this loop's job is
+    draining the queue, not timing a real service duration."""
+    headers = {"apikey": ANON_KEY, "Authorization": f"Bearer {staff_jwt}"}
     for _ in range(max_calls):
-        resp = await client.post(
-            f"{SUPABASE_URL}/rest/v1/rpc/call_next",
-            headers={"apikey": ANON_KEY, "Authorization": f"Bearer {staff_jwt}"},
-            json={"p_counter": counter_id},
-        )
-        if resp.status_code == 200:
-            body = resp.json()
-            rows = body if isinstance(body, list) else [body]
-            for row in rows:
-                if row and "id" in row:
-                    claimed.append(row["id"])
-        else:
-            break  # counter_closed / empty queue / forbidden -- stop this loop
+        resp = await client.post(f"{SUPABASE_URL}/rest/v1/rpc/call_next", headers=headers, json={"p_counter": counter_id})
+        if resp.status_code != 200:
+            break  # counter_closed / forbidden -- stop this loop
+        body = resp.json()
+        rows = body if isinstance(body, list) else [body]
+        if not rows:
+            break  # 200 with an empty set IS "queue empty" (call_next returns
+            # `setof tokens`) -- the real stop condition for "race until empty".
+        for row in rows:
+            if not row or "id" not in row:
+                continue
+            claimed.append(row["id"])
+            start_resp = await client.post(f"{SUPABASE_URL}/rest/v1/rpc/start_serving", headers=headers, json={"p_token": row["id"]})
+            if start_resp.status_code != 200:
+                print(f"WARNING: start_serving({row['id']}) got {start_resp.status_code}: {start_resp.text[:200]}")
+                continue
+            done_resp = await client.post(f"{SUPABASE_URL}/rest/v1/rpc/complete_token", headers=headers, json={"p_token": row["id"]})
+            if done_resp.status_code != 200:
+                print(f"WARNING: complete_token({row['id']}) got {done_resp.status_code}: {done_resp.text[:200]}")
 
 
-async def run_call_next_race(staff_jwt: str, counter_ids: list[str], max_calls_per_loop: int = 700) -> dict:
-    """2 parallel loops against the loadtest org's own 2 desks -- the real
+async def count_waiting_tokens(client: httpx.AsyncClient, service_id: str) -> int:
+    resp = await client.get(
+        f"{SUPABASE_URL}/rest/v1/tokens", headers={**SERVICE_HEADERS, "Prefer": "count=exact"},
+        params={"select": "id", "service_id": f"eq.{service_id}", "status": "eq.waiting", "limit": "1"},
+    )
+    resp.raise_for_status()
+    content_range = resp.headers.get("content-range", "*/0")
+    return int(content_range.split("/")[-1])
+
+
+async def run_call_next_race(
+    client: httpx.AsyncClient, staff_jwt: str, counter_ids: list[str], service_id: str, max_calls_per_loop: int
+) -> dict:
+    """2 parallel loops against the loadtest org's own 2 desks, run until
+    each desk's own queue view is empty (see call_next_loop) -- the real
     concurrency risk: two desks racing the same waiting queue must never
     both claim the same token, enforced by tokens_one_per_desk's unique
-    index on counter_id."""
+    index on counter_id. Reports how many tokens were actually waiting
+    before the race started, not just assumed -- a meaningful race needs
+    a real queue to contend over, not an empty one two loops trivially
+    agree on."""
+    waiting_before = await count_waiting_tokens(client, service_id)
+    print(f"{waiting_before} tokens waiting before the call_next race")
+
     counter_a, counter_b = counter_ids[0], counter_ids[1]
     claimed_a: list = []
     claimed_b: list = []
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    race_client = httpx.AsyncClient(timeout=30.0)
+    try:
         await asyncio.gather(
-            call_next_loop(client, staff_jwt, counter_a, claimed_a, max_calls_per_loop),
-            call_next_loop(client, staff_jwt, counter_b, claimed_b, max_calls_per_loop),
+            call_next_loop(race_client, staff_jwt, counter_a, claimed_a, max_calls_per_loop),
+            call_next_loop(race_client, staff_jwt, counter_b, claimed_b, max_calls_per_loop),
         )
+    finally:
+        await race_client.aclose()
 
     all_claimed = claimed_a + claimed_b
     dupes = find_duplicates(all_claimed)
     return {
+        "waiting_before_race": waiting_before,
         "counter_a": counter_a,
         "counter_b": counter_b,
         "claimed_by_a": len(claimed_a),
         "claimed_by_b": len(claimed_b),
+        "total_claimed": len(all_claimed),
         "double_calls": dupes,
     }
 
@@ -497,8 +565,14 @@ async def main() -> int:
         else:
             print("DATABASE_URL not set -- skipping the DB-level burst (HTTP waves above still ran)")
 
-        print("Racing 2 parallel call_next loops...")
-        race = await run_call_next_race(staff_jwt, counter_ids, max_calls_per_loop=total_patients)
+        print("Racing 2 parallel call_next loops until the queue is empty...")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            race = await run_call_next_race(client, staff_jwt, counter_ids, service_id, max_calls_per_loop=total_patients)
+        if race["waiting_before_race"] < 50:
+            print(
+                f"WARNING: only {race['waiting_before_race']} tokens were waiting before the race -- "
+                "not a very meaningful concurrency proof at this scale"
+            )
         report["call_next_race"] = race
         print(json.dumps(race, indent=2))
 
