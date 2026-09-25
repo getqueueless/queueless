@@ -6,7 +6,7 @@ numbers and zero double-called tokens; reports p50/p95/p99 latency and error rat
 
 ## Status: verified correct, small scale, live against prod
 
-The script creates its own throwaway org (`loadtest-org`, own service, own 2 counters,
+The script creates its own throwaway org (`loadtest-org-<random>`, own service, own 2 counters,
 own staff account) and tears it down in a `finally` block — it never targets the demo
 org, never touches a real patient's data, and is safe to run at any time without a
 demo-reset. Verified live against prod this session at small scale (`LOADTEST_WAVES=3,4`,
@@ -91,12 +91,17 @@ cd /opt/queueless/loadtest
 uv run --with httpx --with pyjwt --with asyncpg python load_test.py | tee /tmp/loadtest-prod-$(date +%F).json
 ```
 
-No separate cleanup step needed — the script's own `finally` block deletes
-`loadtest-org` (and everything under it) and every `@loadtest.invalid` test account it
-created, verified live (see Status above). If a run is killed hard enough to skip even
-the `finally` block, the next run's own startup step (`delete_org_if_exists`) clears any
-leftover `loadtest-org` before creating a fresh one; only orphaned `@loadtest.invalid`
-`auth.users` rows from that scenario would need a manual sweep:
+No separate cleanup step needed — the script's own `finally` block deletes its org (and
+everything under it) and every `@loadtest.invalid` test account it created, verified
+live (see Status above). The org's slug is `loadtest-org-<8 random hex chars>`, unique
+per run, not a fixed `loadtest-org` — found live: two runs against the same prod at once
+raced on delete-then-create under a shared fixed slug, and one run's cleanup deleted the
+other's still-in-progress org. Never run two instances of this script against the same
+prod at the same time even so — they'd still both hammer `services.max_tokens_per_day`
+and the same counters/staff-role checks aren't scoped per-run. If a run is killed hard
+enough to skip even the `finally` block, its uniquely-slugged org is simply left behind
+(harmless — a later run's own fresh unique slug can never collide with it); only orphaned
+`@loadtest.invalid` `auth.users` rows from that scenario would need a manual sweep:
 `delete from auth.users where email like '%@loadtest.invalid'` (via
 `docker exec -i supabase-db psql ...`, same access level `demo-reset.sh` uses).
 

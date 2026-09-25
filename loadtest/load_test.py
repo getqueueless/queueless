@@ -55,6 +55,12 @@ RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 # escalating wave list once one wave already shows real trouble.
 MAX_ERROR_RATE = 0.05
 MAX_P95_MS = 10_000
+MIN_RACE_WAITING = 50
+# Extra patients created up front, beyond WAVES + the DB burst, purely as
+# spare capacity for the pre-race top-up below (with no early stop and no
+# setup failures, every created patient would otherwise already be spent
+# by the time the race runs, leaving nothing to top up with).
+RACE_TOP_UP_RESERVE = 150
 # Optional: a raw-Postgres burst that proves DB-level concurrency
 # correctness without Kong/PostgREST/GoTrue in the path at all. Skipped
 # (with a clear note) if not set, same convention as every other optional
@@ -63,7 +69,13 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 DB_BURST_SIZE = int(os.environ.get("LOADTEST_DB_BURST_SIZE", "1000"))
 DB_BURST_POOL_SIZE = int(os.environ.get("LOADTEST_DB_BURST_POOL_SIZE", "20"))
 
-ORG_SLUG = "loadtest-org"
+# Unique per run, not a fixed "loadtest-org" -- found live: two runs against
+# the same prod at once (this session verifying a fix while the orchestrator
+# was mid-run) raced on delete-then-create, and one run's cleanup deleted
+# the other's still-in-progress org. A random suffix means concurrent runs
+# can never collide; a crashed run's org just sits under its own unique
+# slug rather than confusing a later run's idempotent-start check.
+ORG_SLUG = f"loadtest-org-{uuid.uuid4().hex[:8]}"
 SERVICE_HEADERS = {"apikey": SERVICE_ROLE_KEY, "Authorization": f"Bearer {SERVICE_ROLE_KEY}"}
 
 
@@ -175,24 +187,11 @@ async def delete_org_and_dependents(client: httpx.AsyncClient, org_id: str) -> N
         print(f"WARNING: org cleanup got {resp.status_code}: {resp.text[:200]}")
 
 
-async def delete_org_if_exists(client: httpx.AsyncClient) -> None:
-    """Idempotent: a crashed prior run can leave `loadtest-org` behind --
-    delete it first so this run starts clean. Cascades to services/
-    counters/counter_services/tokens (all `on delete cascade` from
-    organizations), but NOT to auth.users -- those are cleaned up
-    separately, see cleanup() below."""
-    resp = await client.get(
-        f"{SUPABASE_URL}/rest/v1/organizations", headers=SERVICE_HEADERS,
-        params={"select": "id", "slug": f"eq.{ORG_SLUG}"},
-    )
-    resp.raise_for_status()
-    rows = resp.json()
-    if rows:
-        await delete_org_and_dependents(client, rows[0]["id"])
-
-
 async def create_org(client: httpx.AsyncClient) -> str:
-    await delete_org_if_exists(client)
+    # No pre-delete-if-exists step -- ORG_SLUG is unique per run now, so
+    # there is nothing stale to clean up under this exact slug, and (this
+    # is the real reason it was removed) nothing to accidentally delete
+    # out from under a concurrently-running other instance of this script.
     resp = await client.post(
         f"{SUPABASE_URL}/rest/v1/organizations",
         headers={**SERVICE_HEADERS, "Prefer": "return=representation"},
@@ -206,7 +205,16 @@ async def create_service(client: httpx.AsyncClient, org_id: str) -> str:
     resp = await client.post(
         f"{SUPABASE_URL}/rest/v1/services",
         headers={**SERVICE_HEADERS, "Prefer": "return=representation"},
-        json={"org_id": org_id, "code": "LT1", "name": "Load Test Service"},  # is_open defaults true
+        json={
+            "org_id": org_id, "code": "LT1", "name": "Load Test Service",
+            # services.max_tokens_per_day defaults to 500 (supabase/migrations/
+            # 0003) -- issue_token's own private.mint_token 409s with
+            # queue_full past that, and every wave targets the SAME service
+            # (cumulative numbering across waves, not reset per wave), so a
+            # cumulative total past 500 would legitimately queue_full. Found
+            # live: this is the prime suspect for a wave failing wholesale.
+            "max_tokens_per_day": 100_000,
+        },  # is_open defaults true
     )
     resp.raise_for_status()
     return resp.json()[0]["id"]
@@ -273,7 +281,7 @@ async def complete_profile(client: httpx.AsyncClient, jwt_token: str, index: int
         resp.raise_for_status()
 
 
-async def issue_token_once(client: httpx.AsyncClient, jwt_token: str, service_id: str) -> tuple[bool, float, dict | None]:
+async def issue_token_once(client: httpx.AsyncClient, jwt_token: str, service_id: str) -> tuple[bool, float, dict | None, str | None]:
     started = time.monotonic()
     resp = await client.post(
         f"{SUPABASE_URL}/rest/v1/rpc/issue_token",
@@ -284,8 +292,18 @@ async def issue_token_once(client: httpx.AsyncClient, jwt_token: str, service_id
     if resp.status_code == 200:
         body = resp.json()
         row = body[0] if isinstance(body, list) else body
-        return True, latency_ms, row
-    return False, latency_ms, None
+        return True, latency_ms, row, None
+    return False, latency_ms, None, f"{resp.status_code}: {resp.text[:300]}"
+
+
+def _first_distinct_errors(errors: list[str], limit: int = 3) -> list[str]:
+    seen: list[str] = []
+    for e in errors:
+        if e not in seen:
+            seen.append(e)
+        if len(seen) >= limit:
+            break
+    return seen
 
 
 async def run_issue_token_wave(jwts: list[str], service_id: str, concurrency_label: str) -> dict:
@@ -309,6 +327,10 @@ async def run_issue_token_wave(jwts: list[str], service_id: str, concurrency_lab
             "error_rate": round(len(failures) / len(jwts), 4) if jwts else 0.0,
             "duplicate_numbers": dupes,
             "tokens_per_sec": round(len(successes) / wall_seconds, 2) if wall_seconds > 0 else 0.0,
+            # Debugging aid, not a metric -- found live: a wave failing
+            # wholesale with no recorded reason is nearly impossible to
+            # diagnose after the fact.
+            "sample_errors": _first_distinct_errors([r[3] for r in failures if r[3]]),
         }
     )
     return summary
@@ -451,6 +473,7 @@ async def run_db_level_burst(patient_ids: list[str], service_id: str) -> dict:
             "error_rate": round(len(failures) / len(patient_ids), 4) if patient_ids else 0.0,
             "duplicate_numbers": dupes,
             "tokens_per_sec": round(len(successes) / wall_seconds, 2) if wall_seconds > 0 else 0.0,
+            "sample_errors": _first_distinct_errors([r[2].get("error", "") for r in failures if r[2]]),
         }
     )
     return summary
@@ -489,7 +512,7 @@ async def cleanup(client: httpx.AsyncClient, org_id: str | None, user_ids: list[
 
 async def main() -> int:
     db_burst_enabled = bool(DATABASE_URL)
-    total_patients = sum(WAVES) + (DB_BURST_SIZE if db_burst_enabled else 0)
+    total_patients = sum(WAVES) + (DB_BURST_SIZE if db_burst_enabled else 0) + RACE_TOP_UP_RESERVE
     org_id = None
     all_user_ids: list[str] = []
 
@@ -552,6 +575,7 @@ async def main() -> int:
 
         if db_burst_enabled:
             db_burst_ids = ready_ids[offset:offset + DB_BURST_SIZE]
+            offset += len(db_burst_ids)  # so the top-up step below never reuses these patients
             if db_burst_ids:
                 print(
                     f"Firing {len(db_burst_ids)} concurrent issue_token calls straight against "
@@ -565,10 +589,25 @@ async def main() -> int:
         else:
             print("DATABASE_URL not set -- skipping the DB-level burst (HTTP waves above still ran)")
 
+        # Top up the queue before racing, using patients earlier waves/burst
+        # never got to (an early stop or a failed wave can leave the queue
+        # thin) -- a race against <50 waiting tokens doesn't prove much.
+        async with httpx.AsyncClient(timeout=30.0) as top_up_client:
+            waiting_now = await count_waiting_tokens(top_up_client, service_id)
+        if waiting_now < MIN_RACE_WAITING:
+            spare_jwts = jwts[offset:offset + (MIN_RACE_WAITING - waiting_now)]
+            if spare_jwts:
+                print(f"Only {waiting_now} waiting -- topping up with {len(spare_jwts)} more issue_token calls before the race...")
+                top_up = await run_issue_token_wave(spare_jwts, service_id, "race_top_up")
+                report["race_top_up"] = top_up
+                offset += len(spare_jwts)
+            else:
+                print(f"WARNING: only {waiting_now} waiting and no spare patients left to top up with")
+
         print("Racing 2 parallel call_next loops until the queue is empty...")
         async with httpx.AsyncClient(timeout=30.0) as client:
             race = await run_call_next_race(client, staff_jwt, counter_ids, service_id, max_calls_per_loop=total_patients)
-        if race["waiting_before_race"] < 50:
+        if race["waiting_before_race"] < MIN_RACE_WAITING:
             print(
                 f"WARNING: only {race['waiting_before_race']} tokens were waiting before the race -- "
                 "not a very meaningful concurrency proof at this scale"
