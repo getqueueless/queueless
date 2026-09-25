@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Rounded, Spacing, ThemeColor } from '@/constants/theme';
+import { CardShadow, Rounded, Spacing, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { supabase } from '@/lib/supabase';
 
@@ -69,10 +69,11 @@ const STATUS_BADGE: Record<string, { bg: ThemeColor; text: ThemeColor; label: st
 };
 
 function StatusBadge({ status }: { status: string }) {
+  const theme = useTheme();
   const info = STATUS_BADGE[status] ?? { bg: 'surfaceSunken', text: 'inkSecondary', label: status };
 
   return (
-    <ThemedView type={info.bg} style={styles.badge}>
+    <ThemedView type={info.bg} style={[styles.badge, { borderColor: theme[info.text] }]}>
       <ThemedText type="caption" themeColor={info.text}>
         {info.label}
       </ThemedText>
@@ -148,12 +149,14 @@ export default function History() {
             keyExtractor={(item) => item.key}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
-              <ThemedText type="body" themeColor="inkMuted" style={styles.empty}>
-                No past visits yet.
-              </ThemedText>
+              <View style={styles.emptyState}>
+                <ThemedText type="body" themeColor="inkMuted" style={styles.empty}>
+                  No past visits yet.
+                </ThemedText>
+              </View>
             }
             renderItem={({ item }) => (
-              <ThemedView type="surface" style={[styles.row, { borderColor: theme.hairline }]}>
+              <ThemedView type="surface" style={[styles.row, CardShadow, { borderColor: theme.hairline }]}>
                 <View style={styles.rowText}>
                   <ThemedText type="headingSm">{item.label}</ThemedText>
                   {item.timestamp ? (
@@ -176,21 +179,23 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
   title: { marginTop: Spacing.sm, marginBottom: Spacing.md },
-  loading: { marginTop: Spacing.xl },
-  listContent: { gap: Spacing.sm, paddingBottom: Spacing.xl },
-  empty: { textAlign: 'center', marginTop: Spacing.xl },
+  loading: { marginTop: Spacing.xl, alignSelf: 'center' },
+  listContent: { gap: Spacing.md, paddingBottom: Spacing.xl },
+  emptyState: { alignItems: 'center', paddingVertical: Spacing.xl },
+  empty: { textAlign: 'center' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
     borderRadius: Rounded.lg,
-    padding: Spacing.md,
+    padding: Spacing.lg,
   },
   rowText: { gap: Spacing.xxs },
   badge: {
+    borderWidth: 1,
     borderRadius: Rounded.pill,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: Spacing.xxs,
   },
 });

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Rounded, Spacing } from '@/constants/theme';
+import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { isCheckInWindow } from '@/lib/appointmentWindow';
 import { mapSupabaseError } from '@/lib/errors';
@@ -152,12 +152,12 @@ export default function AppointmentsScreen() {
             {services === null && !servicesError ? <ActivityIndicator color={theme.primary} style={styles.spinner} /> : null}
 
             {servicesError ? (
-              <View style={[styles.banner, { backgroundColor: theme.dangerSoft }]}>
+              <View style={[styles.banner, { backgroundColor: theme.dangerSoft, borderLeftColor: theme.danger }]}>
                 <ThemedText type="bodySm" themeColor="danger">
                   {servicesError}
                 </ThemedText>
                 <Pressable onPress={loadServices} hitSlop={8} style={styles.retryLink}>
-                  <ThemedText type="bodySm" themeColor="primary">
+                  <ThemedText type="button" themeColor="danger" style={styles.retryText}>
                     Retry
                   </ThemedText>
                 </Pressable>
@@ -165,9 +165,11 @@ export default function AppointmentsScreen() {
             ) : null}
 
             {services && services.length === 0 && !servicesError ? (
-              <ThemedText type="body" themeColor="inkSecondary">
-                No services are open right now. Check back later.
-              </ThemedText>
+              <View style={styles.emptyState}>
+                <ThemedText type="body" themeColor="inkSecondary" style={styles.emptyText}>
+                  No services are open right now. Check back later.
+                </ThemedText>
+              </View>
             ) : null}
 
             {services?.map((service) => (
@@ -176,6 +178,7 @@ export default function AppointmentsScreen() {
                 onPress={() => selectService(service)}
                 style={({ pressed }) => [
                   styles.card,
+                  CardShadow,
                   { borderColor: theme.hairline, backgroundColor: theme.surface, opacity: pressed ? 0.85 : 1 },
                 ]}>
                 <ThemedText type="headingSm">{service.name}</ThemedText>
@@ -185,7 +188,7 @@ export default function AppointmentsScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.list}>
             <Pressable onPress={backToServices} hitSlop={8} style={styles.backRow}>
-              <ThemedText type="button" themeColor="primary">
+              <ThemedText type="button" themeColor="ink">
                 ‹ Change service
               </ThemedText>
             </Pressable>
@@ -195,7 +198,7 @@ export default function AppointmentsScreen() {
             </ThemedText>
 
             {actionError ? (
-              <View style={[styles.banner, { backgroundColor: theme.dangerSoft }]}>
+              <View style={[styles.banner, { backgroundColor: theme.dangerSoft, borderLeftColor: theme.danger }]}>
                 <ThemedText type="bodySm" themeColor="danger">
                   {actionError}
                 </ThemedText>
@@ -205,12 +208,12 @@ export default function AppointmentsScreen() {
             {slotsLoading && slots === null ? <ActivityIndicator color={theme.primary} style={styles.spinner} /> : null}
 
             {slotsError ? (
-              <View style={[styles.banner, { backgroundColor: theme.dangerSoft }]}>
+              <View style={[styles.banner, { backgroundColor: theme.dangerSoft, borderLeftColor: theme.danger }]}>
                 <ThemedText type="bodySm" themeColor="danger">
                   {slotsError}
                 </ThemedText>
                 <Pressable onPress={() => loadSlots(selectedService.id)} hitSlop={8} style={styles.retryLink}>
-                  <ThemedText type="bodySm" themeColor="primary">
+                  <ThemedText type="button" themeColor="danger" style={styles.retryText}>
                     Retry
                   </ThemedText>
                 </Pressable>
@@ -218,9 +221,11 @@ export default function AppointmentsScreen() {
             ) : null}
 
             {slots && slots.length === 0 && !slotsError ? (
-              <ThemedText type="body" themeColor="inkSecondary">
-                No upcoming slots for this service.
-              </ThemedText>
+              <View style={styles.emptyState}>
+                <ThemedText type="body" themeColor="inkSecondary" style={styles.emptyText}>
+                  No upcoming slots for this service.
+                </ThemedText>
+              </View>
             ) : null}
 
             {slots?.map((slot) => {
@@ -229,7 +234,7 @@ export default function AppointmentsScreen() {
               const canCheckIn = mine ? isCheckInWindow(new Date(slot.starts_at), new Date()) : false;
 
               return (
-                <View key={slot.id} style={[styles.slotCard, { borderColor: theme.hairline, backgroundColor: theme.surface }]}>
+                <View key={slot.id} style={[styles.slotCard, CardShadow, { borderColor: theme.hairline, backgroundColor: theme.surface }]}>
                   <ThemedText type="bodyLg">{formatSlot(slot.starts_at)}</ThemedText>
 
                   {mine ? (
@@ -251,7 +256,7 @@ export default function AppointmentsScreen() {
                       <Pressable
                         disabled={busy}
                         onPress={() => handleCancel(mine)}
-                        style={[styles.buttonOutline, { borderColor: theme.hairlineStrong, opacity: busy ? 0.6 : 1 }]}>
+                        style={[styles.buttonOutline, { borderColor: theme.primaryOutline, opacity: busy ? 0.6 : 1 }]}>
                         {busy && !canCheckIn ? (
                           <ActivityIndicator color={theme.ink} />
                         ) : (
@@ -289,14 +294,17 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   title: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
-  list: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing.xxl },
+  list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
   spinner: { marginTop: Spacing.lg },
-  banner: { borderRadius: Rounded.md, padding: Spacing.sm, gap: Spacing.xxs },
+  banner: { borderRadius: Rounded.md, padding: Spacing.md, gap: Spacing.xs, borderLeftWidth: 3 },
   retryLink: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  retryText: { textDecorationLine: 'underline' },
+  emptyState: { alignItems: 'center', paddingVertical: Spacing.xl },
+  emptyText: { textAlign: 'center' },
   card: {
     borderWidth: 1,
     borderRadius: Rounded.lg,
-    padding: Spacing.md,
+    padding: Spacing.lg,
     minHeight: 44,
     justifyContent: 'center',
   },
@@ -305,14 +313,14 @@ const styles = StyleSheet.create({
   slotCard: {
     borderWidth: 1,
     borderRadius: Rounded.lg,
-    padding: Spacing.md,
+    padding: Spacing.lg,
     gap: Spacing.sm,
   },
   actions: { flexDirection: 'row', gap: Spacing.xs },
   button: {
     borderRadius: Rounded.md,
     paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
@@ -321,7 +329,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Rounded.md,
     paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
