@@ -79,13 +79,20 @@ select is_empty(
 );
 reset role;
 
--- queueless_api keeps its own pre-existing (narrower, column-level) read access
-set local role queueless_api;
-select isnt_empty(
-  $$ select id, org_id, role from public.profiles where id = '55555555-0000-0000-0000-000000000191' $$,
-  'queueless_api can still read the columns it was already granted'
+-- queueless_api keeps its own pre-existing (narrower, column-level) read access. Postgres won't
+-- let this test SET ROLE into queueless_api (a real login role, not a group role postgres is a
+-- member of -- same reason 105_queueless_api_least_privilege.test.sql only ever checks catalog
+-- privileges), so check the grant is matched by a using(true) policy instead, same technique
+-- 192's own queueless_api checks use.
+-- queueless_api's profiles grant (0031) is column-level (id, org_id, role, language), so
+-- has_table_privilege -- which only sees table-wide grants -- would wrongly read false here;
+-- has_any_column_privilege is the correct check, same as 105_queueless_api_least_privilege's own.
+select ok(
+  has_any_column_privilege('queueless_api', 'public.profiles', 'SELECT')
+    and exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'profiles'
+                and roles = '{queueless_api}' and qual = 'true'),
+  'queueless_api''s existing profiles grant is matched by a using(true) policy'
 );
-reset role;
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.profiles'::regclass),

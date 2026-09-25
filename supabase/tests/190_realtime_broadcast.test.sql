@@ -53,8 +53,15 @@ select ok(
 );
 
 select is(
-  (select array(select jsonb_object_keys(payload) from realtime.messages
-     where topic = 'token:' || (select id from walkin)::text limit 1) - array['id']),
+  array_remove(
+    (select array_agg(k order by k) from (
+      select jsonb_object_keys(m.payload) k from (
+        select payload from realtime.messages
+        where topic = 'token:' || (select id from walkin)::text limit 1
+      ) m
+    ) t),
+    'id'
+  ),
   array['counter_id', 'number', 'status', 'token_id', 'updated_at'],
   'payload has exactly the 5 documented fields (plus realtime''s own auto-added id) -- no patient name, phone, or user id'
 );
@@ -62,15 +69,22 @@ select is(
 update public.tokens set status = 'called', counter_id = 'cccccccc-0000-0000-0000-0000000000b1', called_at = now()
   where id = (select id from walkin);
 
+-- `now()` is constant for the whole transaction this pgTAP test runs in, so inserted_at can't
+-- distinguish "the mint's broadcast" from "the update's broadcast" -- check for existence of the
+-- update's row (and the total count) instead of ordering by a timestamp that's identical on both.
 select is(
-  (select payload ->> 'status' from realtime.messages
-     where topic = 'token:' || (select id from walkin)::text order by inserted_at desc limit 1),
-  'called', 'the update broadcasts again with the new status'
+  (select count(*)::int from realtime.messages
+     where topic = 'token:' || (select id from walkin)::text and event = 'token_update'),
+  2, 'the update broadcasts a second message to the same per-token topic'
 );
-select is(
-  (select payload ->> 'counter_id' from realtime.messages
-     where topic = 'token:' || (select id from walkin)::text order by inserted_at desc limit 1),
-  'cccccccc-0000-0000-0000-0000000000b1', 'and the assigned counter_id'
+select isnt_empty(
+  format(
+    $$ select 1 from realtime.messages
+       where topic = 'token:%s' and payload ->> 'status' = 'called'
+         and payload ->> 'counter_id' = 'cccccccc-0000-0000-0000-0000000000b1' $$,
+    (select id from walkin)
+  ),
+  'one of the two broadcasts carries the new status and the assigned counter_id'
 );
 
 select * from finish(true);
