@@ -1,10 +1,15 @@
 """Throwaway Postgres for local dev/tests, via rootless podman.
 
 Mirrors the REAL landed schema in supabase/migrations for the columns apps/api
-actually queries (profiles.id, tokens.patient_id/service_id, the real
-`notifications` and `push_tokens` tables), as a compatible subset -- not the
-full FK graph to auth.users/organizations/counters, which is the DB team's
-own concern to test.
+actually queries (profiles.id/org_id, tokens.patient_id/service_id/org_id/
+counter_id/serving_at/finished_at, board_services.org_id, audit_log, the
+real `notifications` and `push_tokens` tables), as a compatible subset --
+not the full FK graph to auth.users/organizations/counters/services, which
+is the DB team's own concern to test. No `organizations` or `counters`
+tables here on purpose: apps/api's real DB role (queueless_api) has no
+grant on either (supabase/migrations/0018), so nothing in this codebase
+joins to them for names -- see app/routes/staff.py's comment on returning
+raw counter_id/service_id instead.
 """
 
 import asyncio
@@ -32,6 +37,7 @@ CREATE TABLE IF NOT EXISTS services (
 CREATE TABLE IF NOT EXISTS board_services (
     service_id uuid NOT NULL,
     day date NOT NULL,
+    org_id uuid,
     waiting_count int NOT NULL DEFAULT 0,
     avg_service_secs int,
     PRIMARY KEY (service_id, day)
@@ -39,6 +45,7 @@ CREATE TABLE IF NOT EXISTS board_services (
 
 CREATE TABLE IF NOT EXISTS tokens (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id uuid,
     service_id uuid NOT NULL,
     service_day date NOT NULL DEFAULT current_date,
     number int NOT NULL DEFAULT 1,
@@ -46,8 +53,26 @@ CREATE TABLE IF NOT EXISTS tokens (
     priority_at timestamptz NOT NULL DEFAULT now(),
     status text NOT NULL,
     patient_id uuid,
+    counter_id uuid,
     called_at timestamptz,
+    serving_at timestamptz,
+    finished_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Append-only in the real schema (trigger-enforced there); this fixture
+-- doesn't need the trigger since nothing here tests append-only-ness, only
+-- that /admin/retrain's audit insert has somewhere real to land.
+CREATE TABLE IF NOT EXISTS audit_log (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id uuid,
+    actor uuid,
+    entity text NOT NULL,
+    entity_id uuid,
+    action text NOT NULL,
+    old jsonb,
+    new jsonb,
+    at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS notifications (

@@ -35,7 +35,8 @@ async def clean_tables(postgres):
     conn = await asyncpg.connect(dev_db.DATABASE_URL)
     try:
         await conn.execute(
-            "TRUNCATE profiles, services, board_services, tokens, push_tokens, notifications"
+            "TRUNCATE profiles, services, board_services, tokens, push_tokens, "
+            "notifications, audit_log"
         )
     finally:
         await conn.close()
