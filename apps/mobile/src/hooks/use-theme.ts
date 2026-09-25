@@ -3,12 +3,18 @@
  * https://docs.expo.dev/guides/color-schemes/
  */
 
+import { useEffect, useState } from 'react';
+
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getThemePreference, subscribeThemePreference } from '@/lib/theme-preference';
 
 export function useTheme() {
   const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
+  const [preference, setPreference] = useState(getThemePreference);
 
-  return Colors[theme];
+  useEffect(() => subscribeThemePreference(() => setPreference(getThemePreference())), []);
+
+  const resolved = preference === 'system' ? scheme : preference;
+  return Colors[resolved === 'dark' ? 'dark' : 'light'];
 }

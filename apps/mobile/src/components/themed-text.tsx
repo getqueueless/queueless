@@ -30,17 +30,54 @@ export function ThemedText({ style, type = 'body', themeColor, ...rest }: Themed
   );
 }
 
+// Headings render uppercase + Poppins 700 (style.css's dominant text-transform: uppercase
+// pattern on section/card titles); body copy stays Poppins 400, sentence case. tokenNumber
+// keeps the pre-existing monospace/tabular treatment untouched — see apps/mobile/DESIGN.md.
 const styles = StyleSheet.create({
-  displayLg: { fontSize: 40, fontWeight: '600', lineHeight: 46, letterSpacing: -0.6 },
-  displayMd: { fontSize: 30, fontWeight: '600', lineHeight: 36, letterSpacing: -0.4 },
-  headingLg: { fontSize: 22, fontWeight: '600', lineHeight: 28, letterSpacing: -0.2 },
-  headingMd: { fontSize: 18, fontWeight: '600', lineHeight: 23, letterSpacing: -0.1 },
-  headingSm: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
-  bodyLg: { fontSize: 16, fontWeight: '400', lineHeight: 25 },
-  body: { fontSize: 14, fontWeight: '400', lineHeight: 21 },
-  bodySm: { fontSize: 13, fontWeight: '400', lineHeight: 19 },
-  caption: { fontSize: 12, fontWeight: '500', lineHeight: 16, letterSpacing: 0.1 },
-  button: { fontSize: 14, fontWeight: '500', lineHeight: 17 },
+  displayLg: {
+    fontFamily: Fonts?.poppinsBold,
+    fontSize: 32,
+    lineHeight: 38,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  displayMd: {
+    fontFamily: Fonts?.poppinsBold,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  headingLg: {
+    fontFamily: Fonts?.poppinsBold,
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  headingMd: {
+    fontFamily: Fonts?.poppinsBold,
+    fontSize: 16,
+    lineHeight: 21,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  headingSm: {
+    fontFamily: Fonts?.poppinsBold,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  bodyLg: { fontFamily: Fonts?.poppinsRegular, fontSize: 16, lineHeight: 25 },
+  body: { fontFamily: Fonts?.poppinsRegular, fontSize: 14, lineHeight: 21 },
+  bodySm: { fontFamily: Fonts?.poppinsRegular, fontSize: 13, lineHeight: 19 },
+  caption: { fontFamily: Fonts?.poppinsRegular, fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
+  button: {
+    fontFamily: Fonts?.poppinsBold,
+    fontSize: 14,
+    lineHeight: 17,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
   tokenNumber: {
     fontFamily: Fonts?.mono,
     fontSize: 56,

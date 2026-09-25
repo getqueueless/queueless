@@ -1,6 +1,8 @@
 /**
- * Ported from apps/web/DESIGN.md — the shared Queueless design system. Keep values in sync
- * with that file; it is the source of truth, this is the React Native rendering of it.
+ * Derived from apps/mobile/DESIGN.md — tokens pulled directly from the MedWin reference
+ * template (~/code/design-ref/medwin/), independently of apps/web/DESIGN.md, which still
+ * described the old teal/Inter system when this was written. Reconcile against
+ * apps/web/DESIGN.md once its own MedWin pass lands — see docs/DECISIONS.md.
  */
 
 import '@/global.css';
@@ -9,50 +11,50 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    primary: '#1f6f74',
-    primaryHover: '#175a5e',
-    primaryPress: '#124749',
-    primarySoft: '#e3f1f1',
+    primary: '#0cb7d6',
+    primaryOutline: '#2cc1db',
+    primarySoft: '#e3f7fa',
+    dark: '#1a3237',
     onPrimary: '#ffffff',
     canvas: '#ffffff',
-    canvasSoft: '#f6f7f9',
+    canvasSoft: '#f7fbfc',
     surface: '#ffffff',
-    surfaceSunken: '#eef0f3',
-    ink: '#14171c',
-    inkSecondary: '#4a4f5a',
-    inkMuted: '#7a808d',
-    hairline: '#e3e6eb',
-    hairlineStrong: '#cdd2da',
+    surfaceSunken: '#f0f4f5',
+    ink: '#1f1f1f',
+    inkSecondary: '#898989',
+    inkMuted: '#666666',
+    hairline: '#cfcfcf',
+    hairlineStrong: '#a9a9a9',
     success: '#1c8a5c',
     successSoft: '#e3f4ea',
     warning: '#a9660c',
     warningSoft: '#faf0dd',
     danger: '#c23b34',
     dangerSoft: '#fbe8e6',
-    focusRing: '#1f6f74',
+    focusRing: '#0cb7d6',
   },
   dark: {
-    primary: '#4fb8ae',
-    primaryHover: '#6cc7bd',
-    primaryPress: '#3d9a91',
-    primarySoft: '#123331',
+    primary: '#3fd6f0',
+    primaryOutline: '#5fdcf3',
+    primarySoft: '#123338',
+    dark: '#0d1a1d',
     onPrimary: '#04201e',
     canvas: '#0a0c0f',
-    canvasSoft: '#101317',
+    canvasSoft: '#0e1518',
     surface: '#14171c',
-    surfaceSunken: '#0e1114',
+    surfaceSunken: '#181c21',
     ink: '#eef0f3',
-    inkSecondary: '#b7bcc6',
+    inkSecondary: '#a9adb3',
     inkMuted: '#7d8290',
-    hairline: '#24282f',
-    hairlineStrong: '#343941',
+    hairline: '#2a2f36',
+    hairlineStrong: '#3a4046',
     success: '#4cbf8b',
     successSoft: '#0f2b21',
     warning: '#dba24d',
     warningSoft: '#2e2211',
     danger: '#e5766f',
     dangerSoft: '#301715',
-    focusRing: '#4fb8ae',
+    focusRing: '#3fd6f0',
   },
 } as const;
 
@@ -60,16 +62,19 @@ export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
   ios: {
-    sans: 'system-ui',
     mono: 'ui-monospace',
+    poppinsRegular: 'Poppins_400Regular',
+    poppinsBold: 'Poppins_700Bold',
   },
   default: {
-    sans: 'normal',
     mono: 'monospace',
+    poppinsRegular: 'Poppins_400Regular',
+    poppinsBold: 'Poppins_700Bold',
   },
   web: {
-    sans: 'var(--font-display)',
     mono: 'var(--font-mono)',
+    poppinsRegular: 'Poppins_400Regular',
+    poppinsBold: 'Poppins_700Bold',
   },
 });
 
@@ -91,6 +96,15 @@ export const Rounded = {
   lg: 12,
   xl: 16,
   pill: 9999,
+} as const;
+
+/** MedWin leans on soft, low-offset, blurred shadows (style.css:480, 899) for card lift. */
+export const CardShadow = {
+  shadowColor: '#000000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.08,
+  shadowRadius: 12,
+  elevation: 3,
 } as const;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
