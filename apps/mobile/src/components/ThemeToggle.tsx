@@ -93,7 +93,6 @@ export function ThemeToggle() {
       accessibilityRole="switch"
       accessibilityLabel="Dark mode"
       aria-checked={isDark}
-      hitSlop={{ top: 7, bottom: 7 }}
       style={styles.pressable}>
       <Animated.View style={[styles.track, trackStyle]}>
         <Animated.View style={[styles.knob, knobStyle]}>
@@ -137,7 +136,9 @@ function MoonIcon() {
 }
 
 const styles = StyleSheet.create({
-  pressable: { borderRadius: HEIGHT / 2 }, // rounds the web focus ring
+  // 9pt above and below the 30pt pill makes a real 48pt target on every platform (hitSlop
+  // doesn't reach the web), and the radius rounds the web focus ring.
+  pressable: { paddingVertical: (48 - HEIGHT) / 2, borderRadius: 24 },
   track: {
     width: WIDTH,
     height: HEIGHT,
