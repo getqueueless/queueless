@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AnimatedHeading } from '@/components/AnimatedHeading';
 import { SignOutButton } from '@/components/sign-out-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
@@ -270,9 +272,10 @@ export default function Counter() {
     <ThemedView type="canvas" style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <ThemedText type="displayMd" style={styles.title}>
-            Counter
-          </ThemedText>
+          <View style={styles.header}>
+            <AnimatedHeading text="Counter" />
+            <ThemeToggle />
+          </View>
           <View style={styles.toolbar}>
             <Pressable onPress={() => router.push('/cash-desk' as Href)} accessibilityRole="link" hitSlop={8} style={styles.toolbarLink}>
               <ThemedText type="button" themeColor="primaryText">
@@ -429,9 +432,7 @@ export default function Counter() {
                 )}
               </ThemedView>
 
-              <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
-                Waiting ({queue.length})
-              </ThemedText>
+              <AnimatedHeading size="section" text={`Waiting (${queue.length})`} style={styles.sectionLabel} />
               <ThemedView type="surface" style={[styles.queueCard, CardShadow, { borderColor: theme.hairline }]}>
                 {queue.length === 0 ? (
                   <ThemedText type="bodySm" themeColor="inkMuted" style={styles.queueEmpty}>
@@ -449,9 +450,7 @@ export default function Counter() {
                 )}
               </ThemedView>
 
-              <ThemedText type="headingMd" themeColor="inkSecondary" style={styles.sectionLabel}>
-                Verify priority
-              </ThemedText>
+              <AnimatedHeading size="section" text="Verify priority" style={styles.sectionLabel} />
               <ThemedView type="surface" style={[styles.queueCard, CardShadow, { borderColor: theme.hairline }]}>
                 <View style={styles.lookupRow}>
                   <TextInput
@@ -520,7 +519,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
   scroll: { paddingBottom: Spacing.xxl, gap: Spacing.sm },
-  title: { marginTop: Spacing.sm },
+  header: { marginTop: Spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.xs },
   pickerChip: {
     borderWidth: 1,
