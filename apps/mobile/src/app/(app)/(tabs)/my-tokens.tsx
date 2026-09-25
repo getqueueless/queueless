@@ -43,7 +43,7 @@ function ActiveTokenCard({
 }: {
   tokenId: string;
   onPress: () => void;
-  onCancel: () => void;
+  onCancel: (status: 'waiting' | 'pending_payment') => void;
 }) {
   const [status, setStatus] = useState<QueueStatus | null>(null);
 
@@ -77,10 +77,12 @@ function ActiveTokenCard({
           serviceName={status.service_name}
         />
       </Pressable>
-      {/* cancel_token (0011) only ever matches status='waiting' -- called/serving/pending_payment
-          can't be cancelled through this RPC, so the button only shows for waiting. */}
+      {/* cancel_token (0011) only matches status='waiting'; a pending_payment hold goes through
+          cancel_hold (0070) instead -- two different RPCs, same button slot. */}
       {status.status === 'waiting' ? (
-        <Button label="Cancel ticket" variant="ghost" size="md" onPress={onCancel} style={styles.cancelButton} />
+        <Button label="Cancel ticket" variant="ghost" size="md" onPress={() => onCancel('waiting')} style={styles.cancelButton} />
+      ) : status.status === 'pending_payment' ? (
+        <Button label="Cancel hold" variant="ghost" size="md" onPress={() => onCancel('pending_payment')} style={styles.cancelButton} />
       ) : null}
     </Card>
   );
@@ -92,6 +94,7 @@ type ActiveAppointmentRow = {
   id: string;
   service_id: string;
   status: string;
+  fee_inr: number | null;
   appointment_slots: Embed<{ starts_at: string }>;
   doctors: Embed<{ name: string }>;
   services: Embed<{ name: string }>;
@@ -111,7 +114,7 @@ function ActiveAppointmentCard({
   appt: ActiveAppointmentRow;
   onCheckIn: () => void;
   onPayNow: () => void;
-  onCancel: () => void;
+  onCancel: (status: 'booked' | 'pending_payment') => void;
 }) {
   const startsAt = one(appt.appointment_slots)?.starts_at ?? null;
   const doctorName = one(appt.doctors)?.name ?? null;
@@ -132,17 +135,27 @@ function ActiveAppointmentCard({
       ) : canCheckIn ? (
         <Button label="Check in" size="md" onPress={onCheckIn} />
       ) : null}
-      {/* cancel_appointment (0013) only ever matches status='booked' -- a pending_payment hold
-          can't be cancelled through this RPC yet (checked with Payment work), so no button here
-          for that case; it just expires by itself in 10 min if unpaid. */}
-      {!pendingPayment ? <Button label="Cancel booking" variant="ghost" size="md" onPress={onCancel} style={styles.cancelButton} /> : null}
+      {/* cancel_appointment (0013) only matches status='booked'; a pending_payment hold goes
+          through cancel_hold (0070) instead -- two different RPCs, same button slot. */}
+      <Button
+        label={pendingPayment ? 'Cancel hold' : 'Cancel booking'}
+        variant="ghost"
+        size="md"
+        onPress={() => onCancel(appt.status === 'pending_payment' ? 'pending_payment' : 'booked')}
+        style={styles.cancelButton}
+      />
     </Card>
   );
 }
 
-type CancelTarget = { kind: 'token' | 'appointment'; id: string; message: string };
+// HOLD_OUTCOME is the exact copy from apps/web/src/app/my/_components/CancelButton.tsx -- said
+// before the patient confirms, so it has to match what the backend actually does. The paid-
+// appointment message below follows 0059's real policy (2+ hours out: automatic refund via
+// apps/api's refund_job; under 2 hours: not automatic, though the hospital can still approve one).
+const HOLD_OUTCOME = 'Nothing was charged for this hold, so there is nothing to refund. The slot goes back to other patients.';
+const FREE_BOOKING_OUTCOME = 'Nothing was charged for this booking, so there is nothing to refund.';
 
-const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+type CancelTarget = { rpc: 'cancel_hold' | 'cancel_token' | 'cancel_appointment'; id: string; message: string };
 
 function ActiveTab() {
   const router = useRouter();
@@ -161,7 +174,7 @@ function ActiveTab() {
       supabase.from('tokens').select('id, service_id').eq('patient_id', patientId).in('status', ACTIVE_TOKEN_STATUSES).order('created_at', { ascending: false }),
       supabase
         .from('appointments')
-        .select('id, service_id, status, appointment_slots(starts_at), doctors(name), services(name)')
+        .select('id, service_id, status, fee_inr, appointment_slots(starts_at), doctors(name), services(name)')
         .eq('patient_id', patientId)
         .in('status', ACTIVE_APPOINTMENT_STATUSES),
     ]);
@@ -188,35 +201,52 @@ function ActiveTab() {
     if (token?.id) router.push({ pathname: '/(app)/token/[id]', params: { id: token.id, serviceId: token.service_id } });
   }
 
-  function confirmCancelToken(tokenId: string) {
+  function confirmCancelToken(tokenId: string, status: 'waiting' | 'pending_payment') {
+    if (status === 'pending_payment') {
+      setCancelTarget({ rpc: 'cancel_hold', id: tokenId, message: HOLD_OUTCOME });
+      return;
+    }
     // A walk-in ticket is never a scheduled slot -- whether or not it carried a paid fee
     // (start_paid_booking), there's no "before the appointment" refund window to speak of.
-    setCancelTarget({ kind: 'token', id: tokenId, message: 'This is a walk-in ticket — no refund applies.' });
+    setCancelTarget({ rpc: 'cancel_token', id: tokenId, message: 'This is a walk-in ticket — no refund applies.' });
   }
 
+  // Matches the real policy live since 0059: a paid, booked appointment cancelled 2+ hours
+  // before its slot is flagged for an automatic refund (apps/api's refund_job issues it);
+  // under 2 hours, no automatic refund, though the hospital can still approve one manually.
   function confirmCancelAppointment(appt: ActiveAppointmentRow) {
+    if (appt.status === 'pending_payment') {
+      setCancelTarget({ rpc: 'cancel_hold', id: appt.id, message: HOLD_OUTCOME });
+      return;
+    }
+    if (!appt.fee_inr) {
+      setCancelTarget({ rpc: 'cancel_appointment', id: appt.id, message: FREE_BOOKING_OUTCOME });
+      return;
+    }
     const startsAt = one(appt.appointment_slots)?.starts_at ?? null;
     const hoursLeft = startsAt ? new Date(startsAt).getTime() - new Date().getTime() : 0;
     const message =
-      startsAt && hoursLeft >= TWO_HOURS_MS
-        ? 'You’re cancelling more than 2 hours before your appointment — you’ll get a full refund.'
-        : 'You’re cancelling less than 2 hours before your appointment — no refund applies.';
-    setCancelTarget({ kind: 'appointment', id: appt.id, message });
+      startsAt && hoursLeft >= 2 * 60 * 60 * 1000
+        ? `You paid ₹${appt.fee_inr} online. Cancelling 2+ hours before your appointment refunds you automatically.`
+        : `You paid ₹${appt.fee_inr} online. Cancelling under 2 hours before your appointment does not refund you automatically -- ask at reception if you'd like one reviewed.`;
+    setCancelTarget({ rpc: 'cancel_appointment', id: appt.id, message });
   }
 
   async function handleConfirmCancel() {
     if (!cancelTarget) return;
     setCancelBusy(true);
     const { error } =
-      cancelTarget.kind === 'token'
-        ? await supabase.rpc('cancel_token', { p_token: cancelTarget.id })
-        : await supabase.rpc('cancel_appointment', { p_appointment: cancelTarget.id });
+      cancelTarget.rpc === 'cancel_hold'
+        ? await supabase.rpc('cancel_hold', { p_id: cancelTarget.id })
+        : cancelTarget.rpc === 'cancel_token'
+          ? await supabase.rpc('cancel_token', { p_token: cancelTarget.id })
+          : await supabase.rpc('cancel_appointment', { p_appointment: cancelTarget.id });
     setCancelBusy(false);
     setCancelTarget(null);
     if (error) {
       showToast(mapSupabaseError({ code: error.code, message: error.message }), 'error');
     } else {
-      showToast(cancelTarget.kind === 'token' ? 'Ticket cancelled.' : 'Booking cancelled.', 'success');
+      showToast(cancelTarget.rpc === 'cancel_token' ? 'Ticket cancelled.' : 'Cancelled.', 'success');
     }
     refetch();
   }
@@ -255,7 +285,7 @@ function ActiveTab() {
               key={t.id}
               tokenId={t.id}
               onPress={() => router.push({ pathname: '/(app)/token/[id]', params: { id: t.id, serviceId: t.service_id } })}
-              onCancel={() => confirmCancelToken(t.id)}
+              onCancel={(status) => confirmCancelToken(t.id, status)}
             />
           ))}
           {appointments?.map((a) => (
@@ -272,11 +302,11 @@ function ActiveTab() {
 
       <BottomSheet visible={!!cancelTarget} onClose={() => setCancelTarget(null)}>
         <View style={styles.confirmSheet}>
-          <UIText variant="title3">Cancel this booking?</UIText>
+          <UIText variant="title3">{cancelTarget?.rpc === 'cancel_hold' ? 'Cancel this hold?' : 'Cancel this booking?'}</UIText>
           <UIText variant="body">{cancelTarget?.message}</UIText>
           <Button label="Keep it" variant="secondary" block onPress={() => setCancelTarget(null)} />
           <Button
-            label={cancelTarget?.kind === 'token' ? 'Cancel ticket' : 'Cancel booking'}
+            label={cancelTarget?.rpc === 'cancel_hold' ? 'Cancel hold' : cancelTarget?.rpc === 'cancel_token' ? 'Cancel ticket' : 'Cancel booking'}
             variant="danger"
             block
             loading={cancelBusy}
