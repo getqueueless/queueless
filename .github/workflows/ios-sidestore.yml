@@ -201,14 +201,15 @@ jobs:
           fi
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+          # node -e consumes exactly one argv slot (execPath) before the trailing args below --
+          # verified empirically and against a real broken release (see docs/DECISIONS.md).
+          # No apostrophes or nested single quotes anywhere in the script text that follows --
+          # that broke a previous version of this same step (bash single-quoting has no escape
+          # for a quote char inside a quoted block, so it closed the string early and dumped raw
+          # comment text as loose shell tokens -- "SyntaxError: Unexpected end of input" plus a
+          # stray "//: is a directory" from bash trying to run part of a comment as a command).
           node -e '
             const fs = require("fs");
-            // `node -e` consumes only ONE argv slot (execPath) -- there's no script-file slot
-            // to skip a second one for. Confirmed empirically: `node -e '...' a b c` gives
-            // process.argv = [execPath, "a", "b", "c"]. Skipping two here (as a first version
-            // of this did) shifted every field by one position -- verified against a real
-            // published sidestore-source.json where iconURL came out as "1.0.0/icon.png" and
-            // size as null (NaN from Number(<a date string>), JSON-serialized).
             const [, baseUrl, version, build, ipaName, ipaSize, date] = process.argv;
             const source = {
               name: "Queueless",
