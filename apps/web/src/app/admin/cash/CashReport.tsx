@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { getCashReportByDoctor, getCashReportByStaff, type CashReportByDoctorRow, type CashReportByStaffRow } from "@/lib/cash"
 import { downloadCsv } from "../_lib/csv"
+import { daysAgoIST } from "../_lib/today"
 import styles from "../admin.module.css"
 
 // Online payments: reads public.payments directly (supabase/migrations/0053's
@@ -31,11 +32,7 @@ function tokenCode(row: OnlinePaymentRow): string {
   return Array.isArray(t) ? (t[0]?.code ?? "—") : t.code
 }
 
-function daysAgo(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
-}
+const daysAgo = daysAgoIST
 
 export function CashReport() {
   const [from, setFrom] = useState(daysAgo(7))

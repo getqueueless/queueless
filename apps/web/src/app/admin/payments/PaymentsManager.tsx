@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 
 import { createClient } from "@/lib/supabase/client"
 import { apiFetch } from "../_lib/api-fetch"
+import { daysAgoIST } from "../_lib/today"
 import styles from "../admin.module.css"
 
 // Reads public.payments directly (payments_admin_read RLS policy,
@@ -42,11 +43,7 @@ function doctorName(row: PaymentRow): string {
   return doc?.name ?? "—"
 }
 
-function daysAgo(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
-}
+const daysAgo = daysAgoIST
 
 function StatusBadge({ status }: { status: PaymentRow["status"] }) {
   const cls =

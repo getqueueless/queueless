@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 
 import { apiFetch } from "../_lib/api-fetch"
+import { todayIST } from "../_lib/today"
 import styles from "../admin.module.css"
 
 type SummaryResponse = {
@@ -13,7 +14,7 @@ type SummaryResponse = {
   aggregates: Record<string, unknown>
 }
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = todayIST
 
 export function SummaryCard() {
   const [day, setDay] = useState(today())
