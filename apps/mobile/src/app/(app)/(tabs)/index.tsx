@@ -25,8 +25,13 @@ type BoardService = { waiting_count: number; avg_service_secs: number; open_coun
 
 const EMPTY_BOARD_ROW: BoardService = { waiting_count: 0, avg_service_secs: 0, open_counters: 0 };
 
+// Must match the server's private.service_day(org_id, now()) — (now() at time zone
+// org.timezone)::date, and organizations.timezone defaults to Asia/Kolkata (single-org
+// hackathon demo). UTC-sliced would diverge from the real service day for ~5.5h/day
+// (00:00-05:30 IST) — see docs/DECISIONS.md, the same bug was caught in apps/web's admin
+// dashboard and is fixed here the same way rather than repeated.
 function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 }
 
 function formatWait(seconds: number): string {
