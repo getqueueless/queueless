@@ -23,8 +23,8 @@ DATABASE_URL_DIRECT=$DB
 CORS_ALLOW_ORIGINS=["https://lpu.lol","https://www.lpu.lol"]
 ENVIRONMENT=production
 ENV
-# DeepSeek credentials live in their own 600 file, written by hand on the VPS.
-[ -f /opt/queueless-deploy/ai.env ] && cat /opt/queueless-deploy/ai.env >> "$ENV_OUT"
+# DeepSeek + Razorpay credentials live in their own 600 files, written by hand on the VPS.
+for f in /opt/queueless-deploy/ai.env /opt/queueless-deploy/pay.env; do [ -f "$f" ] && cat "$f" >> "$ENV_OUT"; done
 chmod 600 "$ENV_OUT"
 
 docker rm -f ql-api >/dev/null 2>&1 || true
