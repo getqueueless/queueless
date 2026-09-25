@@ -11,6 +11,7 @@
 export type UserRole = "patient" | "staff" | "admin"
 export type CounterState = "open" | "paused" | "closed"
 export type TokenStatus =
+  | "pending_payment"
   | "waiting"
   | "called"
   | "serving"
