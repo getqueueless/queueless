@@ -90,3 +90,24 @@ async def test_service_time_trend_rejects_bad_uuid(db_pool):
             db_pool, uuid.uuid4(), "service_time_trend",
             {"service_id": "not-a-uuid", "days": 7},
         )
+
+
+async def test_doctor_service_time_real_query(db_pool):
+    from datetime import datetime, timedelta, timezone
+
+    org_id = uuid.uuid4()
+    service_id = uuid.uuid4()
+    doctor_id = uuid.uuid4()
+    today = date.today()
+    now = datetime.now(timezone.utc)
+    ten_min = timedelta(minutes=10)
+    await db_pool.execute(
+        "INSERT INTO tokens (id, org_id, service_id, doctor_id, service_day, status, serving_at, finished_at) "
+        "VALUES ($1, $2, $3, $4, $5, 'done', $6, $7)",
+        uuid.uuid4(), org_id, service_id, doctor_id, today, now, now + ten_min,
+    )
+
+    rows = await call_analytics(db_pool, org_id, "doctor_service_time", {"doctor_id": str(doctor_id), "days": 30})
+    assert len(rows) == 1
+    assert rows[0]["sample_count"] == 1
+    assert abs(rows[0]["avg_service_minutes"] - 10) < 0.01

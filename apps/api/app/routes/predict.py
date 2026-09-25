@@ -20,6 +20,12 @@ class PredictIn(BaseModel):
     # the str->UUID parse. Every other field stays fully strict (no numeric
     # coercion, no extra fields).
     service_id: Annotated[UUID, Field(strict=False)]
+    # No existence check against a `doctors` table anywhere below: apps/api's
+    # DB role has no grant on it (supabase/migrations/0038 only granted
+    # anon/authenticated). A doctor_id for a doctor the model has no/too-
+    # little data for degrades to the service-level prediction, same as any
+    # other cold-start case -- see app/ml_runtime.py::predict_with_fallback.
+    doctor_id: Annotated[UUID | None, Field(strict=False)] = None
     hour: Annotated[int, Field(ge=0, le=23)]
     weekday: Annotated[int, Field(ge=0, le=6)]
     queue_len_ahead: Annotated[int, Field(ge=0, le=500)]
@@ -56,7 +62,10 @@ async def predict(request: Request, body: PredictIn) -> dict:
     # never masked by a stale "not found" -- the worst case is a slightly
     # stale wait estimate for a real service, exactly the tradeoff a short
     # TTL is meant to make.
-    cache_key = (str(body.service_id), body.hour, body.weekday, body.queue_len_ahead, body.counters_open)
+    cache_key = (
+        str(body.service_id), str(body.doctor_id), body.hour, body.weekday,
+        body.queue_len_ahead, body.counters_open,
+    )
     cached = request.app.state.predict_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -76,6 +85,7 @@ async def predict(request: Request, body: PredictIn) -> dict:
         body.weekday,
         body.queue_len_ahead,
         body.counters_open,
+        doctor_id=str(body.doctor_id) if body.doctor_id else None,
     )
     request.app.state.predict_cache.set(cache_key, result)
     return result

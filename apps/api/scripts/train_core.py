@@ -44,6 +44,7 @@ def train_and_evaluate(
     service_categories: list[str],
     min_bucket_samples: int = DEFAULT_MIN_BUCKET_SAMPLES,
     seed: int = DEFAULT_SEED,
+    doctor_categories: list[str] | None = None,
 ):
     """Fits a HistGradientBoostingRegressor with a chronological train/test
     split (last 20% of `day` values held out, no shuffling across the
@@ -70,7 +71,8 @@ def train_and_evaluate(
     X_train, y_train = train_rows[feature_columns], train_rows[target_column]
     X_test, y_test = test_rows[feature_columns], test_rows[target_column]
 
-    model = HistGradientBoostingRegressor(categorical_features=["service"], random_state=seed)
+    categorical_features = ["service", "doctor"] if doctor_categories is not None else ["service"]
+    model = HistGradientBoostingRegressor(categorical_features=categorical_features, random_state=seed)
     model.fit(X_train, y_train)
     model_predictions = model.predict(X_test)
     mae_model = mean_absolute_error(y_test, model_predictions)
@@ -119,6 +121,34 @@ def train_and_evaluate(
         f"{row.service}_{row.hour}": int(row.count) for row in bucket_counts.itertuples()
     }
 
+    doctor_fields = {}
+    if doctor_categories is not None:
+        avg_service_time_by_doctor = _nan_to_none(
+            train_df.assign(effective_queue=train_df["queue_len_ahead"].clip(lower=1))
+            .assign(rate=lambda d: d[target_column] / d["effective_queue"])
+            .groupby("doctor", observed=True)["rate"]
+            .mean()
+            .reindex(doctor_categories)
+            .to_dict()
+        )
+        mae_model_by_doctor = _nan_to_none(
+            results.groupby("doctor", observed=True)["_abs_err"]
+            .mean()
+            .reindex(doctor_categories)
+            .to_dict()
+        )
+        doctor_bucket_counts = (
+            train_df.groupby(["doctor", "hour"], observed=True).size().rename("count").reset_index()
+        )
+        bucket_counts_by_doctor = {
+            f"{row.doctor}_{row.hour}": int(row.count) for row in doctor_bucket_counts.itertuples()
+        }
+        doctor_fields = {
+            "avg_service_time_by_doctor": avg_service_time_by_doctor,
+            "mae_model_by_doctor": mae_model_by_doctor,
+            "bucket_counts_by_doctor": bucket_counts_by_doctor,
+        }
+
     meta = {
         "mae_model": mae_model,
         "mae_baseline": mae_baseline,
@@ -131,5 +161,6 @@ def train_and_evaluate(
         "split_method": "chronological: last 20% of days held out, cutoff_day=" + str(cutoff_day),
         "n_rows": len(df),
         "sklearn_version": sklearn.__version__,
+        **doctor_fields,
     }
     return model, meta

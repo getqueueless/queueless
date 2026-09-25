@@ -59,6 +59,9 @@ CREATE TABLE IF NOT EXISTS tokens (
     status text NOT NULL,
     patient_id uuid,
     counter_id uuid,
+    -- Doesn't exist in the fixture until now -- real column since
+    -- supabase/migrations/0039_doctor_aware_slots_and_tokens.sql.
+    doctor_id uuid,
     called_at timestamptz,
     serving_at timestamptz,
     finished_at timestamptz,
@@ -172,6 +175,19 @@ LANGUAGE sql STABLE AS $$
   SELECT lane_rank, count(*) FROM tokens
   WHERE org_id = p_org_id AND service_day = p_day
   GROUP BY lane_rank ORDER BY lane_rank;
+$$;
+
+-- Real function: supabase/migrations/0040_doctor_wait_estimate.sql --
+-- already landed and already granted to queueless_api, unlike the other 8
+-- (which this session's own analytics.py contract shaped 0033 to match).
+CREATE OR REPLACE FUNCTION analytics.doctor_service_time(p_org_id uuid, p_doctor_id uuid, p_days int)
+RETURNS TABLE(avg_service_minutes numeric, sample_count bigint)
+LANGUAGE sql STABLE AS $$
+  SELECT avg(extract(epoch from (finished_at - serving_at)) / 60), count(*)
+  FROM tokens
+  WHERE org_id = p_org_id AND doctor_id = p_doctor_id AND status = 'done'
+    AND finished_at IS NOT NULL AND serving_at IS NOT NULL
+    AND service_day >= current_date - p_days;
 $$;
 
 -- Doesn't exist in supabase/migrations yet -- see docs/DECISIONS.md for the

@@ -96,6 +96,11 @@ ANALYTICS_FUNCTIONS: dict[str, AnalyticsFunction] = {
         description="Actual wait time per token for a given day.",
         params={"day": _parse_date},
     ),
+    "doctor_service_time": AnalyticsFunction(
+        name="doctor_service_time",
+        description="Average service time and sample count for one doctor over the last N days.",
+        params={"doctor_id": _parse_uuid, "days": _parse_int},
+    ),
     "peak_hours": AnalyticsFunction(
         name="peak_hours",
         description="Token volume by hour of day, for a given day.",

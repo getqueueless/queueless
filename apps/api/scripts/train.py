@@ -15,7 +15,7 @@ from pathlib import Path
 
 import joblib
 
-from generate_training_data import SERVICES, generate_training_data
+from generate_training_data import DOCTORS, SERVICES, generate_training_data
 from train_core import (
     DEFAULT_MIN_BUCKET_SAMPLES,
     DEFAULT_SEED,
@@ -23,7 +23,7 @@ from train_core import (
     train_and_evaluate,
 )
 
-FEATURE_COLUMNS = ["service", "hour", "weekday", "queue_len_ahead", "counters_open"]
+FEATURE_COLUMNS = ["service", "doctor", "hour", "weekday", "queue_len_ahead", "counters_open"]
 TARGET_COLUMN = "wait_minutes"
 MIN_BUCKET_SAMPLES = DEFAULT_MIN_BUCKET_SAMPLES
 SEED = DEFAULT_SEED
@@ -35,7 +35,8 @@ ML_DIR = Path(__file__).resolve().parent.parent / "ml"
 def main() -> None:
     df = generate_training_data(n_rows=N_ROWS, seed=SEED)
     model, meta = train_and_evaluate(
-        df, FEATURE_COLUMNS, TARGET_COLUMN, SERVICES, min_bucket_samples=MIN_BUCKET_SAMPLES, seed=SEED
+        df, FEATURE_COLUMNS, TARGET_COLUMN, SERVICES,
+        min_bucket_samples=MIN_BUCKET_SAMPLES, seed=SEED, doctor_categories=DOCTORS,
     )
 
     # version: bump on every successful train, starting at 1 if no prior
@@ -58,6 +59,7 @@ def main() -> None:
     print(f"pct_improvement_vs_fair_baseline={meta['pct_improvement']:.2f}%")
     print(f"mae_model_by_service={meta['mae_model_by_service']}")
     print(f"avg_service_time_by_service={meta['avg_service_time_by_service']}")
+    print(f"mae_model_by_doctor={meta.get('mae_model_by_doctor')}")
     print(f"buckets_below_{MIN_BUCKET_SAMPLES}={sum(1 for c in meta['bucket_counts'].values() if c < MIN_BUCKET_SAMPLES)}")
 
 

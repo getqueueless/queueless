@@ -124,3 +124,51 @@ def test_train_and_evaluate_reports_none_not_nan_for_unseen_service():
     assert meta["avg_service_time_by_service"]["svc-never-seen"] is None
     assert meta["mae_model_by_service"]["svc-never-seen"] is None
     json.dumps(meta)  # must not raise / must not silently emit NaN
+
+
+DOCTOR_COLUMNS = FEATURE_COLUMNS + ["doctor"]
+DOCTOR_CATEGORIES = ["none", "doc-a", "doc-b"]
+
+
+def _toy_df_with_doctors(n_rows: int = 600, n_days: int = 20, seed: int = 11) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    service = rng.choice(SERVICE_CATEGORIES, size=n_rows)
+    doctor = rng.choice(DOCTOR_CATEGORIES, size=n_rows, p=[0.4, 0.3, 0.3])
+    hour = rng.integers(0, 24, size=n_rows)
+    weekday = rng.integers(0, 7, size=n_rows)
+    day = rng.integers(0, n_days, size=n_rows)
+    queue_len_ahead = rng.integers(0, 20, size=n_rows)
+    counters_open = rng.integers(1, 4, size=n_rows)
+    base = np.where(service == "svc-a", 8.0, 14.0)
+    doctor_mult = np.select([doctor == "doc-a", doctor == "doc-b"], [0.8, 1.3], default=1.0)
+    wait_minutes = base * doctor_mult * queue_len_ahead / counters_open + rng.gamma(2.0, 1.5, size=n_rows)
+    return pd.DataFrame(
+        {
+            "service": pd.Categorical(service, categories=SERVICE_CATEGORIES),
+            "doctor": pd.Categorical(doctor, categories=DOCTOR_CATEGORIES),
+            "hour": hour,
+            "weekday": weekday,
+            "day": day,
+            "queue_len_ahead": queue_len_ahead,
+            "counters_open": counters_open,
+            "wait_minutes": wait_minutes,
+        }
+    )
+
+
+def test_train_and_evaluate_with_doctor_categories_reports_per_doctor_mae():
+    df = _toy_df_with_doctors()
+    _, meta = train_and_evaluate(
+        df, DOCTOR_COLUMNS, TARGET_COLUMN, SERVICE_CATEGORIES, doctor_categories=DOCTOR_CATEGORIES
+    )
+    assert set(meta["mae_model_by_doctor"].keys()) == set(DOCTOR_CATEGORIES)
+    assert set(meta["avg_service_time_by_doctor"].keys()) == set(DOCTOR_CATEGORIES)
+    for key in meta["bucket_counts_by_doctor"]:
+        assert "_" in key  # "{doctor}_{hour}" shape
+
+
+def test_train_and_evaluate_without_doctor_categories_omits_doctor_fields():
+    df = _toy_df()
+    _, meta = train_and_evaluate(df, FEATURE_COLUMNS, TARGET_COLUMN, SERVICE_CATEGORIES)
+    assert "mae_model_by_doctor" not in meta
+    assert "bucket_counts_by_doctor" not in meta
