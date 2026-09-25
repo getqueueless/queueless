@@ -62,6 +62,30 @@ export function CounterConsole({
   const [now, setNow] = useState<number | null>(null)
   const pendingRef = useRef(false)
 
+  // `counter` is a prop, set once from the page's initial server fetch --
+  // an admin opening/closing this desk from /admin/counters never reaches
+  // this tab. tokens have their own realtime channel below; the counter's
+  // own state doesn't, so this polls it directly: every 10s, and again
+  // whenever the tab regains focus (the common case -- staff switch away,
+  // an admin opens the desk, they switch back).
+  const [deskState, setDeskState] = useState(counter.state)
+
+  useEffect(() => {
+    let cancelled = false
+    async function refreshDeskState() {
+      const { data } = await supabase.from("counters").select("state").eq("id", counter.id).single()
+      if (!cancelled && data) setDeskState(data.state)
+    }
+    refreshDeskState()
+    const id = setInterval(refreshDeskState, 10000)
+    window.addEventListener("focus", refreshDeskState)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+      window.removeEventListener("focus", refreshDeskState)
+    }
+  }, [counter.id, supabase])
+
   // One-second ticker for the "since call started" timer, only while there's
   // something to time.
   useEffect(() => {
@@ -207,7 +231,7 @@ export function CounterConsole({
       }
       switch (event.key.toLowerCase()) {
         case "n":
-          if (!current && counter.state === "open") {
+          if (!current && deskState === "open") {
             event.preventDefault()
             void callNext()
           }
@@ -234,7 +258,7 @@ export function CounterConsole({
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [current, counter.state, callNext, markDone, skip, recall])
+  }, [current, deskState, callNext, markDone, skip, recall])
 
   return (
     <div className={styles.shell}>
@@ -248,8 +272,8 @@ export function CounterConsole({
         </div>
         <div className={styles.staffBadge}>
           <span className={styles.staffName}>{staffName}</span>
-          <span className={styles.stateBadge} data-state={counter.state}>
-            {counter.state}
+          <span className={styles.stateBadge} data-state={deskState}>
+            {deskState}
           </span>
         </div>
       </header>
@@ -260,13 +284,13 @@ export function CounterConsole({
             type="button"
             className={styles.callNextButton}
             onClick={() => void callNext()}
-            disabled={pending || counter.state !== "open"}
+            disabled={pending || deskState !== "open"}
             aria-keyshortcuts="N"
           >
             {pending ? "Calling…" : "Call Next"}
           </button>
           <p className={styles.idleHint}>
-            {counter.state !== "open" ? (
+            {deskState !== "open" ? (
               "This desk is closed. Open it to call tokens."
             ) : (
               <>
