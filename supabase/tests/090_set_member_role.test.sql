@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(10);
 
 insert into public.organizations (id, slug, name, timezone)
 values
@@ -10,11 +10,15 @@ insert into auth.users (id, email) values ('55555555-0000-0000-0000-0000000000e1
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-0000000000e2', 'p090patient@queueless.test');
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-0000000000e3', 'p090orgb@queueless.test');
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-0000000000e4', 'p090admin2@queueless.test');
+insert into auth.users (id, email) values ('55555555-0000-0000-0000-0000000000e5', 'p090realpatient@queueless.test');
 
 update public.profiles set role = 'admin', org_id = '44444444-4444-4444-4444-4444444444b0'
   where id = '55555555-0000-0000-0000-0000000000e1';
 update public.profiles set role = 'staff', org_id = '44444444-4444-4444-4444-4444444444b1'
   where id = '55555555-0000-0000-0000-0000000000e3';
+-- a real, established patient (org_id null, but profile_completed_at set -- unlike e2 below,
+-- who is a "fresh signup, never used" account the way mobile's own recruit flow expects)
+update public.profiles set profile_completed_at = now() where id = '55555555-0000-0000-0000-0000000000e5';
 
 create or replace function pg_temp.try_set_role(
   p_user uuid, p_role public.user_role, p_org uuid,
@@ -52,6 +56,11 @@ select is((r1.prof).org_id, '44444444-4444-4444-4444-4444444444b0'::uuid, 'org_i
 -- admin of org A cannot touch a member already in org B
 create temp table r2 as select * from pg_temp.try_set_role('55555555-0000-0000-0000-0000000000e3', 'staff', '44444444-4444-4444-4444-4444444444b0');
 select is(r2.err_code, 'forbidden', 'an admin cannot reassign a staff member who already belongs to a different org') from r2;
+
+-- a real patient (profile_completed_at set) cannot be pulled in as staff -- only a fresh,
+-- never-onboarded signup (like e2 above) can be
+create temp table r6 as select * from pg_temp.try_set_role('55555555-0000-0000-0000-0000000000e5', 'staff', '44444444-4444-4444-4444-4444444444b0');
+select is(r6.err_code, 'patient_reassignment_blocked', 'a real patient with a completed profile cannot be reassigned as staff') from r6;
 
 -- demote back to patient clears org_id
 create temp table r3 as select * from pg_temp.try_set_role('55555555-0000-0000-0000-0000000000e2', 'patient', '44444444-4444-4444-4444-4444444444b0');
