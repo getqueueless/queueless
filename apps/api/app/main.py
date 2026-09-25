@@ -16,7 +16,7 @@ from app.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.ml_runtime import load as load_ml
 from app.notifications import listen_task, poller_task
 from app.rate_limit import limiter
-from app.routes import admin, health, predict
+from app.routes import admin, health, predict, staff
 
 configure_logging()
 settings = Settings()
@@ -73,5 +73,6 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(predict.router)
 app.include_router(admin.router)
+app.include_router(staff.router)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
