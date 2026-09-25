@@ -7,8 +7,9 @@ from app.config import Settings
 from app.db import create_pool
 from app.logging_config import configure_logging
 from app.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
+from app.ml_runtime import load as load_ml
 from app.notifications import listen_task, poller_task
-from app.routes import health, push_tokens
+from app.routes import health, predict, push_tokens
 from app.scheduler import scheduler_loop
 
 configure_logging()
@@ -28,6 +29,7 @@ async def _cancel(task: asyncio.Task | None) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.shutting_down = False
+    load_ml(app)
     app.state.db_pool = await create_pool(settings)
     app.state.listener_task = asyncio.create_task(listen_task(settings, app.state.db_pool))
     app.state.poller_task = asyncio.create_task(
@@ -57,3 +59,4 @@ app.add_middleware(SecurityHeadersMiddleware, settings=settings)
 app.add_middleware(RequestIDMiddleware)
 app.include_router(health.router)
 app.include_router(push_tokens.router)
+app.include_router(predict.router)
