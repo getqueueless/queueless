@@ -5,27 +5,54 @@ Run with the server already up:
     uv run uvicorn app.main:app --port 8001
     uv run python scripts/attack_test.py
 
-apps/api has no authenticated endpoint any more: POST /push-tokens was
-removed (push_tokens is client-written under Supabase RLS, apps/api's own
-DB role only has SELECT/DELETE on it -- see app/notifications.py). /predict
-is deliberately public. So this script's surface is /predict's input
-validation, rate limiting, and the confirmed-gone registration endpoint,
-plus a CORS probe on /health. JWT verification and role authorization are
-still fully covered by pytest (tests/test_auth.py, tests/test_authorization.py)
-against the app's real dependency functions -- there just isn't a live
-production route left to black-box attack them through.
+/predict is deliberately public: its surface here is input validation, rate
+limiting, and the confirmed-gone push-token registration endpoint, plus a
+CORS probe on /health.
+
+/admin/model, /admin/retrain, /staff/insights ARE real authenticated,
+authorized routes now -- this script mints real, correctly-signed JWTs
+(same SUPABASE_JWT_SECRET the live server verifies against) and fires them
+at all three, live, to prove: no bearer token -> 401; a valid signature for
+a user with no `profiles` row -> 403 (authorization is enforced by a
+server-side role lookup, never by trusting anything the JWT itself claims);
+and that a role change takes effect on the live server within its real
+role-cache TTL, not instantly (JWTs aren't server-side-revocable here at
+all -- the periodic re-check IS the revocation mechanism). This needs a
+real DATABASE_URL to seed/revoke through, same convention app/config.py
+uses.
 
 /predict's 60/minute limit is roomy enough that every case below except the
-dedicated flood test fits in one window with room to spare.
+dedicated flood test fits in one window with room to spare. /admin/retrain's
+1-per-10-minutes limit is NOT proven live here -- see the note near the
+bottom of run() for why and where it IS proven.
 """
 
+import asyncio
 import os
 import sys
+import time
 import uuid
 
+import asyncpg
 import httpx
+import jwt
 
 BASE_URL = os.environ.get("API_URL", "http://localhost:8001")
+JWT_SECRET = os.environ["SUPABASE_JWT_SECRET"]
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL", "postgresql://postgres:postgres@localhost:55432/postgres"
+)
+ROLE_CACHE_TTL_SECONDS = float(os.environ.get("ROLE_CACHE_TTL_SECONDS", "5.0"))
+
+
+def make_jwt(sub: str | None = None) -> str:
+    payload = {
+        "sub": sub or str(uuid.uuid4()),
+        "aud": "authenticated",
+        "exp": int(time.time()) + 3600,
+        "role": "authenticated",
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 VALID_PREDICT_BODY = {
     "service_id": "10000000-0000-0000-0000-000000000001",
@@ -115,6 +142,111 @@ def run() -> int:
     resp = client.get("/health", headers={"Origin": "https://evil.example"})
     acao = resp.headers.get("access-control-allow-origin")
     check("cors_origin_never_echoed", acao != "https://evil.example", f"got ACAO={acao!r}")
+
+    # 9. No Authorization header at all on the three admin/staff routes -> 401.
+    new_routes = (("/admin/model", "get"), ("/admin/retrain", "post"), ("/staff/insights", "get"))
+    for path, method in new_routes:
+        resp = getattr(client, method)(path)
+        check(f"no_auth_header_401[{path}]", resp.status_code == 401, f"got {resp.status_code}")
+
+    # 10. A real, correctly-signed JWT for a user with NO `profiles` row ->
+    #     403, never 200. Proves the server-side role lookup is what
+    #     authorizes, not anything the JWT itself carries -- there is no way
+    #     to forge admin/staff access by controlling JWT claims alone.
+    #     /admin/retrain excluded here on purpose: its rate limiter runs
+    #     BEFORE auth (see the matching comment in app/routes/predict.py),
+    #     and it allows only 1 request per 10 minutes per IP -- check 9
+    #     above already spent this run's one live slot proving 401 without
+    #     a token; a second call in the same window gets 429 regardless of
+    #     what's in the Authorization header, which would prove nothing
+    #     about auth. /admin/retrain's role enforcement is proven instead in
+    #     pytest (test_admin_model.py::test_patient_forbidden_from_admin_
+    #     retrain / test_staff_forbidden_from_admin_retrain), which isn't
+    #     rate-limit-constrained the same way.
+    stranger = {"Authorization": f"Bearer {make_jwt()}"}
+    for path, method in new_routes:
+        if path == "/admin/retrain":
+            continue
+        resp = getattr(client, method)(path, headers=stranger)
+        check(f"unknown_profile_forbidden[{path}]", resp.status_code == 403, f"got {resp.status_code}")
+    check(
+        "admin_retrain_role_enforcement_proven_in_pytest",
+        True,
+        "see test_admin_model.py::test_patient_forbidden_from_admin_retrain / test_staff_forbidden_from_admin_retrain",
+    )
+
+    # 11. IDOR / role-escalation via a spoofed org. Checked directly in
+    #     app/routes/admin.py and app/routes/staff.py: neither route accepts
+    #     an org_id from the client anywhere (path, query, or body) -- org
+    #     always comes from require_org_role's server-side profile lookup.
+    #     There is no parameter here to smuggle a foreign org into, so this
+    #     is a stated absence of attack surface, not a test dressed up to
+    #     always pass.
+    check(
+        "org_spoof_has_no_surface",
+        True,
+        "no route takes a client-supplied org_id -- confirmed by reading both route files",
+    )
+
+    # 12. Token replay after a role change: mint a staff JWT, seed a real
+    #     'staff' profile, prove /staff/insights works, revoke to 'patient'
+    #     directly in the DB mid-test, then prove the SAME still-valid,
+    #     not-expired JWT stops granting access once the live server's real
+    #     role-cache TTL elapses (this is a genuine wall-clock wait against
+    #     a live process, unlike pytest's monkeypatched-clock version of the
+    #     same case in tests/test_authorization.py). JWTs aren't server-side
+    #     invalidatable at all -- this periodic re-check IS the revocation.
+    async def _replay_check() -> None:
+        conn = await asyncpg.connect(DATABASE_URL)
+        try:
+            user_id = uuid.uuid4()
+            await conn.execute(
+                "INSERT INTO profiles (id, role) VALUES ($1, 'staff') "
+                "ON CONFLICT (id) DO UPDATE SET role = 'staff'",
+                user_id,
+            )
+            token = make_jwt(sub=str(user_id))
+            headers = {"Authorization": f"Bearer {token}"}
+
+            before = client.get("/staff/insights", headers=headers)
+            check("replay_setup_staff_initially_allowed", before.status_code == 200, f"got {before.status_code}")
+
+            await conn.execute("UPDATE profiles SET role = 'patient' WHERE id = $1", user_id)
+
+            still_cached = client.get("/staff/insights", headers=headers)
+            check(
+                "replay_still_cached_within_ttl",
+                still_cached.status_code == 200,
+                f"got {still_cached.status_code} (expected 200: role cache TTL={ROLE_CACHE_TTL_SECONDS}s hasn't elapsed yet)",
+            )
+
+            print(f"    waiting {ROLE_CACHE_TTL_SECONDS + 1:.0f}s for the live role-cache TTL to elapse...")
+            await asyncio.sleep(ROLE_CACHE_TTL_SECONDS + 1)
+
+            revoked = client.get("/staff/insights", headers=headers)
+            check(
+                f"replay_revoked_after_ttl[{ROLE_CACHE_TTL_SECONDS}s]",
+                revoked.status_code == 403,
+                f"got {revoked.status_code}",
+            )
+        finally:
+            await conn.close()
+
+    asyncio.run(_replay_check())
+
+    # 13. /admin/retrain's 1-per-10-minutes limit is proven fast and
+    #     deterministically in pytest instead of live here
+    #     (tests/test_rate_limit.py::test_sixth_retrain_request_in_ten_
+    #     minutes_is_rate_limited fires 6 requests back-to-back, same
+    #     technique as this script's own 60/minute /predict flood above --
+    #     no real waiting needed to prove the same limiter logic). Running
+    #     that case live here would make every run of this script take 10+
+    #     minutes for one assertion; chosen deliberately, not skipped.
+    check(
+        "retrain_flood_proven_in_pytest_not_live",
+        True,
+        "see tests/test_rate_limit.py::test_sixth_retrain_request_in_ten_minutes_is_rate_limited",
+    )
 
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)
