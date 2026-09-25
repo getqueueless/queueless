@@ -186,3 +186,107 @@ One line per deviation from the plan/spec, with why.
   or add `queueless_api` to the existing `board_services_read` policy's role list. Same class of
   gap likely applies to any other table where a later RLS-enabling migration didn't re-check
   `0018`'s role list -- worth an explicit pass, not just this one table.
+- 2026-09-26 (mobile, push): push registration now writes straight to `public.push_tokens` through
+  the Supabase client (`src/lib/push-tokens.ts`, used by `lib/notifications.ts`). It upserts with
+  `onConflict: 'expo_token'`, so re-registering an unchanged token is a no-op, not a 23505. The
+  old `POST /push-tokens` call, `device_id` and its `localStorage` key are gone.
+  `scripts/check-push-tokens.mjs` runs that same module against a live Supabase with two real
+  sessions. It passed 6/6 against the local stack and against production:
+  - save;
+  - save again;
+  - a second account saving the same token gets `42501`;
+  - the second account's delete leaves the row alone;
+  - the owner's delete works;
+  - the row is gone afterwards.
+  A row saved on prod was also confirmed with `psql` inside `supabase-db`, and confirmed gone after
+  `deletePushToken`, the call sign-out makes. Token rotation re-runs the same upsert. Stale rows
+  need no client cleanup: `apps/api` deletes a token when Expo answers `DeviceNotRegistered`.
+- 2026-09-26 (mobile, push, known gap): **multi-account push per device.** `expo_token` is
+  globally unique, and the owner-only RLS `using` clause only covers rows you already own.
+  - **The failure.** If a phone changes hands without a sign-out (reinstall, cleared data, a
+    failed cleanup delete), the new account's upsert hits the old owner's row and Postgres rejects
+    it with `42501`. The row is not reassigned.
+  - **Client handling.** The client catches that code and logs
+    `[push] token belongs to a different account on this device`. Pushes keep going to the old
+    owner until they sign out there, or Expo reports the token dead.
+  - **What limits it.** Sign-out deletes this device's row first, which keeps the case rare.
+    Patients demo on their own phones.
+  - **The real fix, not done.** A `security definer` RPC that re-homes a token to the caller.
+- 2026-09-26 (mobile, push, blocker): **no device can mint an Expo push token yet.**
+  `getExpoPushTokenAsync()` throws `ERR_NOTIFICATIONS_NO_EXPERIENCE_ID` without
+  `extra.eas.projectId`, and `app.json` has none. Creating one needs `eas init`, which needs
+  `eas login`, and both were out of bounds for this task. Until someone runs it, registration
+  degrades to "no token" everywhere; the Realtime + local-notification path is unaffected.
+  `Notifications.addPushTokenListener` also throws in Expo Go on Android (SDK 53+), so the
+  rotation listener is wrapped in try/catch.
+- 2026-09-26 (mobile, prod): `apps/mobile/.env` (gitignored) now points at `https://sb.lpu.lol` and
+  `https://api.lpu.lol`. The prod anon key came from the deployed `/opt/queueless/supabase/.env` on
+  the VPS: a read-only ssh that extracted only the `ANON_KEY` line and never printed it. Its JWT
+  decodes to `role: anon`, and `auth/v1/health` and `rest/v1/services` both answer 200 with it.
+  Nothing else was read from that file.
+- 2026-09-26 (mobile, theme): `theme.ts` had neither of BRAND.md's AA cyans. What changed:
+  - **TwoToneHeading.** Its accent word used `#0cb7d6` (2.40:1 on white, failing even large text).
+    It now uses a new `primaryDisplay` token (`#0a95ae`, 3.55:1, large text only).
+  - **Home card numbers.** These are 18%-opacity watermarks, so decorative. They were retinted to
+    the same token for consistency.
+  - **Light `onPrimary`.** Changed from white to ink `#252525` (6.39:1), because BRAND.md rules
+    out white on cyan at every size.
+  - **Why not web's approach.** Web uses a deep `#087589` button with white text instead. Both
+    pass AA. Mobile keeps the bright MedWin fill, which is a one-token change.
+- 2026-09-26 (mobile, icons): `icon.png` is `apps/web/src/app/icon.svg` rendered full bleed.
+  - **icon.png.** `rx` is dropped and it has no alpha: launchers apply their own mask, and iOS
+    rejects alpha. `favicon.png` keeps the rounded tile.
+  - **Adaptive and monochrome layers.** Both are the inverse mark on transparent, at
+    `translate(29.25 32) scale(2.75)` on the 108 dp canvas. The farthest opaque pixel measures
+    32.1 dp from the centre, inside the 33 dp safe circle. The redundant background PNG is dropped
+    for a solid `#1a3237`, and the splash uses the same colour.
+  - **iOS `expo.icon` (best effort).** The brand mark layer on a slate-teal fill. It was not
+    compiled, because Icon Composer is macOS-only, and the preview APK is Android-only anyway.
+  - **Left in place.** The unreferenced template images (`expo-badge*.png`, `expo-logo.png`,
+    `logo-glow.png`, `react-logo*.png`, `tabIcons/`, `tutorial-web.png`) are left for a cleanup
+    pass.
+- 2026-09-26 (mobile, web): this supersedes the web-bundling entry above; the fix it proposed
+  is in.
+  - **The fix.** `src/lib/storage-polyfill.ts` holds the `expo-sqlite` localStorage install, and
+    `storage-polyfill.web.ts` is empty. The split is by platform file, not a runtime `if`, because
+    Metro bundles every static import whatever its condition. On web, supabase-js `storage` is left
+    unset: it uses `window.localStorage` in the browser and memory during static rendering.
+    `metro.config.js`'s wasm rule is no longer needed and is deleted. `web.output` stays
+    `"static"`.
+  - **Results.** `expo export -p web` renders all 25 routes, the android export still bundles
+    expo-sqlite, and `/` and `/password-fallback` render in a real browser.
+  - **Web-only gaps, left alone** (the web build is a dev and screenshot target):
+    - "Cancel ticket" does nothing on web, because react-native-web's `Alert.alert` is a no-op.
+    - `/predict` is blocked by CORS from a browser origin, so web always shows "estimate".
+    - The web tab bar overlaps the Home heading.
+- 2026-09-26 (mobile, found on prod): **History and Appointments showed other patients' rows.**
+  Both screens assumed RLS scoped `tokens`/`appointments` to the caller, but prod has RLS off on
+  `tokens`, `appointments`, `notifications` and `profiles` (`relrowsecurity = f`). A brand-new
+  account's History listed all 1275 finished tokens (87 KB). Both reads now filter on
+  `patient_id` themselves (the response dropped to 1.1 KB, own rows only), and History's
+  unfiltered `select('*')` fallback is gone. The DB-side gap from the 2026-09-25 entry above still
+  stands: the anon key can read those tables directly.
+- 2026-09-26 (mobile, found on prod, **DB/deploy action needed**): **returning patients cannot
+  sign in by email.** Checked by reading the real emails prod sent.
+  - **Where the code is.** A first sign-in gets the confirmation template, whose subject carries
+    the code (`GOTRUE_MAILER_SUBJECTS_CONFIRMATION`).
+  - **What returning users get.** An already-confirmed user gets the magic-link template: "Your
+    sign-in link", a link only, with no 6-digit code. The app's code screen has nothing to accept.
+  - **The link is broken too.** It points at `https://sb.lpu.lol/verify` without the `/auth/v1`
+    prefix, and returns 404. The same token works at `/auth/v1/verify`.
+  - **Fix.** Set `GOTRUE_MAILER_SUBJECTS_MAGIC_LINK="{{ .Token }} is your Queueless code"`, the
+    same pattern as confirmation. Also fix the mailer URL paths (`GOTRUE_MAILER_URLPATHS_*` or
+    `API_EXTERNAL_URL`).
+- 2026-09-26 (mobile, found on prod, **DB action needed**): **Realtime delivers nothing.** The
+  `supabase_realtime` publication exists but holds no tables; no migration ever runs
+  `alter publication supabase_realtime add table ...`.
+  - **Effect.** Every `postgres_changes` subscription stays silent: token position, Home waiting
+    counts and notification banners. Screens update only on refetch (reconnect, foreground,
+    reload).
+  - **Test.** A ticket was cancelled through `cancel_token` while its token screen and Home were
+    open. Neither changed in 10 s, and a reload showed the new count.
+  - **Fix.** Add `public.tokens`, `public.board_services` and `public.notifications`, plus whatever
+    `apps/web` subscribes to, to the publication.
+- 2026-09-26 (mobile, prod test data): three test patient accounts (plus-addressed aliases of a
+  team inbox) were created on prod to verify OTP, name entry and push. One Pharmacy ticket
+  (PHA-002) was taken and then cancelled. `push_tokens` was left empty.
