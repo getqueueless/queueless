@@ -1,5 +1,5 @@
 begin;
-select plan(17);
+select plan(18);
 
 insert into public.organizations (id, slug, name, timezone)
 values ('44444444-4444-4444-4444-444444444450', 't-050', 'Appointments Org', 'UTC');
@@ -20,6 +20,17 @@ insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000033
 
 -- book_appointment requires a completed profile as of 0037; not what this file tests.
 update public.profiles set profile_completed_at = now()
+  where id in (
+    '55555555-0000-0000-0000-000000000031',
+    '55555555-0000-0000-0000-000000000032',
+    '55555555-0000-0000-0000-000000000033'
+  );
+
+-- book_appointment is staff/admin-only as of 0068 (patients must pay, via
+-- start_paid_appointment) -- this whole file tests book_appointment's own mechanics (slot
+-- checks, caps, cancellation), not the payment gate, so every caller here is staff. The gate
+-- itself gets its own dedicated assertion below, with a real patient.
+update public.profiles set role = 'staff'
   where id in (
     '55555555-0000-0000-0000-000000000031',
     '55555555-0000-0000-0000-000000000032',
@@ -75,6 +86,16 @@ create temp table b3 as select * from pg_temp.try_book('dddddddd-0000-0000-0000-
 select is(b3.err_code, 'already_booked', 'a second booking for the same service is rejected') from b3;
 
 grant select on b2 to authenticated;
+reset role;
+
+-- a real patient cannot use the free path at all (0068) -- must go through
+-- start_paid_appointment instead
+insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000035', 'p050patient@queueless.test');
+update public.profiles set profile_completed_at = now() where id = '55555555-0000-0000-0000-000000000035';
+select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000035', 'role', 'authenticated')::text, true);
+set local role authenticated;
+create temp table b_patient as select * from pg_temp.try_book('dddddddd-0000-0000-0000-000000000004');
+select is(b_patient.err_code, 'payment_required', 'a patient caller is blocked from the free booking path') from b_patient;
 reset role;
 
 select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000032', 'role', 'authenticated')::text, true);
@@ -139,7 +160,7 @@ values
   ('dddddddd-0000-0000-0000-000000000013', 'bbbbbbbb-0000-0000-0000-000000000033', now() + interval '7 hours', 1, 0),
   ('dddddddd-0000-0000-0000-000000000014', 'bbbbbbbb-0000-0000-0000-000000000034', now() + interval '8 hours', 1, 0);
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000034', 'p050d@queueless.test');
-update public.profiles set profile_completed_at = now() where id = '55555555-0000-0000-0000-000000000034';
+update public.profiles set profile_completed_at = now(), role = 'staff' where id = '55555555-0000-0000-0000-000000000034';
 select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000034', 'role', 'authenticated')::text, true);
 set local role authenticated;
 

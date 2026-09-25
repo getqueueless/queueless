@@ -71,7 +71,9 @@ select lives_ok(
 
 -- book_appointment carries the slot's doctor onto the appointment; check_in carries it onto the token.
 insert into auth.users (id, email) values ('11100000-0000-0000-0000-000000000140', 'p140@queueless.test');
-update public.profiles set profile_completed_at = now() where id = '11100000-0000-0000-0000-000000000140';
+-- book_appointment is staff/admin-only as of 0068 (patients pay, via start_paid_appointment) --
+-- this test is only about doctor-slot mechanics, not the payment gate.
+update public.profiles set profile_completed_at = now(), role = 'staff' where id = '11100000-0000-0000-0000-000000000140';
 
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000140', 'role', 'authenticated')::text, true);
