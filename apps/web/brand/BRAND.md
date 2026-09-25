@@ -57,3 +57,6 @@ It is built on an 18 x 16 grid, where 1 unit is 1 px at 16 px tall. Every straig
 - **Don't:** add outlines, shadows or gradients.
 - **Don't:** put white text on cyan. It is 2.40:1 and fails AA at every size; use ink instead.
 - **Don't:** put the mark on a photo without a slate-teal overlay.
+
+## Overview board
+`brand/brandkit.html` is the 3x3 brand-kit board (logo, construction, digital, essence, colour, type, print, image, system). It uses the production mark paths and the `globals.css` tokens, so it cannot drift from the app. `brand/queueless-brandkit.png` is its 1600x1200 render. To re-render: serve this folder (`python3 -m http.server 8765`, since playwright-cli blocks `file://`), open it in Chromium at 1600x1200, wait for `document.fonts.ready`, then screenshot.

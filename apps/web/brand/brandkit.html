@@ -1,0 +1,419 @@
+<!doctype html>
+<!--
+  Queueless brand-kit overview board: 3 x 3 panels on a 1600 x 1200 canvas.
+  Rendered to queueless-brandkit.png with playwright-cli at exactly 1600 x 1200.
+  Mark paths are copied from src/components/brand/Logo.tsx and public/brand/*.svg;
+  colours are the tokens in src/app/globals.css. The QR code on the slip encodes
+  https://lpu.lol/t/demo and was generated with the qrcode package (version 2, EC level M).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Queueless Brand Kit</title>
+<meta name="viewport" content="width=1600">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@700&family=Poppins:wght@400;700&display=block" rel="stylesheet">
+<style>
+  :root {
+    /* globals.css tokens (light values; brand constants are theme-independent) */
+    --accent: #0cb7d6;
+    --on-accent: #252525;
+    --slate: #1a3237;
+    --slate-deep: #112427;
+    --on-slate: #ffffff;
+    --on-slate-muted: #b3c6ca;
+    --primary: #087589;
+    --primary-soft: #e3f5f8;
+    --accent-display: #0a95ae;
+    --canvas-soft: #f5f8f9;
+    --surface: #ffffff;
+    --surface-sunken: #eef3f4;
+    --ink: #252525;
+    --ink-secondary: #4a4a4a;
+    --ink-muted: #6b6b6b;
+    --hairline: #e4e7e8;
+    --hairline-strong: #cfcfcf;
+    --success: #197c53;
+    --success-soft: #e3f4ea;
+    --shadow-card: 0 1px 2px rgba(26,50,55,.06), 0 10px 28px -12px rgba(26,50,55,.22);
+    --shadow-raised: 0 22px 48px -18px rgba(26,50,55,.4);
+    --display: "Poppins", "Inter", system-ui, sans-serif;
+    --body: "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+    /* board-only */
+    --board: #131617;
+    --board-text: #8e979a;
+    --gutter: 20px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1600px; height: 1200px; overflow: hidden; }
+  body { background: var(--board); font-family: var(--body); color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+  /* ---------- sheet chrome ---------- */
+  .sheet-head, .sheet-foot {
+    position: absolute; left: 40px; right: 40px; display: flex; justify-content: space-between; align-items: center;
+    font: 500 12px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--board-text);
+  }
+  .sheet-head { top: 22px; height: 18px; }
+  .sheet-foot { bottom: 18px; height: 16px; }
+  .sheet-head .brand { display: flex; align-items: center; gap: 10px; }
+  .sheet-head .brand b { font: 700 14px/1 var(--display); letter-spacing: -.01em; text-transform: none; color: #e9eeef; }
+  .sheet-head .brand span { padding-left: 12px; border-left: 1px solid #2c3234; }
+
+  .grid {
+    position: absolute; top: 58px; bottom: 50px; left: 40px; right: 40px;
+    display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: var(--gutter);
+  }
+  .p { position: relative; overflow: hidden; border-radius: 10px; }
+  .lbl {
+    position: absolute; z-index: 5; top: 18px; left: 20px; right: 20px; display: flex; justify-content: space-between;
+    font: 500 11.5px/1 var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted);
+  }
+  .lbl .n { font-weight: 600; }
+
+  /* ---------- 01 cover ---------- */
+  .p1 { background: var(--slate); color: var(--on-slate); }
+  .p1 .lbl, .p6 .lbl { color: var(--on-slate-muted); }
+  .p1 .lockup { position: absolute; left: 50%; top: 50%; width: 318px; transform: translate(-50%, -54%); display: block; }
+  .p1 .ghost { position: absolute; right: -118px; bottom: -150px; width: 400px; opacity: .045; }
+  .p1 .foot { position: absolute; left: 20px; right: 20px; bottom: 18px; display: flex; justify-content: space-between;
+    font: 500 11.5px/1 var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--on-slate-muted); }
+
+  /* ---------- 02 construction ---------- */
+  .p2 { background: var(--surface); }
+  .p2 svg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -46%); }
+  .p2 .t-b { font: 700 1.02px var(--display); fill: var(--ink); letter-spacing: .08px; }
+  .p2 .t-m { font: 400 .92px var(--body); fill: var(--ink-muted); }
+  .p2 .t-d { font: 600 .8px var(--body); fill: var(--primary); }
+
+  /* ---------- 03 digital ---------- */
+  .p3 { background: var(--surface-sunken); }
+  .browser { position: absolute; left: 34px; right: 34px; top: 56px; height: 330px; background: var(--surface);
+    border-radius: 10px; box-shadow: var(--shadow-raised), 0 0 0 1px rgba(26,50,55,.06); overflow: hidden; }
+  .chrome { height: 36px; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: #f3f6f7; border-bottom: 1px solid var(--hairline); }
+  .chrome i { width: 9px; height: 9px; border-radius: 50%; background: #d3dadc; }
+  .url { margin-left: 14px; flex: 1; height: 22px; border-radius: 6px; background: var(--surface); border: 1px solid var(--hairline);
+    display: flex; align-items: center; gap: 7px; padding: 0 8px; font: 500 12px/1 var(--body); color: var(--ink-secondary); }
+  .url svg { width: 13px; height: 13px; flex: none; }
+  .url b { font-weight: 600; color: var(--ink); }
+  .pg-nav { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; border-bottom: 1px solid var(--hairline); }
+  .pg-nav .lg { height: 15px; color: var(--ink); display: block; }
+  .pg-nav .tg { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--hairline-strong); }
+  .pg-body { padding: 18px 18px 0; }
+  .pg-h { font: 700 17px/1 var(--display); letter-spacing: .02em; text-transform: uppercase; color: var(--ink); }
+  .pg-h span { color: var(--accent-display); }
+  .tcard { margin-top: 14px; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-card); border: 1px solid var(--hairline); padding: 16px 18px; }
+  .tcard .row { display: flex; align-items: center; justify-content: space-between; }
+  .tcard .num { font: 700 38px/1 var(--mono); letter-spacing: -.5px; font-feature-settings: "tnum"; color: var(--ink); }
+  .tcard .stats { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--hairline); display: flex; gap: 34px; }
+  .tcard .stats b { display: block; font: 700 18px/1 var(--display); color: var(--ink); }
+  .tcard .stats span { display: block; margin-top: 5px; font: 400 12px/1 var(--body); color: var(--ink-muted); }
+
+  /* status chips (DESIGN.md status-badge-*) */
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 11px; border-radius: 9999px;
+    font: 600 11px/1 var(--body); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .c-wait { background: var(--surface-sunken); color: var(--ink-secondary); }
+  .c-call { background: var(--primary-soft); color: var(--primary); }
+  .c-serve { background: var(--accent); color: var(--on-accent); }
+  .c-done { background: var(--success-soft); color: var(--success); }
+
+  /* ---------- 04 essence ---------- */
+  .p4 { background: var(--surface); }
+  .p4 h2 { position: absolute; left: 30px; right: 20px; top: 118px; font: 700 39px/1.12 var(--display); letter-spacing: .02em; text-transform: uppercase; color: var(--ink); }
+  .p4 h2 span { color: var(--accent-display); display: block; }
+  .queue { position: absolute; left: 30px; right: 30px; bottom: 34px; height: 14px; }
+  .queue::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--hairline-strong); }
+  .queue i { position: absolute; top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+  .queue .q-slip { position: absolute; right: 0; top: 3px; width: 40px; height: 8px; background: var(--accent); border-radius: 0 3px 3px 0; }
+
+  /* ---------- 05 colour ---------- */
+  .p5 { display: flex; }
+  .band { position: relative; height: 100%; }
+  .band .nm { position: absolute; left: 14px; bottom: 38px; font: 700 13px/1 var(--display); }
+  .band .hx { position: absolute; left: 14px; bottom: 20px; font: 700 11px/1 var(--mono); letter-spacing: .02em; opacity: .9; }
+  .band .note { position: absolute; left: 14px; bottom: 62px; font: 600 10.5px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; }
+  .b-white { flex: 1.55; background: #ffffff; color: var(--ink); }
+  .b-cyan  { flex: 1.1; background: var(--accent); color: var(--on-accent); }
+  .b-text  { flex: 1.1; background: var(--primary); color: #fff; }
+  .b-slate { flex: 1.1; background: var(--slate); color: #fff; }
+  .b-ink   { flex: .95; background: var(--ink); color: #fff; }
+  .p5 .lbl .r { color: var(--on-slate-muted); }
+
+  /* ---------- 06 type ---------- */
+  .p6 { background: var(--slate-deep); color: var(--on-slate); }
+  .p6 .aa { position: absolute; left: 20px; bottom: 10px; font: 700 164px/1 var(--display); letter-spacing: -.03em; }
+  .p6 .aa span { color: var(--accent); }
+  .p6 .faces { position: absolute; left: 290px; right: 20px; top: 74px; bottom: 30px; display: flex; flex-direction: column; justify-content: space-between; }
+  .p6 .face { font-size: 21px; line-height: 1; color: #fff; }
+  .p6 .role { margin-top: 7px; font: 500 11.5px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--on-slate-muted); }
+  .f-pop { font-family: var(--display); font-weight: 700; }
+  .f-int { font-family: var(--body); font-weight: 600; }
+  .f-mon { font-family: var(--mono); font-weight: 700; font-size: 18px !important; letter-spacing: -.02em; }
+  .p6 .rule { height: 1px; background: #24393d; }
+
+  /* ---------- 07 print ---------- */
+  .p7 { background: var(--accent); }
+  .p7 .lbl { color: var(--on-accent); }
+  .p7 .spec { position: absolute; left: 20px; bottom: 20px; font: 500 11.5px/1.5 var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--on-accent); }
+  .slipwrap { position: absolute; left: 196px; top: 40px; width: 204px; transform: rotate(-4deg); filter: drop-shadow(0 18px 22px rgba(10,50,58,.35)) drop-shadow(0 2px 3px rgba(10,50,58,.2)); }
+  .slip { position: relative; width: 204px; height: 360px; background: #fbfbf8; color: #1d1d1d; text-align: center; padding: 26px 16px 0;
+    -webkit-mask: linear-gradient(#000 0 0) 0 7px / 100% 100% no-repeat, conic-gradient(from 148deg at 50% 0, #000 64deg, #0000 0) 0 0 / 10px 7px repeat-x;
+            mask: linear-gradient(#000 0 0) 0 7px / 100% 100% no-repeat, conic-gradient(from 148deg at 50% 0, #000 64deg, #0000 0) 0 0 / 10px 7px repeat-x; }
+  .slip::after { content: ""; position: absolute; inset: 0; opacity: .35; mix-blend-mode: multiply; pointer-events: none;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+  .slip .lg { height: 14px; display: block; margin: 0 auto; }
+  .slip .svc { margin-top: 10px; font: 500 11px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; }
+  .slip .cut { margin: 12px 0; border-top: 1.5px dashed #1d1d1d; opacity: .55; }
+  .slip .num { font: 700 38px/1 var(--mono); letter-spacing: -.5px; font-feature-settings: "tnum"; }
+  .slip .ahead { margin-top: 8px; font: 500 12px/1 var(--body); }
+  .slip .qr { display: block; width: 96px; height: 96px; margin: 0 auto; }
+  .slip .u { margin-top: 8px; font: 700 10.5px/1 var(--mono); }
+
+  /* ---------- 08 image (halftone, CSS only) ---------- */
+  .p8 { background: var(--slate); isolation: isolate; }
+  .p8 .ht { position: absolute; inset: 0; background: #fff; filter: contrast(16) invert(1); overflow: hidden; }
+  .p8 .scene { position: absolute; inset: 0; width: 100%; height: 100%; filter: invert(1) brightness(.5) blur(1px); }
+  .p8 .dots { position: absolute; inset: -60%; transform: rotate(30deg);
+    background: radial-gradient(circle 6.6px at center, #000, #fff) 0 0 / 6px 6px; mix-blend-mode: screen; }
+  .p8 .tint { position: absolute; inset: 0; background: #34bdd5; mix-blend-mode: multiply; }
+  .p8 .base { position: absolute; inset: 0; background: #142a2e; mix-blend-mode: lighten; }
+  .p8 .vig { position: absolute; inset: 0; background: linear-gradient(rgba(17,36,39,.92), rgba(17,36,39,0) 70px, rgba(17,36,39,0) calc(100% - 80px), rgba(17,36,39,.94)), radial-gradient(110% 90% at 61% 48%, transparent 40%, rgba(10,22,24,.6) 100%); }
+  .p8 .grain { position: absolute; inset: 0; opacity: .5; mix-blend-mode: overlay;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .35 0'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>"); }
+  .p8 .lbl { color: var(--on-slate-muted); }
+  .p8 .cap { position: absolute; z-index: 5; left: 20px; bottom: 18px; font: 500 11.5px/1 var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--on-slate-muted); }
+  .p8 .tile { position: absolute; z-index: 5; right: 20px; bottom: 16px; width: 22px; height: 22px; }
+
+  /* ---------- 09 system ---------- */
+  .p9 { background: var(--canvas-soft); }
+  .life { position: absolute; left: 20px; right: 20px; top: 64px; display: flex; align-items: center; }
+  .life .ln { flex: 1; height: 1px; background: var(--hairline-strong); margin: 0 6px; }
+  .tile9 { position: absolute; left: 20px; top: 122px; width: 250px; padding: 18px 20px; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-card); border: 1px solid var(--hairline); }
+  .tile9 .cap { font: 600 11px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--primary); }
+  .tile9 .num { margin-top: 12px; font: 700 46px/1 var(--mono); letter-spacing: -.5px; font-feature-settings: "tnum"; color: var(--ink); }
+  .tile9 .ctr { margin-top: 10px; font: 500 12px/1 var(--body); color: var(--ink-muted); }
+  .mark9 { position: absolute; left: 296px; top: 122px; width: 102px; height: 102px; border-radius: 22px; }
+  .mark9-cap { position: absolute; left: 296px; top: 236px; font: 500 11px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted); }
+  .btns { position: absolute; left: 20px; bottom: 20px; display: flex; gap: 10px; }
+  .btn { height: 42px; padding: 0 22px; display: inline-flex; align-items: center; border-radius: 6px; font: 700 12.5px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
+  .btn-accent { background: var(--accent); color: var(--on-accent); }
+  .btn-outline { border: 1px solid var(--hairline-strong); color: var(--ink); background: var(--surface); }
+</style>
+</head>
+<body>
+
+<!-- Reusable symbols: the real mark (Logo.tsx paths) and the outlined lockup (public/brand/queueless-logo.svg). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <path id="ring" d="M8 16A8 8 0 1 1 14.928 12H11A5 5 0 1 0 8 13Z"/>
+    <path id="slip" d="M9 13h8a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9Z"/>
+    <path id="word" transform="translate(22.8 13.64)" d="M8.99 1.92L7.55 -0.02Q6.91 0.11 6.3 0.11Q4.72 0.11 3.4 -0.62Q2.08 -1.36 1.3 -2.68Q0.53 -4 0.53 -5.65Q0.53 -7.3 1.3 -8.61Q2.080 -9.92 3.4 -10.66Q4.72 -11.39 6.3 -11.39Q7.89 -11.39 9.21 -10.66Q10.53 -9.92 11.29 -8.61Q12.05 -7.3 12.05 -5.65Q12.05 -4.21 11.46 -3.02Q10.88 -1.82 9.84 -1.04L12.3 1.92L8.99 1.92ZM6.3 -2.38Q7.65 -2.38 8.46 -3.28Q9.26 -4.18 9.26 -5.65Q9.26 -7.14 8.46 -8.02Q7.65 -8.91 6.3 -8.91Q4.94 -8.91 4.14 -8.030Q3.33 -7.15 3.33 -5.65Q3.33 -4.16 4.14 -3.27Q4.94 -2.38 6.3 -2.38ZM22.26 -8.93L22.26 0L19.52 0L19.52 -1.22Q19.1 -0.62 18.39 -0.26Q17.68 0.1 16.82 0.1Q15.79 0.1 15.01 -0.36Q14.22 -0.82 13.79 -1.68Q13.36 -2.54 13.36 -3.71L13.36 -8.93L16.08 -8.93L16.08 -4.08Q16.08 -3.18 16.54 -2.69Q17.01 -2.19 17.79 -2.19Q18.59 -2.19 19.06 -2.69Q19.52 -3.18 19.52 -4.08L19.52 -8.93L22.26 -8.93ZM32.43 -3.81L26.24 -3.81Q26.3 -2.98 26.78 -2.54Q27.25 -2.1 27.94 -2.1Q28.96 -2.1 29.36 -2.96L32.27 -2.96Q32.05 -2.08 31.46 -1.38Q30.88 -0.67 30 -0.27Q29.12 0.13 28.03 0.13Q26.72 0.13 25.7 -0.43Q24.67 -0.99 24.1 -2.03Q23.52 -3.07 23.52 -4.46Q23.52 -5.86 24.09 -6.9Q24.66 -7.94 25.68 -8.5Q26.7 -9.06 28.03 -9.06Q29.33 -9.06 30.34 -8.51Q31.34 -7.97 31.91 -6.96Q32.48 -5.95 32.48 -4.61Q32.48 -4.22 32.43 -3.81ZM29.68 -5.33Q29.68 -6.03 29.2 -6.45Q28.72 -6.86 28 -6.86Q27.31 -6.86 26.84 -6.46Q26.37 -6.06 26.26 -5.33L29.68 -5.33ZM42.58 -8.93L42.58 0L39.84 0L39.84 -1.22Q39.42 -0.62 38.71 -0.26Q38 0.1 37.14 0.1Q36.11 0.1 35.33 -0.36Q34.54 -0.82 34.11 -1.68Q33.68 -2.54 33.68 -3.71L33.68 -8.93L36.4 -8.93L36.4 -4.08Q36.4 -3.18 36.86 -2.69Q37.33 -2.19 38.11 -2.19Q38.91 -2.19 39.38 -2.69Q39.84 -3.18 39.84 -4.08L39.84 -8.93L42.58 -8.93ZM52.75 -3.81L46.56 -3.81Q46.62 -2.98 47.1 -2.54Q47.57 -2.1 48.26 -2.1Q49.28 -2.1 49.68 -2.96L52.59 -2.96Q52.37 -2.08 51.78 -1.38Q51.2 -0.67 50.32 -0.27Q49.44 0.13 48.35 0.13Q47.04 0.13 46.02 -0.43Q44.99 -0.99 44.42 -2.03Q43.84 -3.07 43.84 -4.46Q43.84 -5.86 44.41 -6.9Q44.98 -7.94 46 -8.5Q47.02 -9.06 48.35 -9.06Q49.65 -9.06 50.66 -8.51Q51.66 -7.97 52.23 -6.96Q52.8 -5.95 52.8 -4.61Q52.8 -4.22 52.75 -3.81ZM50 -5.33Q50 -6.03 49.52 -6.45Q49.04 -6.86 48.32 -6.86Q47.63 -6.86 47.16 -6.46Q46.69 -6.06 46.58 -5.33L50 -5.33ZM56.82 -11.84L56.82 0L54.08 0L54.08 -11.84L56.82 -11.84ZM67.01 -3.81L60.82 -3.81Q60.88 -2.98 61.35 -2.54Q61.82 -2.1 62.51 -2.1Q63.54 -2.1 63.94 -2.96L66.85 -2.96Q66.62 -2.08 66.04 -1.38Q65.46 -0.67 64.58 -0.27Q63.7 0.13 62.61 0.13Q61.3 0.13 60.27 -0.43Q59.25 -0.99 58.67 -2.03Q58.1 -3.07 58.1 -4.46Q58.1 -5.86 58.66 -6.9Q59.23 -7.94 60.26 -8.5Q61.28 -9.06 62.61 -9.06Q63.9 -9.06 64.91 -8.51Q65.92 -7.97 66.49 -6.96Q67.06 -5.95 67.06 -4.61Q67.06 -4.22 67.01 -3.81ZM64.26 -5.33Q64.26 -6.03 63.78 -6.45Q63.3 -6.86 62.58 -6.86Q61.89 -6.86 61.42 -6.46Q60.94 -6.06 60.83 -5.33L64.26 -5.33ZM67.86 -2.93L70.56 -2.93Q70.61 -2.46 70.99 -2.18Q71.38 -1.89 71.94 -1.89Q72.45 -1.89 72.73 -2.09Q73.01 -2.29 73.01 -2.61Q73.01 -2.99 72.61 -3.18Q72.21 -3.36 71.31 -3.58Q70.35 -3.81 69.71 -4.06Q69.07 -4.3 68.61 -4.84Q68.14 -5.38 68.14 -6.29Q68.14 -7.06 68.57 -7.69Q68.99 -8.32 69.82 -8.69Q70.64 -9.06 71.78 -9.06Q73.46 -9.06 74.42 -8.22Q75.39 -7.39 75.54 -6.02L73.01 -6.02Q72.94 -6.48 72.6 -6.75Q72.26 -7.02 71.7 -7.02Q71.22 -7.02 70.96 -6.84Q70.7 -6.66 70.7 -6.34Q70.7 -5.95 71.11 -5.76Q71.52 -5.57 72.38 -5.38Q73.38 -5.12 74 -4.87Q74.62 -4.62 75.1 -4.07Q75.57 -3.52 75.58 -2.59Q75.58 -1.81 75.14 -1.19Q74.7 -0.58 73.88 -0.22Q73.06 0.13 71.97 0.13Q70.8 0.13 69.89 -0.27Q68.98 -0.67 68.45 -1.37Q67.92 -2.06 67.86 -2.93ZM76.62 -2.93L79.33 -2.93Q79.38 -2.46 79.76 -2.18Q80.14 -1.89 80.7 -1.89Q81.22 -1.89 81.5 -2.09Q81.78 -2.29 81.78 -2.61Q81.78 -2.99 81.38 -3.18Q80.98 -3.36 80.08 -3.58Q79.12 -3.81 78.48 -4.06Q77.84 -4.3 77.38 -4.84Q76.91 -5.38 76.91 -6.29Q76.91 -7.06 77.34 -7.69Q77.76 -8.32 78.58 -8.69Q79.41 -9.06 80.54 -9.06Q82.22 -9.06 83.19 -8.22Q84.16 -7.39 84.3 -6.02L81.78 -6.02Q81.71 -6.48 81.37 -6.75Q81.02 -7.02 80.46 -7.02Q79.98 -7.02 79.73 -6.84Q79.47 -6.66 79.47 -6.34Q79.47 -5.950 79.88 -5.76Q80.29 -5.57 81.15 -5.38Q82.14 -5.12 82.77 -4.87Q83.39 -4.62 83.86 -4.07Q84.34 -3.52 84.35 -2.59Q84.35 -1.81 83.91 -1.19Q83.47 -0.58 82.65 -0.22Q81.82 0.13 80.74 0.13Q79.57 0.13 78.66 -0.27Q77.74 -0.67 77.22 -1.37Q76.69 -2.06 76.62 -2.93Z"/>
+  </defs>
+</svg>
+
+<header class="sheet-head">
+  <div class="brand">
+    <svg viewBox="0 0 18 16" width="18" height="16" aria-hidden="true"><use href="#ring" fill="#ffffff"/><use href="#slip" fill="#0cb7d6"/></svg>
+    <b>Queueless</b><span>Brand identity</span>
+  </div>
+  <div>Overview &nbsp;/&nbsp; 2026</div>
+</header>
+
+<main class="grid">
+
+  <!-- 01 Cover -->
+  <section class="p p1">
+    <div class="lbl"><span class="n">01</span><span>Logo</span></div>
+    <svg class="ghost" viewBox="0 0 18 16" aria-hidden="true"><use href="#ring" fill="#ffffff"/></svg>
+    <svg class="lockup" viewBox="0 0 107.52 16" role="img" aria-label="Queueless"><use href="#ring" fill="#ffffff"/><use href="#slip" fill="#0cb7d6"/><use href="#word" fill="#ffffff"/></svg>
+    <div class="foot"><span>Public-service queues</span><span>lpu.lol</span></div>
+  </section>
+
+  <!-- 02 Construction -->
+  <section class="p p2">
+    <div class="lbl"><span class="n">02</span><span>Construction</span></div>
+    <svg viewBox="-2.2 -1.6 32.4 21" width="437" height="283" aria-hidden="true">
+      <g stroke="#e4e7e8" stroke-width="1" vector-effect="non-scaling-stroke" fill="none">
+        <path vector-effect="non-scaling-stroke" d="M0 0V16M1 0V16M2 0V16M3 0V16M4 0V16M5 0V16M6 0V16M7 0V16M8 0V16M9 0V16M10 0V16M11 0V16M12 0V16M13 0V16M14 0V16M15 0V16M16 0V16M17 0V16M18 0V16M0 0H18M0 1H18M0 2H18M0 3H18M0 4H18M0 5H18M0 6H18M0 7H18M0 8H18M0 9H18M0 10H18M0 11H18M0 12H18M0 13H18M0 14H18M0 15H18M0 16H18"/>
+      </g>
+      <use href="#ring" fill="#252525"/>
+      <use href="#slip" fill="#0cb7d6"/>
+      <g fill="none" stroke="#0cb7d6" stroke-width="1">
+        <circle cx="8" cy="8" r="8" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+        <circle cx="8" cy="8" r="5" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+        <path d="M7.2 8H8.8M8 7.2V8.8" vector-effect="non-scaling-stroke"/>
+        <path d="M-1.2 16H21" vector-effect="non-scaling-stroke"/>
+        <path d="M10.4 12H19.2M8 12.2V17.6M9 16V17.6M16 8V17.6M18 13V17.6" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>
+      </g>
+      <!-- dimensions under the floor line -->
+      <g stroke="#087589" stroke-width="1" fill="none">
+        <path d="M8 17.1H9M16 17.1H18" vector-effect="non-scaling-stroke"/>
+      </g>
+      <text class="t-d" x="8.5" y="18.7" text-anchor="middle">1u</text>
+      <text class="t-d" x="17" y="18.7" text-anchor="middle">2u</text>
+      <!-- leaders + names -->
+      <g stroke="#252525" stroke-width="1" fill="none">
+        <path d="M13.66 2.34L16.2 -0.2H20.6" vector-effect="non-scaling-stroke"/>
+        <path d="M18.3 14.5H20.6" vector-effect="non-scaling-stroke"/>
+      </g>
+      <circle cx="13.66" cy="2.34" r=".22" fill="#252525"/>
+      <text class="t-b" x="21" y="0.15">THE LINE</text>
+      <text class="t-m" x="21" y="1.55">Ring r8 / r5, stroke 3</text>
+      <text class="t-b" x="21" y="14.85">THE TOKEN</text>
+      <text class="t-m" x="21" y="16.25">Torn 1u, runs out 2u</text>
+    </svg>
+  </section>
+
+  <!-- 03 Digital -->
+  <section class="p p3">
+    <div class="lbl"><span class="n">03</span><span>Digital</span></div>
+    <div class="browser">
+      <div class="chrome">
+        <i></i><i></i><i></i>
+        <div class="url">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5.25" fill="#1a3237"/><g transform="translate(3 4)"><use href="#ring" fill="#ffffff"/><use href="#slip" fill="#0cb7d6"/></g></svg>
+          <span><b>lpu.lol</b>/t/demo</span>
+        </div>
+      </div>
+      <div class="pg-nav">
+        <svg class="lg" viewBox="0 0 107.52 16" aria-hidden="true"><use href="#ring" fill="#252525"/><use href="#slip" fill="#0cb7d6"/><use href="#word" fill="#252525"/></svg>
+        <span class="tg"></span>
+      </div>
+      <div class="pg-body">
+        <div class="pg-h">Your <span>token</span></div>
+        <div class="tcard">
+          <div class="row"><span class="num">OPD-042</span><span class="chip c-call">Called</span></div>
+          <div class="stats">
+            <div><b>Counter 3</b><span>Go now</span></div>
+            <div><b>0 ahead</b><span>You're next in line</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 Essence -->
+  <section class="p p4">
+    <div class="lbl"><span class="n">04</span><span>Essence</span></div>
+    <h2>Take a token. <span>Leave the line.</span></h2>
+    <div class="queue" aria-hidden="true">
+      <i style="left:0"></i><i style="left:20px"></i><i style="left:40px"></i><i style="left:60px"></i><i style="left:80px"></i><i style="left:100px"></i>
+      <span class="q-slip"></span>
+    </div>
+  </section>
+
+  <!-- 05 Colour -->
+  <section class="p p5">
+    <div class="lbl"><span class="n">05</span><span class="r">Colour</span></div>
+    <div class="band b-white">
+      <span class="nm">Base</span><span class="hx">#FFFFFF</span>
+    </div>
+    <div class="band b-cyan"><span class="note">Fill</span><span class="nm">Cyan</span><span class="hx">#0CB7D6</span></div>
+    <div class="band b-text"><span class="note">AA 5.36</span><span class="nm">Cyan text</span><span class="hx">#087589</span></div>
+    <div class="band b-slate"><span class="nm">Slate</span><span class="hx">#1A3237</span></div>
+    <div class="band b-ink"><span class="nm">Ink</span><span class="hx">#252525</span></div>
+  </section>
+
+  <!-- 06 Type -->
+  <section class="p p6">
+    <div class="lbl"><span class="n">06</span><span>Type</span></div>
+    <div class="aa">Aa</div>
+    <div class="faces">
+      <div><div class="face f-pop">Poppins</div><div class="role">Display · 400 / 700</div></div>
+      <div class="rule"></div>
+      <div><div class="face f-int">Inter</div><div class="role">Interface · 400 / 600</div></div>
+      <div class="rule"></div>
+      <div><div class="face f-mon">JetBrains Mono</div><div class="role">Token numbers</div></div>
+    </div>
+  </section>
+
+  <!-- 07 Print -->
+  <section class="p p7">
+    <div class="lbl"><span class="n">07</span><span>Print</span></div>
+    <div class="slipwrap">
+      <div class="slip">
+        <svg class="lg" viewBox="0 0 107.52 16" aria-hidden="true"><use href="#ring" fill="#1d1d1d"/><use href="#slip" fill="#1d1d1d"/><use href="#word" fill="#1d1d1d"/></svg>
+        <div class="svc">General OPD</div>
+        <div class="cut"></div>
+        <div class="num">OPD-042</div>
+        <div class="ahead">4 ahead of you</div>
+        <div class="cut"></div>
+        <svg class="qr" viewBox="0 0 25 25" shape-rendering="crispEdges" role="img" aria-label="QR code for lpu.lol/t/demo"><path stroke="#1d1d1d" d="M0 0.5h7m2 0h1m2 0h1m1 0h1m1 0h1m1 0h7M0 1.5h1m5 0h1m1 0h2m1 0h1m1 0h2m3 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m1 0h2m1 0h2m1 0h3m1 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h3m2 0h1m4 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m3 0h3m3 0h1m1 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m2 0h2m1 0h1m1 0h1m1 0h1m1 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M8 7.5h1m1 0h1m4 0h2M0 8.5h1m5 0h1m1 0h4m1 0h2m2 0h2m2 0h3M0 9.5h2m1 0h3m5 0h2m1 0h4m1 0h5M0 10.5h1m1 0h1m2 0h4m2 0h2m1 0h2m2 0h1m2 0h1m1 0h2M4 11.5h1m3 0h2m2 0h1m1 0h1m1 0h1m1 0h4m2 0h1M0 12.5h7m1 0h1m1 0h2m4 0h1m1 0h2m4 0h1M0 13.5h1m1 0h1m6 0h2m1 0h2m1 0h3m1 0h1m3 0h1M0 14.5h1m2 0h1m2 0h3m1 0h1m3 0h8m1 0h2M0 15.5h1m1 0h1m1 0h2m1 0h1m1 0h2m1 0h1m2 0h1m1 0h3m1 0h2m1 0h1M0 16.5h1m1 0h2m2 0h1m1 0h2m2 0h3m1 0h5m1 0h1M8 17.5h3m2 0h1m2 0h1m3 0h1M0 18.5h7m2 0h2m1 0h1m3 0h1m1 0h1m1 0h1m3 0h1M0 19.5h1m5 0h1m2 0h1m1 0h1m2 0h3m3 0h1M0 20.5h1m1 0h3m1 0h1m3 0h2m3 0h6m1 0h3M0 21.5h1m1 0h3m1 0h1m2 0h1m2 0h3m1 0h1m1 0h1m4 0h2M0 22.5h1m1 0h3m1 0h1m2 0h2m2 0h2m1 0h1m4 0h2m1 0h1M0 23.5h1m5 0h1m5 0h2m2 0h2m1 0h2m3 0h1M0 24.5h7m1 0h6m2 0h2m3 0h1m2 0h1"/></svg>
+        <div class="u">lpu.lol/t/demo</div>
+      </div>
+    </div>
+    <div class="spec">80 mm thermal slip<br>One colour</div>
+  </section>
+
+  <!-- 08 Image direction: CSS halftone of a drawn corridor, no photo -->
+  <section class="p p8">
+    <div class="ht">
+      <svg class="scene" viewBox="0 0 494 351" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0a0a0a"/><stop offset="1" stop-color="#5a5a5a"/></linearGradient>
+          <linearGradient id="gf" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#141414"/><stop offset="1" stop-color="#7a7a7a"/></linearGradient>
+          <linearGradient id="gl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#050505"/><stop offset="1" stop-color="#4a4a4a"/></linearGradient>
+          <linearGradient id="gr" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#080808"/><stop offset="1" stop-color="#555"/></linearGradient>
+          <radialGradient id="glow" cx="300" cy="168" r="110" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset=".3" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+          <linearGradient id="refl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        </defs>
+        <polygon points="0,0 494,0 338,128 262,128" fill="url(#gc)"/>
+        <polygon points="0,351 494,351 338,208 262,208" fill="url(#gf)"/>
+        <polygon points="0,0 262,128 262,208 0,351" fill="url(#gl)"/>
+        <polygon points="494,0 338,128 338,208 494,351" fill="url(#gr)"/>
+        <g fill="#000" opacity=".55">
+          <polygon points="116.1,287.6 116.1,144.5 162.2,148.9 162.2,262.5"/>
+          <polygon points="212.9,234.8 212.9,153.7 222.4,154.6 222.4,229.6"/>
+          <polygon points="389.8,255.5 389.8,150.1 375.5,152.4 375.5,242.4"/>
+          <polygon points="353.5,222.2 353.5,155.9 350.6,156.4 350.6,219.6"/>
+        </g>
+        <rect x="262" y="128" width="76" height="80" fill="#bdbdbd"/>
+        <rect x="283" y="138" width="34" height="70" fill="#f6f6f6"/>
+        <polygon points="284,208 316,208 350,351 238,351" fill="url(#refl)"/>
+        <circle cx="300" cy="168" r="110" fill="url(#glow)"/>
+      </svg>
+      <div class="dots"></div>
+    </div>
+    <div class="tint"></div>
+    <div class="base"></div>
+    <div class="vig"></div>
+    <div class="grain"></div>
+    <div class="lbl"><span class="n">08</span><span>Image</span></div>
+    <div class="cap">Slate · halftone · grain</div>
+    <svg class="tile" viewBox="0 0 18 16" aria-hidden="true"><use href="#ring" fill="#ffffff"/><use href="#slip" fill="#0cb7d6"/></svg>
+  </section>
+
+  <!-- 09 System -->
+  <section class="p p9">
+    <div class="lbl"><span class="n">09</span><span>System</span></div>
+    <div class="life">
+      <span class="chip c-wait">Waiting</span><span class="ln"></span>
+      <span class="chip c-call">Called</span><span class="ln"></span>
+      <span class="chip c-serve">Serving</span><span class="ln"></span>
+      <span class="chip c-done">Done</span>
+    </div>
+    <div class="tile9">
+      <div class="cap">Now serving</div>
+      <div class="num">OPD-042</div>
+      <div class="ctr">Counter 3 · General OPD</div>
+    </div>
+    <svg class="mark9" viewBox="0 0 24 24" role="img" aria-label="Queueless app icon"><rect width="24" height="24" rx="5.25" fill="#1a3237"/><g transform="translate(3 4)"><use href="#ring" fill="#ffffff"/><use href="#slip" fill="#0cb7d6"/></g></svg>
+    <div class="mark9-cap">App icon</div>
+    <div class="btns">
+      <span class="btn btn-accent">Get a token</span>
+      <span class="btn btn-outline">Check status</span>
+    </div>
+  </section>
+
+</main>
+
+<footer class="sheet-foot">
+  <span>Hospital OPD preset</span>
+  <span>Sheet 01 / 01</span>
+</footer>
+
+</body>
+</html>
