@@ -82,3 +82,85 @@ export type BoardServiceRow = {
   avg_service_secs: number | null
   updated_at: string
 }
+
+// supabase/migrations/0038_doctors_schedules.sql
+export type DoctorStatus = "available" | "running_late" | "on_break" | "off"
+
+export type DoctorRow = {
+  id: string
+  org_id: string
+  service_id: string
+  name: string
+  specialty: string
+  qualification: string | null
+  room: string | null
+  photo_url: string | null
+  fee_inr: number
+  active: boolean
+  created_at: string
+}
+
+export type DoctorScheduleRow = {
+  id: string
+  doctor_id: string
+  weekday: number
+  start_time: string
+  end_time: string
+  max_patients: number
+  slot_minutes: number
+}
+
+export type DoctorBreakRow = {
+  id: string
+  doctor_id: string
+  weekday: number
+  start_time: string
+  end_time: string
+}
+
+export type DoctorLeaveRow = {
+  id: string
+  doctor_id: string
+  from_date: string
+  to_date: string
+  reason: string | null
+}
+
+// public.doctor_status_today view -- always today, late_minutes only set
+// when status = 'running_late'.
+export type DoctorStatusTodayRow = {
+  doctor_id: string
+  org_id: string
+  status: DoctorStatus
+  late_minutes: number | null
+}
+
+// supabase/migrations/0041_cash_desk.sql
+export type CashReportByStaffRow = {
+  collected_by: string
+  staff_name: string
+  receipt_count: number
+  total_inr: number
+}
+
+export type CashReportByDoctorRow = {
+  doctor_id: string | null
+  doctor_name: string | null
+  receipt_count: number
+  total_inr: number
+}
+
+// Payments engineer's addition, may not exist yet -- probed for at runtime
+// (42P01 "undefined table" means "not shipped", not a real error).
+export type PaymentsLedgerRow = {
+  collected_by: string | null
+  total_inr: number
+}
+
+export type AskResult = {
+  answer: string
+  ai_generated: boolean
+  function: string | null
+  params: Record<string, unknown> | null
+  rows: Record<string, unknown>[] | null
+}

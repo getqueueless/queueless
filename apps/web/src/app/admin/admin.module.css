@@ -775,6 +775,37 @@ fieldset.field {
   color: var(--color-ink-secondary);
 }
 
+/* Clickable pill -- the Ask panel's example questions. Same shape as .badge,
+   but interactive (badge itself is a status label, never clickable). */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-hairline-strong);
+  background: var(--color-surface);
+  color: var(--color-ink-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-primary);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+  margin-top: var(--space-xxs);
+}
+
 /* Visually hidden but still reachable by screen readers -- for table headers
    (an actions column) and other labels that would be redundant on-screen. */
 .srOnly {
