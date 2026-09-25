@@ -64,3 +64,34 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   grant themselves access. `audit_log` can't be edited or deleted by anyone, including the
   database owner — enforced by a trigger, not just a permission grant, because permission grants
   don't bind table owners.
+
+## Web app
+
+- **Stack.** Next.js 16 (App Router, TypeScript) under `apps/web`, styled with plain CSS Modules
+  against tokens from `apps/web/DESIGN.md` (calm neutral canvas + one teal accent, both themes
+  native from day one — this runs on a projector during the live demo). `types/database.types.ts`
+  is a hand-written placeholder for the Postgres schema; it predates the real migrations and still
+  needs a real `supabase gen types` pass once there's a DB connection to run it against — noted
+  rather than silently left wrong.
+- **Auth.** `/login` is the only entry point — email/password via
+  `supabase.auth.signInWithPassword()`, no sign-up route anywhere in the app. That matches the DB
+  side: the `on_auth_user_created` trigger always inserts new profiles as `role='patient'`, so a
+  staff or admin account can only ever come from an admin changing that row directly, never from
+  self-service signup. The form is a client component driven by `useActionState` calling a
+  server action; input is validated with `zod` (`lib/validation/auth.ts`) before it ever reaches
+  Supabase. Accessibility: every field has a real `<label htmlFor>`, invalid fields get
+  `aria-invalid` + `aria-describedby` pointing at their error text, and focus moves to a
+  `role="alert"` error summary on a failed submit so keyboard/screen-reader users don't have to
+  hunt for what changed.
+- **Session gating.** `proxy.ts` (Next 16's renamed `middleware.ts`) is a thin wrapper around
+  `lib/supabase/proxy.ts`, which refreshes the session cookie on every request and decides access:
+  `/login`, `/display/[service]`, `/t/[id]` and `/kiosk` are public; everything else redirects to
+  `/login?next=<path>` without a session; `/admin/**` additionally requires
+  `profiles.role = 'admin'` (looked up by `id = auth.uid()`, the real column — the schema has no
+  separate `staff` table) and sends non-admins to `/counter` instead. No RLS policy letting a user
+  read their own `profiles` row has landed yet, so that lookup fails closed: any error or missing
+  row denies admin access rather than granting it, and the dependency is named in a code comment
+  rather than silently assumed away.
+- **Env vars.** `.env.example` lists the 4 required vars as placeholders — the two public Supabase
+  values, the server-only service-role key (never `NEXT_PUBLIC_`), and `NEXT_PUBLIC_API_BASE_URL`
+  for the FastAPI service's `/predict` and `/metrics`. Real values live in untracked `.env.local`.
