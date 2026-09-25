@@ -16,12 +16,10 @@
   color: var(--color-ink);
 }
 
-@media (prefers-color-scheme: dark) {
-  .page {
-    --color-surface-sunken: #0e1114;
-    --color-warning: #dba24d;
-    --color-warning-soft: #2e2211;
-  }
+:global(:root[data-theme="dark"]) .page {
+  --color-surface-sunken: #0e1114;
+  --color-warning: #dba24d;
+  --color-warning-soft: #2e2211;
 }
 
 .unlockOverlay {

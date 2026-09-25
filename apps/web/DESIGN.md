@@ -419,7 +419,7 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 - **`section-dark`**: slate fill, white text, `radius-section` corners.
 - **`TwoToneHeading`** (`src/components/site/TwoToneHeading.tsx`): `display-lg` with the lead words in ink and the accent words in `accent-display`, or brand accent with `onDark`.
 - **`PublicHeader` / `PublicFooter`** (`src/components/site/`): the logo, public nav, theme toggle, and a slate-deep footer with cyan-dot headings.
-- **`ThemeToggle`** (`src/components/theme/ThemeToggle.tsx`): a 40px icon button in every header.
+- **`ThemeToggle`** (`src/components/theme/ThemeToggle.tsx`): a 44px round icon button in every header. `aria-label` names the target theme ("Switch to dark theme").
 - **Status badges, token tile, stat tile, text input**: unchanged in shape. Inputs take `radius-sm` and the `hairline-strong` border.
 
 ## Do's and Don'ts

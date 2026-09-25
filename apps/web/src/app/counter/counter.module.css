@@ -18,13 +18,11 @@
   gap: var(--space-lg);
 }
 
-@media (prefers-color-scheme: dark) {
-  .shell {
-    --success: #4cbf8b;
-    --success-soft: #0f2b21;
-    --warning: #dba24d;
-    --warning-soft: #2e2211;
-  }
+:global(:root[data-theme="dark"]) .shell {
+  --success: #4cbf8b;
+  --success-soft: #0f2b21;
+  --warning: #dba24d;
+  --warning-soft: #2e2211;
 }
 
 .header {

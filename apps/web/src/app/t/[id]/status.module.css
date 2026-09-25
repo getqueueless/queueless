@@ -18,13 +18,11 @@
   background: var(--color-canvas-soft);
 }
 
-@media (prefers-color-scheme: dark) {
-  .page {
-    --success: #4cbf8b;
-    --success-soft: #0f2b21;
-    --warning: #dba24d;
-    --surface-sunken: #0e1114;
-  }
+:global(:root[data-theme="dark"]) .page {
+  --success: #4cbf8b;
+  --success-soft: #0f2b21;
+  --warning: #dba24d;
+  --surface-sunken: #0e1114;
 }
 
 .card {

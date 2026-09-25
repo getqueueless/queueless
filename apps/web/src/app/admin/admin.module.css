@@ -12,14 +12,12 @@
   background: var(--color-canvas-soft);
 }
 
-@media (prefers-color-scheme: dark) {
-  .root {
-    --color-success: #4cbf8b;
-    --color-success-soft: #0f2b21;
-    --color-warning: #dba24d;
-    --color-warning-soft: #2e2211;
-    --color-canvas-soft: #101317;
-  }
+:global(:root[data-theme="dark"]) .root {
+  --color-success: #4cbf8b;
+  --color-success-soft: #0f2b21;
+  --color-warning: #dba24d;
+  --color-warning-soft: #2e2211;
+  --color-canvas-soft: #101317;
 }
 
 .shell {

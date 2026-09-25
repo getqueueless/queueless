@@ -1,0 +1,27 @@
+/* Inherits the header's text colour, so it works on surface and slate bars. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.toggle:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-color: var(--color-accent);
+}
+
+/* currentColor, not the cyan focus token: it contrasts with whatever bar the
+   toggle sits on (ink on white, white on slate). */
+.toggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
