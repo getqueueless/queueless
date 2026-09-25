@@ -435,3 +435,36 @@ One line per deviation from the plan/spec, with why.
   immediately, no extra infrastructure) and reads an `IOS_PUBLIC_BASE_URL` repo variable when
   one is set, so switching to `lpu.lol/ios/` later needs only that variable plus a Caddy route
   serving `/srv/<wherever>/ios/*` (or proxying the GitHub Release) -- no workflow change.
+- 2026-09-26 (apps/api, load test): two index recommendations from reading `call_next`'s and
+  `issue_token`'s actual SQL (`supabase/migrations/0020`, `0010`), not just guessing at column
+  names. Full live-stack load test not run this session (see `loadtest/README.md`'s "Status"
+  section for why); this indexing analysis is real and independent of that -- verified with real
+  `EXPLAIN (ANALYZE, BUFFERS)` against a Postgres fixture seeded with ~30k rows, not eyeballed.
+  1. **`call_next`'s "find the next waiting token" subquery is unindexed and worth fixing.** Its
+     `WHERE org_id = $1 AND service_id = ANY($2) AND service_day = $3 AND status = 'waiting'
+     ORDER BY lane_rank, priority_at, number LIMIT 1 FOR NO KEY UPDATE SKIP LOCKED` has no
+     matching index today, so it's a full sequential scan on every single `call_next` call --
+     the hottest RPC in the whole system, called on every counter click. Measured on a 30k-row
+     fixture: **827 cost / 1.79ms / 470 buffer hits before, 17 cost / 0.04ms / 11 buffer hits
+     after** adding:
+     ```sql
+     create index tokens_waiting_queue_idx
+       on tokens (org_id, service_id, service_day, lane_rank, priority_at, number)
+       where status = 'waiting';
+     ```
+     a ~44x execution-time drop and ~40x fewer buffer touches at this modest scale -- the gap
+     only widens as real token volume grows past 30k rows, since the current path is a full
+     table scan regardless of table size.
+  2. **`issue_token`'s per-patient rate-check** (`WHERE patient_id = $1 AND created_at > now() -
+     interval '10 minutes'`) is also an unindexed scan by the same reasoning, but wasn't
+     separately benchmarked -- my synthetic fixture's seeded timestamps were all in the past
+     relative to this session's real clock, which let the planner constant-fold the query to "no
+     rows can match" before touching the table, making the before/after comparison meaningless
+     rather than genuinely negative. Recommended by query shape alone (a straightforward "count
+     recent rows for one patient" access pattern is a textbook `(patient_id, created_at)` btree),
+     not by a benchmark:
+     ```sql
+     create index tokens_patient_created_idx on tokens (patient_id, created_at);
+     ```
+     Worth a real benchmark once a live stack with realistic recent data is available, rather
+     than trusting this unverified.

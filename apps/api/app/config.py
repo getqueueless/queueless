@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     # justification.
     retrain_min_real_rows: int = 500
 
+    # Short on purpose: queue state moves fast, this only exists to absorb
+    # a burst of identical requests (e.g. a screen re-rendering), not to
+    # serve stale predictions.
+    predict_cache_ttl_seconds: float = 15.0
+
     # DeepSeek (OpenAI-compatible). api_key is Optional on purpose: every AI
     # route/job must degrade gracefully (not crash) when it's unset -- see
     # app/ai_client.py::get_deepseek_client. Never logged anywhere.

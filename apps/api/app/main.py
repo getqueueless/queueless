@@ -20,6 +20,7 @@ from app.rate_limit import limiter
 from app.routes import admin, ai, health, predict, staff
 from app.summary import daily_summary_loop
 from app.translate import TranslateDeps
+from app.ttl_cache import TTLCache
 
 configure_logging()
 settings = Settings()
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
     app.state.shutting_down = False
     load_ml(app)
     app.state.deepseek_client = get_deepseek_client(settings)
+    app.state.predict_cache = TTLCache(ttl_seconds=settings.predict_cache_ttl_seconds)
     translate_deps = TranslateDeps(
         client=app.state.deepseek_client,
         model=settings.deepseek_model,

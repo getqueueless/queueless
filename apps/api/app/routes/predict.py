@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.ml_runtime import predict_with_fallback
 from app.rate_limit import limiter
+from app.ttl_cache import TTLCache
 
 router = APIRouter()
 
@@ -50,6 +51,16 @@ async def predict(request: Request, body: PredictIn) -> dict:
     # so a day-scoped row lookup was silently RLS-filtered to zero rows
     # regardless of the date bug. See docs/DECISIONS.md for the grant fix
     # that's still needed on the DB side; this query is correct once granted.
+    # Short-TTL cache: only successful predictions are cached (never a 404),
+    # so a service_id that starts existing moments after a cached miss is
+    # never masked by a stale "not found" -- the worst case is a slightly
+    # stale wait estimate for a real service, exactly the tradeoff a short
+    # TTL is meant to make.
+    cache_key = (str(body.service_id), body.hour, body.weekday, body.queue_len_ahead, body.counters_open)
+    cached = request.app.state.predict_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     exists = await request.app.state.db_pool.fetchval(
         "SELECT 1 FROM board_services WHERE service_id = $1",
         body.service_id,
@@ -57,7 +68,7 @@ async def predict(request: Request, body: PredictIn) -> dict:
     if not exists:
         raise HTTPException(status_code=404, detail="unknown service_id")
 
-    return predict_with_fallback(
+    result = predict_with_fallback(
         request.app.state.ml_model,
         request.app.state.ml_meta,
         str(body.service_id),
@@ -66,3 +77,5 @@ async def predict(request: Request, body: PredictIn) -> dict:
         body.queue_len_ahead,
         body.counters_open,
     )
+    request.app.state.predict_cache.set(cache_key, result)
+    return result
