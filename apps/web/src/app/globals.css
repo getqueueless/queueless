@@ -34,7 +34,7 @@
   --color-ink-secondary: #4a4a4a;
   --color-ink-muted: #6b6b6b; /* MedWin's #898989 is 3.50:1 -- fails for body text */
   --color-hairline: #e4e7e8;
-  --color-hairline-strong: #cfcfcf;
+  --color-hairline-strong: #839093; /* control borders: 3.29:1 on white (WCAG 1.4.11 needs 3) */
   --color-success: #197c53;
   --color-success-soft: #e3f4ea;
   --color-warning: #95590a;
@@ -89,7 +89,7 @@
   --color-ink-secondary: #b8c6c9;
   --color-ink-muted: #8fa3a7;
   --color-hairline: #203539;
-  --color-hairline-strong: #2e474c;
+  --color-hairline-strong: #597074; /* control borders: 3.05:1 on surface, 3.52:1 on canvas */
   --color-success: #4cbf8b;
   --color-success-soft: #0f2b21;
   --color-warning: #dba24d;
