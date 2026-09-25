@@ -1045,3 +1045,31 @@ under "Web app" above.
   open counters, averaged across services. If nobody is waiting it says "No wait"; if no queue
   can be estimated it says "Not yet" instead of guessing. The strip refreshes every 10 seconds.
   A real measured average wait would need a new column on the board table (a database change).
+
+## Patient dashboard (/my) (2026-09-26)
+
+- **What it is.** The signed-in patient's home page, rebuilt from one short column into a full
+  hospital dashboard on a 12-column grid (one column on a phone). A dark hero greets the patient
+  by first name with today's date and the hospital, and holds their live token card; below it
+  sit four quick actions, a "Live now" strip per department, the doctor directory, upcoming
+  appointments beside recent visits, and a help card for patients without a phone.
+- **The token card is live.** It shows the token code, department, doctor, status, how many
+  people are ahead, and the shared QueueTracker with the ML wait estimate. Status changes arrive
+  on the token's own realtime topic; position and wait refresh every 20 seconds. People-ahead
+  comes from the `get_token_status` database function, because row-level security now lets a
+  patient see only their own tokens, so they cannot count the line themselves.
+- **Live now.** One chip per open department: today's waiting count from the public board table
+  and the `/predict` model's wait for someone joining now ("rough" when the model fell back).
+  Each chip listens to its department's realtime topic and only asks the model again when the
+  line length actually changed. Numbers count up or down to the new value with a CSS-registered
+  integer, and jump instantly for people who ask for reduced motion.
+- **Doctors.** Filter by department, search by name or specialty. Each card shows today's status
+  (from the doctor's status for today and any leave covering today), clinic hours, the next
+  free slot, "Take token" (the existing hold-then-pay flow) and "Book slot" (up to six times,
+  grouped by day, then "More times"). Doctors on leave or off today stay listed but dimmed,
+  with the reason and the buttons disabled. The status logic has a `node --test` check
+  (`apps/web/src/app/my/_components/format.test.mjs`).
+- **Why this shape.** The page is a Server Component that starts every read at once and streams
+  each section into its own Suspense boundary, so the hero paints first and each section
+  swaps a skeleton for real rows as its data lands. No new API, table or dependency: every
+  number is read through helpers and database functions the rest of the app already uses.
