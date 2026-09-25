@@ -82,7 +82,24 @@ services:
       GOTRUE_MAILER_OTP_EXP: "600"                              # 10 min, not GoTrue's 1-day default
       GOTRUE_MAILER_OTP_LENGTH: "6"
       GOTRUE_RATE_LIMIT_EMAIL_SENT: "30/1h"                      # abuse cap; also below Namecheap's own daily send limit
+      GOTRUE_PASSWORD_MIN_LENGTH: "8"     # unified login's password fallback path (below OTP is still primary)
       GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "{{ .Token }} is your Queueless code"
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "{{ .Token }} is your Queueless code"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Reset your Queueless password {{ .Token }}"
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "{{ .Token }} confirms your new Queueless email"
+      # Branded templates: a big 6-digit {{ .Token }} (this system's actual sign-in method --
+      # see docs/JUDGE_NOTES.md § Mobile "Auth" -- not a link to click) with a small
+      # {{ .ConfirmationURL }} fallback underneath. GoTrue fetches these by HTTP at send time, so
+      # they have to be a real reachable URL, not a local file path -- served straight off
+      # apps/web's own /public (no new route, no new service) at ${SITE_URL}/email/*.html, which
+      # resolves to https://lpu.lol/email/*.html in prod and localhost:3000 in dev. GoTrue's own
+      # quirk: every template type's fallback-link variable is called `ConfirmationURL`
+      # regardless of which flow it's actually for (signup, magic link, recovery, or email
+      # change) -- not a typo below, that's genuinely the same field name for all four.
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: "${SITE_URL}/email/confirmation.html"
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: "${SITE_URL}/email/magic_link.html"
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: "${SITE_URL}/email/recovery.html"
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: "${SITE_URL}/email/email_change.html"
       # API_EXTERNAL_URL already ends in /auth/v1, and GoTrue resolves these as absolute
       # paths against it, so the default "/verify" lands on sb.lpu.lol/verify (no Kong route).
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: "/auth/v1/verify"
