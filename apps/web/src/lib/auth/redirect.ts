@@ -3,7 +3,7 @@ import type { ProfileSummary } from "@/lib/supabase/get-role"
 // Only ever redirect to a same-origin relative path -- `next` comes from the
 // URL or a form field, so it's untrusted. `fallback` is the safe default.
 export function safeNextPath(value: string | FormDataEntryValue | null | undefined, fallback: string): string {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || /[\\\x00-\x1f]/.test(value)) {
     return fallback
   }
   return value

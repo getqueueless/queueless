@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 // /my" (see lib/auth/redirect.ts's roleLandingPath).
 function safeNextPath(value: string | string[] | undefined): string {
   const path = Array.isArray(value) ? value[0] : value
-  if (!path || !path.startsWith("/") || path.startsWith("//")) return ""
+  if (!path || !path.startsWith("/") || path.startsWith("//") || /[\\\x00-\x1f]/.test(path)) return ""
   return path
 }
 

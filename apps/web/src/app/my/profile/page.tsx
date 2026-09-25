@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 function safeNextPath(value: string | string[] | undefined): string {
   const path = Array.isArray(value) ? value[0] : value
-  if (!path || !path.startsWith("/") || path.startsWith("//")) return "/my"
+  if (!path || !path.startsWith("/") || path.startsWith("//") || /[\\\x00-\x1f]/.test(path)) return "/my"
   return path
 }
 
