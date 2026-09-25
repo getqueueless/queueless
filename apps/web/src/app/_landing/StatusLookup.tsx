@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useRef, useState, useTransition, type FormEvent } from "react"
 
 import styles from "../page.module.css"
+import { ScanQr } from "./ScanQr"
 import { extractTokenId } from "./token-id"
 
 export function StatusLookup() {
@@ -49,6 +50,7 @@ export function StatusLookup() {
         <button type="submit" disabled={pending} className={`${styles.btn} ${styles.btnAccent}`}>
           {pending ? "Opening…" : "Check status"}
         </button>
+        <ScanQr />
       </div>
       <p id="status-hint" className={styles.hint}>
         It’s printed under the QR code. You can leave out the https:// part.

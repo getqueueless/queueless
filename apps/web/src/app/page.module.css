@@ -791,6 +791,102 @@
   color: var(--color-on-slate-muted);
 }
 
+/* ---------- QR scanner sheet ---------- */
+
+.scanIcon {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* A centred card on wide screens, a bottom sheet on phones. */
+.scanner {
+  width: min(440px, calc(100vw - 32px));
+  margin: auto;
+  padding: 0 0 env(safe-area-inset-bottom);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  box-shadow: var(--shadow-raised);
+}
+
+.scanner::backdrop {
+  background: rgba(11, 21, 23, 0.6);
+}
+
+.scannerHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-lg);
+}
+
+.scannerTitle {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.scannerClose {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.scannerClose svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.scannerClose:hover {
+  background: var(--color-surface-sunken);
+}
+
+.viewfinder {
+  position: relative;
+  aspect-ratio: 1;
+  margin: 0 var(--space-md);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: #0b1517;
+}
+
+.scannerVideo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The aiming square: the camera image dims around it. */
+.scanFrame {
+  position: absolute;
+  inset: 18%;
+  border: 3px solid var(--color-accent);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 0 0 999px rgba(11, 21, 23, 0.35);
+}
+
+.scanMessage {
+  min-height: 3.5em;
+  padding: var(--space-sm) var(--space-lg) var(--space-lg);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--color-ink-secondary);
+}
+
 /* ---------- Mobile CTA bar (phones only) ---------- */
 
 .ctaBar,
@@ -890,6 +986,13 @@
 
   .lookupRow {
     flex-direction: column;
+  }
+
+  .scanner {
+    width: 100%;
+    max-width: 100%;
+    margin: auto 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 
   /* Shorter lines put the labels 11px off the slip: 214 + 96 fits the
