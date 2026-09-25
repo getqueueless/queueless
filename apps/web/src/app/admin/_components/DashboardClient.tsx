@@ -40,7 +40,11 @@ export function DashboardClient({ services }: { services: ServiceRow[] }) {
         <ServiceSelect services={services} value={serviceId} onChange={setServiceId} />
       </div>
 
-      {error && <div className={`${styles.banner} ${styles.bannerDanger}`}>{error}</div>}
+      {error && (
+        <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
+          {error}
+        </div>
+      )}
 
       <div className={styles.statGrid}>
         <StatTile label="Queue length" value={loading ? "…" : String(stats?.queueLength ?? 0)} />
@@ -54,7 +58,11 @@ export function DashboardClient({ services }: { services: ServiceRow[] }) {
         <div className={styles.pageSubtitle} style={{ marginBottom: 12 }}>
           Peak hours -- predicted vs. actual wait
         </div>
-        {chartNote && <div className={styles.banner}>{chartNote}</div>}
+        {chartNote && (
+          <div role="status" className={styles.banner}>
+            {chartNote}
+          </div>
+        )}
         {chart.length > 0 ? (
           <WaitComparisonChart data={chart} />
         ) : (

@@ -102,7 +102,11 @@ export function StaffManager() {
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
-      {loadError && <div className={`${styles.banner} ${styles.bannerDanger}`}>{loadError}</div>}
+      {loadError && (
+        <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
+          {loadError}
+        </div>
+      )}
 
       <div className={styles.card}>
         <table className={styles.table}>
@@ -161,7 +165,11 @@ export function StaffManager() {
         <div className={styles.pageSubtitle} style={{ marginBottom: 12 }}>
           Add staff
         </div>
-        {formError && <div className={`${styles.banner} ${styles.bannerDanger}`}>{formError}</div>}
+        {formError && (
+          <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
+            {formError}
+          </div>
+        )}
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>
             <label htmlFor="staff-email">Email</label>

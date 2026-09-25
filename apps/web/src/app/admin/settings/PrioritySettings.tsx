@@ -59,8 +59,16 @@ export function PrioritySettings({ org }: { org: OrganizationRow }) {
         <div className={styles.pageSubtitle} style={{ marginBottom: 12 }}>
           Priority head start
         </div>
-        {error && <div className={`${styles.banner} ${styles.bannerDanger}`}>{error}</div>}
-        {saved && <div className={styles.banner}>Saved.</div>}
+        {error && (
+          <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
+            {error}
+          </div>
+        )}
+        {saved && (
+          <div role="status" className={styles.banner}>
+            Saved.
+          </div>
+        )}
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>
             <label htmlFor="head-start">Minutes a priority-lane token is treated as having arrived earlier</label>

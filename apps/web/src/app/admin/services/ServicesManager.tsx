@@ -115,7 +115,11 @@ export function ServicesManager({ initialServices, orgId }: { initialServices: S
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
-      {error && <div className={`${styles.banner} ${styles.bannerDanger}`}>{error}</div>}
+      {error && (
+        <div role="alert" className={`${styles.banner} ${styles.bannerDanger}`}>
+          {error}
+        </div>
+      )}
 
       <div className={styles.card}>
         <table className={styles.table}>
