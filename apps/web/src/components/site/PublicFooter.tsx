@@ -8,8 +8,8 @@ const COLUMNS = [
   {
     heading: "Patients",
     links: [
-      { href: "/kiosk", label: "Get a token" },
-      { href: "/#status", label: "Check your status" },
+      { href: "/#how", label: "Get a token" },
+      { href: "/#status", label: "Check status" },
     ],
   },
   {

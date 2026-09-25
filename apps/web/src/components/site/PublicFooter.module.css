@@ -88,9 +88,9 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--space-xs) var(--space-lg);
-  max-width: 1140px;
-  margin: 0 auto;
-  padding: var(--space-lg);
+  /* Margin, not padding, so the hairline spans the text column only. */
+  margin: 0 max(var(--space-lg), (100% - 1092px) / 2);
+  padding: var(--space-lg) 0;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   font-size: 13px;
   color: var(--color-on-slate-muted);
@@ -117,6 +117,7 @@
   }
 
   .bottom {
-    padding: var(--space-md);
+    margin-inline: var(--space-md);
+    padding: var(--space-md) 0;
   }
 }

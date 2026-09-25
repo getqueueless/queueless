@@ -4,17 +4,17 @@ import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import styles from "./PublicHeader.module.css";
 
-// "/#status" is the landing page's status-lookup section: it must carry
-// id="status". The skip link needs the page's <main id="main">.
+// "/#how" and "/#status" are landing-page sections: they must carry id="how"
+// and id="status". /kiosk is not linked: it is a staff-signed-in device. The skip link needs the page's <main id="main">.
 const NAV = [
   { key: "home", href: "/", label: "Home" },
-  { key: "kiosk", href: "/kiosk", label: "Get a token" },
+  { key: "how", href: "/#how", label: "Get a token" },
   { key: "status", href: "/#status", label: "Check status" },
 ] as const;
 
 type PublicHeaderProps = {
   /** The nav item for the page being shown; gets aria-current="page". */
-  current?: "home" | "kiosk" | "status" | "login";
+  current?: "home" | "how" | "status" | "login";
   /** "surface" = white bar, ink text. "slate" = transparent, white text, for sitting on the hero overlay. */
   tone?: "surface" | "slate";
 };

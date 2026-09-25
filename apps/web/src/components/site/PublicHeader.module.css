@@ -177,7 +177,12 @@
   .link,
   .login {
     font-size: 12px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
+  }
+
+  /* The logo already links home; dropping Home keeps STAFF LOGIN unclipped at 320. */
+  .link[href="/"] {
+    display: none;
   }
 
   .link {
@@ -194,6 +199,18 @@
     padding: 0 var(--space-xs);
     border-color: transparent;
     font-weight: 700;
+  }
+
+  /* Same specificity as the base .slate .login rule, so it has to be restated. */
+  .slate .login {
+    border-color: transparent;
+  }
+}
+
+@media (max-width: 359px) {
+  .link,
+  .login {
+    letter-spacing: 0;
   }
 }
 
