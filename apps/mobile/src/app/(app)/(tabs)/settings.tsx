@@ -56,6 +56,13 @@ export default function Settings() {
   function handleLanguagePress(pref: LanguagePreference) {
     setLanguagePreference(pref);
     setLanguagePref(pref);
+    // Best-effort write-through to profiles.language (supabase/migrations/0035) — local storage
+    // stays the primary, instant source of truth for this device (matches theme-preference's
+    // own pattern); the server copy just lets other surfaces (e.g. apps/api's push-notification
+    // translation) see the choice too. Never blocks or surfaces an error for this.
+    supabase.rpc('set_my_language', { p_language: pref }).then(({ error }) => {
+      if (error) console.log('[settings] set_my_language failed (non-fatal):', error);
+    });
   }
 
   return (
@@ -69,7 +76,8 @@ export default function Settings() {
           Language
         </ThemedText>
         <ThemedText type="bodySm" themeColor="inkMuted" style={styles.languageNote}>
-          Saved on this device. The rest of the app is English-only for now.
+          The app&apos;s own screens are English-only for now — this saves your preference for
+          notifications and future translated content.
         </ThemedText>
         <ThemedView
           type="surface"

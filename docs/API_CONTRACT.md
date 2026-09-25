@@ -37,34 +37,47 @@ Returns a predicted wait in minutes for one real service. No auth.
   directly from `board_services` (`waiting_count * avg_service_secs / max(open_counters, 1)`),
   labeled "estimate" instead of "predicted".
 
-## `POST /admin/ask` (proposed — not yet implemented)
+## `POST /admin/ask` (live — `apps/api/app/routes/ai.py`)
 
-Checked `apps/api/app/routes/admin.py` on `origin/main` just now: it only has `/admin/model` and
-`/admin/retrain`, so `apps/mobile/src/app/(app)/(tabs)/admin/ai.tsx` ("Ask your data") calls this
-route against the contract below, written by the mobile session. Every call 404s until
-`apps/api` implements it; the screen treats that as an honest "Not available yet" empty state.
-
-- Header: `Authorization: Bearer <supabase access token>`.
-- Body: `{"org_id": "<uuid>", "question": "<free text>"}`.
-- Response: `{"answer": "<text>", "chart": {"labels": string[], "values": number[]} | null}` —
-  `chart` is optional and only for simple bar-chart-shaped answers.
-
-## `GET /admin/summary` (proposed — not yet implemented)
-
-Returns the latest generated daily summary for an org.
-
-- Query: `?org_id=<uuid>`.
-- Response: `{"generated_at": "<iso timestamp>", "summary": "<text>"}`, or `null`/`404` if none
-  has been generated yet.
-
-## `POST /admin/summary/run` (proposed — not yet implemented)
-
-Triggers generation of a new daily summary. Mirrors `/admin/retrain`'s existing shape (fire an
-async job, return immediately) since it's the closest precedent already in `admin.py`.
+This session originally proposed a different shape for this route before `apps/api` implemented
+it; reconciled against the real source. `org_id` is **never** a request param — it's resolved
+server-side from the caller's authenticated profile (`require_org_role("admin")`), and the
+request body is pydantic `extra="forbid"`, so a stray `org_id` field 422s rather than being
+ignored.
 
 - Header: `Authorization: Bearer <supabase access token>`.
-- Body: `{"org_id": "<uuid>"}`.
-- Response: `202` `{"status": "started"}`.
+- Body: `{"question": "<1-500 chars>"}`.
+- Response: `{"answer": "<text>", "ai_generated": true, "function": "<analytics fn name>" | null,
+  "params": {...} | null, "rows": [...] | null}`, or `{"error": "<code>"}` with a matching
+  non-2xx status (`503` for `ai_unavailable`, etc).
+- `rows` is whatever the whitelisted `analytics.*` Postgres function returned — shape varies per
+  function, mobile renders it generically (one line per row) rather than assuming columns.
+
+## `GET /admin/summary` (live — `apps/api/app/routes/ai.py`)
+
+Returns the stored daily summary for a day (defaults to today).
+
+- Header: `Authorization: Bearer <supabase access token>` (also resolves `org_id`).
+- Query: `?day=<YYYY-MM-DD>` (optional) `&lang=hi|pa` (optional, server-side translates `report`).
+- Response: `{"org_id", "day", "report": "<text>", "ai_generated": bool, "aggregates": {...}}`,
+  or `404` if none exists for that day yet. No timestamp field.
+
+## `POST /admin/summary/run` (live — `apps/api/app/routes/ai.py`)
+
+**Runs synchronously** — a real DeepSeek call plus a DB write, not a fire-and-forget job. The
+response body is the finished summary, same shape as the `GET` above.
+
+- Header: `Authorization: Bearer <supabase access token>`.
+- Body: `{"day": "<YYYY-MM-DD>" | null}` (optional, defaults to today).
+- Response: `{"org_id", "day", "report", "ai_generated", "aggregates"}` — `ai_generated` is
+  `false` when DeepSeek was unavailable (a plain-aggregates fallback report is still written).
+
+## `POST /translate` (live — `apps/api/app/routes/ai.py`, not yet called by mobile)
+
+Staff/admin-only, DeepSeek-backed. `{"text": "<1-1000 chars>", "target_lang": "hi" | "pa"}` →
+`{"translated": "<text>", "target_lang": "hi" | "pa"}`. Not wired into any mobile screen yet —
+`profiles.language`/`set_my_language` (migration `0035`) let a patient set a language preference,
+but full-app translation via this endpoint is a larger follow-up, not built in this pass.
 
 ## Local dev
 

@@ -10,15 +10,16 @@ import { supabase } from '@/lib/supabase';
 import { useRole } from '@/lib/use-role';
 import { useSession } from '@/lib/use-session';
 
-// Neither /admin/ask nor /admin/summary/run exists in apps/api yet (checked
-// apps/api/app/routes/admin.py on origin/main just now — only /admin/model and /admin/retrain
-// are live). This screen is built against the contract this session just wrote and appended to
-// docs/API_CONTRACT.md, with real fetch calls — every call 404s right now, handled as an honest
-// "Not available yet" state, not mocked data. Nothing else needs to change here once apps/api
-// implements the contract.
-type AskChart = { labels: string[]; values: number[] };
-type AskResponse = { answer: string; chart: AskChart | null };
-type SummaryResponse = { generated_at: string; summary: string };
+// apps/api/app/routes/ai.py landed after this screen's first draft, with a slightly different
+// shape than this session's own proposed docs/API_CONTRACT.md draft — reconciled against the
+// real route source just now: org_id comes from the caller's authenticated profile server-side,
+// never from the request body (AskIn/SummaryRunIn both use pydantic `extra="forbid"`, so a
+// stray org_id field would 422, not just be ignored). /admin/ask returns {answer, ai_generated,
+// function, params, rows} (no "chart" field — that was this screen's own earlier guess).
+// /admin/summary's field is `report`, not `summary`, and carries no timestamp. /admin/summary/run
+// runs synchronously and returns the full summary object immediately, not a 202/"started" ack.
+type AskResponse = { answer: string; ai_generated: boolean; function: string | null; rows: unknown };
+type SummaryResponse = { org_id: string; day: string; report: string; ai_generated: boolean; aggregates: unknown };
 
 const NOT_AVAILABLE = 'Not available yet — apps/api hasn’t implemented this endpoint.';
 
@@ -33,27 +34,28 @@ function AiBadge() {
   );
 }
 
-function BarChart({ chart }: { chart: AskChart }) {
-  const theme = useTheme();
-  const max = Math.max(1, ...chart.values);
+// `rows` comes straight from a Postgres analytics.* function via asyncpg — its shape varies per
+// function (no_shows_by_service vs avg_wait_by_hour vs busiest_counters all return different
+// columns), so this renders it generically as one line per row rather than assuming a specific
+// {label, value} pair per function.
+function RowsList({ rows, functionName }: { rows: unknown; functionName: string | null }) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
   return (
     <View style={styles.chart}>
-      {chart.labels.map((label, i) => {
-        const value = chart.values[i] ?? 0;
-        return (
-          <View key={label} style={styles.chartRow}>
-            <ThemedText type="caption" themeColor="inkSecondary" style={styles.chartLabel} numberOfLines={1}>
-              {label}
-            </ThemedText>
-            <View style={styles.chartTrack}>
-              <View style={[styles.chartBar, { backgroundColor: theme.primary, width: `${(value / max) * 100}%` }]} />
-            </View>
-            <ThemedText type="caption" themeColor="inkMuted">
-              {value}
-            </ThemedText>
-          </View>
-        );
-      })}
+      {functionName ? (
+        <ThemedText type="caption" themeColor="inkMuted">
+          Based on: {functionName}
+        </ThemedText>
+      ) : null}
+      {rows.map((row, i) => (
+        <ThemedText key={i} type="caption" themeColor="inkSecondary" style={styles.rowLine}>
+          {typeof row === 'object' && row !== null
+            ? Object.entries(row as Record<string, unknown>)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(' · ')
+            : String(row)}
+        </ThemedText>
+      ))}
     </View>
   );
 }
@@ -86,7 +88,12 @@ export default function AdminAsk() {
       }
       setSummaryLoading(true);
       try {
-        const res = await fetch(`${apiUrl}/admin/summary?org_id=${encodeURIComponent(orgId)}`, {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        // No org_id query param — require_org_role resolves it server-side from the caller's
+        // own authenticated profile, so this call needs the Authorization header, not a param.
+        const res = await fetch(`${apiUrl}/admin/summary`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
           signal: AbortSignal.timeout(5000),
         });
         if (cancelled) return;
@@ -129,10 +136,13 @@ export default function AdminAsk() {
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
+      // No org_id in the body — AskIn (apps/api/app/routes/ai.py) is pydantic
+      // `extra="forbid"` with only `question`; org comes from the caller's own profile
+      // server-side. A stray org_id field would 422, not just be ignored.
       const res = await fetch(`${apiUrl}/admin/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ org_id: orgId, question: q }),
+        body: JSON.stringify({ question: q }),
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) {
@@ -159,17 +169,24 @@ export default function AdminAsk() {
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
+      // No org_id in the body (SummaryRunIn only takes an optional `day`, same
+      // extra="forbid" reasoning as /admin/ask) — and this runs synchronously (a real
+      // DeepSeek call + DB write), not a 202/"started" background job, so the response
+      // body IS the finished summary. A generous timeout to match.
       const res = await fetch(`${apiUrl}/admin/summary/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ org_id: orgId }),
-        signal: AbortSignal.timeout(5000),
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(20000),
       });
       if (!res.ok) {
         setGenerateMessage(NOT_AVAILABLE);
         return;
       }
-      setGenerateMessage('Generation started — check back soon.');
+      const body = (await res.json()) as SummaryResponse;
+      setSummary(body);
+      setSummaryError(null);
+      setGenerateMessage(body.ai_generated ? 'Generated.' : 'Generated (AI was unavailable — plain aggregates only).');
     } catch {
       setGenerateMessage(NOT_AVAILABLE);
     } finally {
@@ -224,11 +241,11 @@ export default function AdminAsk() {
 
           {askResult ? (
             <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }]}>
-              <AiBadge />
+              {askResult.ai_generated ? <AiBadge /> : null}
               <ThemedText type="body" style={styles.answerText}>
                 {askResult.answer}
               </ThemedText>
-              {askResult.chart ? <BarChart chart={askResult.chart} /> : null}
+              <RowsList rows={askResult.rows} functionName={askResult.function} />
             </ThemedView>
           ) : null}
 
@@ -240,12 +257,12 @@ export default function AdminAsk() {
               <ActivityIndicator color={theme.primary} />
             ) : summary ? (
               <>
-                <AiBadge />
+                {summary.ai_generated ? <AiBadge /> : null}
                 <ThemedText type="body" style={styles.answerText}>
-                  {summary.summary}
+                  {summary.report}
                 </ThemedText>
                 <ThemedText type="caption" themeColor="inkMuted">
-                  Generated {new Date(summary.generated_at).toLocaleString()}
+                  {summary.day}
                 </ThemedText>
               </>
             ) : (
@@ -300,9 +317,7 @@ const styles = StyleSheet.create({
   answerText: { marginTop: Spacing.xxs },
   chart: { marginTop: Spacing.xs, gap: Spacing.xxs },
   chartRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  chartLabel: { width: 90 },
-  chartTrack: { flex: 1, height: 10, borderRadius: Rounded.pill, backgroundColor: 'rgba(128,128,128,0.15)', overflow: 'hidden' },
-  chartBar: { height: '100%', borderRadius: Rounded.pill },
+  rowLine: { paddingVertical: 2 },
   generateButton: {
     minHeight: 44,
     borderRadius: Rounded.md,
