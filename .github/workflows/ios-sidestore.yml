@@ -16,17 +16,37 @@ on:
 
 permissions:
   contents: write
+  actions: read   # wait-turn lists this workflow's runs
 
-# One build at a time per ref -- a second push while one is archiving would otherwise race it
-# for the same release tag (build number = run_number, so two concurrent runs would each think
-# they own a different one, but the release-create step below is not safe to run twice at once
-# regardless). Never cancel a build already producing a release asset mid-upload.
-concurrency:
-  group: ios-sidestore-${{ github.ref }}
-  cancel-in-progress: false
+# No `concurrency:` block on purpose. A concurrency group keeps only ONE pending run and
+# cancels the rest, so with several sessions pushing, every queued build was cancelled and no
+# IPA shipped for an hour. Instead each run waits its turn below and always finishes, oldest
+# first, so the newest release is always the newest code.
 
 jobs:
+  wait-turn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Wait for earlier iOS builds to finish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          while true; do
+            OLDER=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ios-sidestore.yml --limit 50 \
+              --json databaseId,status \
+              --jq "[.[] | select(.databaseId < $RUN_ID and .status != \"completed\")] | length")
+            if [ "$OLDER" = "0" ]; then
+              break
+            fi
+            echo "$OLDER earlier iOS build(s) still running; waiting"
+            sleep 30
+          done
+
   build:
+    needs: wait-turn
     runs-on: macos-latest
     timeout-minutes: 40
     # Job-level, not on the prebuild step: Metro inlines EXPO_PUBLIC_* while xcodebuild's
