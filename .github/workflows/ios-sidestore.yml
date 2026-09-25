@@ -99,14 +99,33 @@ jobs:
         id: xc
         working-directory: apps/mobile/ios
         run: |
-          set -euo pipefail
-          WORKSPACE=$(ls *.xcworkspace | head -1)
+          set -uo pipefail
+          echo "pwd: $(pwd)"
+          echo "--- ls -la ---"
+          ls -la
+          WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" | head -1 | sed 's#^\./##')
+          if [ -z "$WORKSPACE" ]; then
+            echo "::error::No .xcworkspace found in $(pwd) after pod install" >&2
+            exit 1
+          fi
+          echo "workspace=$WORKSPACE"
+
+          echo "--- xcodebuild -list raw output ---"
+          LIST_OUTPUT=$(xcodebuild -workspace "$WORKSPACE" -list 2>&1)
+          LIST_STATUS=$?
+          echo "$LIST_OUTPUT"
+          echo "--- end raw output (exit $LIST_STATUS) ---"
+          if [ "$LIST_STATUS" -ne 0 ]; then
+            echo "::error::'xcodebuild -workspace $WORKSPACE -list' failed with exit $LIST_STATUS" >&2
+            exit 1
+          fi
+
           # First scheme xcodebuild reports for a fresh Expo prebuild is the app itself (Pods has
           # no scheme of its own) -- don't hardcode "Queueless", the app.json `name` this is
           # derived from could change without this workflow being touched.
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list 2>/dev/null | awk '/Schemes:/{flag=1;next} flag && NF {print; exit}' | xargs)
-          if [ -z "$WORKSPACE" ] || [ -z "$SCHEME" ]; then
-            echo "::error::Could not determine workspace/scheme from 'xcodebuild -list'" >&2
+          SCHEME=$(echo "$LIST_OUTPUT" | awk '/Schemes:/{flag=1;next} flag && NF {print; exit}' | xargs)
+          if [ -z "$SCHEME" ]; then
+            echo "::error::Could not parse a scheme name out of the -list output above" >&2
             exit 1
           fi
           echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
