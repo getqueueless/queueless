@@ -1,0 +1,335 @@
+/* Local to the admin section -- extends the global DESIGN.md tokens
+   (apps/web/src/app/globals.css) with the success/warning pair the admin
+   dashboard needs for stat deltas and badges, without touching the shared
+   globals.css file another agent may be editing concurrently. */
+.root {
+  --color-success: #1c8a5c;
+  --color-success-soft: #e3f4ea;
+  --color-warning: #a9660c;
+  --color-warning-soft: #faf0dd;
+  --color-canvas-soft: #f6f7f9;
+  min-height: 100vh;
+  background: var(--color-canvas-soft);
+}
+
+@media (prefers-color-scheme: dark) {
+  .root {
+    --color-success: #4cbf8b;
+    --color-success-soft: #0f2b21;
+    --color-warning: #dba24d;
+    --color-warning-soft: #2e2211;
+    --color-canvas-soft: #101317;
+  }
+}
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-hairline);
+  padding: var(--space-lg) var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+@media (max-width: 1023px) {
+  .sidebar {
+    width: 64px;
+  }
+  .navLabel {
+    display: none;
+  }
+}
+
+.brand {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: var(--color-ink);
+  padding: 0 var(--space-xs) var(--space-md);
+}
+
+.navLink {
+  display: block;
+  padding: 10px var(--space-xs);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--color-ink-secondary);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.navLink:hover {
+  background: var(--color-canvas-soft);
+}
+
+.navLinkActive {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.signOut {
+  margin-top: auto;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 10px var(--space-xs);
+  font-size: 14px;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.signOut:hover {
+  color: var(--color-danger);
+}
+
+.content {
+  flex: 1;
+  padding: var(--space-xl);
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--color-ink);
+}
+
+.pageSubtitle {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+@media (max-width: 1023px) {
+  .statGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .statGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.statTile {
+  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+
+.statLabel {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+}
+
+.statValue {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--color-ink);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.statValueMuted {
+  color: var(--color-ink-muted);
+  font-size: 20px;
+}
+
+.banner {
+  border: 1px solid var(--color-hairline);
+  background: var(--color-surface-sunken, var(--color-canvas-soft));
+  color: var(--color-ink-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 13px;
+  margin-bottom: var(--space-md);
+}
+
+.bannerDanger {
+  border-color: var(--color-danger-soft);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.select {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-ink-muted);
+  border-bottom: 1px solid var(--color-hairline-strong);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.table td {
+  border-bottom: 1px solid var(--color-hairline);
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--color-ink);
+  vertical-align: middle;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 420px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field label {
+  font-size: 13px;
+  color: var(--color-ink-secondary);
+}
+
+.input {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+  border-color: var(--color-primary);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.buttonRow {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: 4px;
+}
+
+.buttonPrimary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.buttonPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.buttonSecondary {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.buttonDanger {
+  composes: buttonSecondary;
+  color: var(--color-danger);
+  border-color: var(--color-danger-soft);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badgeSuccess {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.badgeWarning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.badgeMuted {
+  background: var(--color-surface-sunken, var(--color-canvas-soft));
+  color: var(--color-ink-secondary);
+}
