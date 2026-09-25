@@ -240,6 +240,40 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   now converts too. `docs/API_CONTRACT.md`'s `/predict` section still documents the old slug
   body; it's outside this app's scope to fix (shared with mobile), flagged for its owner.
 
+- **Redesign polish pass (2026-09-26).** A final critique-and-polish round over every screen.
+  - *Landing and login.* The landing's main patient button used to send visitors to `/kiosk`,
+    which is a staff-signed-in device. It now opens the status lookup, and "Get a token" in the
+    header and footer opens How it works: tokens come from the reception desk. The status card
+    shows a printed example slip drawn in HTML/CSS with "scan this" and "or type this" callouts;
+    its QR is real but only encodes "Example slip only". Live numbers read as words at zero, and
+    each service card shows how many people are waiting now. Login lost its decorative tabs and
+    dots, and its error summary uses a full border with an icon.
+  - *Kiosk and status page.* The signed-out kiosk reads "Staff sign-in needed" and gives a patient
+    a way out (ask at reception, or check status). Service cards lead with the service code, and
+    the issued ticket shows the full code (PED-006), so staff, slip, TV board and patient page name
+    a token the same way. On `/t/[id]`, being called fills the card head with solid cyan and a
+    screen reader announces it through a persistent live region; directions read "Go to Counter
+    OPD-1" so a counter name no longer looks like a token.
+  - *TV board.* Each tile leads with the token in mono and shows "Counter OPD-1" smaller underneath.
+    Status chips use the same pill-and-dot system as the rest of the app (Now calling, Serving,
+    Done, No-show, Skipped, Cancelled, Paused, Closed). A new call ripples a cyan ring three times
+    (4.5 s, inside the WCAG 5-second limit) and stops; under reduced motion the solid cyan tile
+    carries the signal alone.
+  - *Counter.* Decoration removed: no app-bar strip, no eyebrow, no duplicate key legend, and Skip
+    is no longer red, since skipping a no-show is routine. Done is the widest button, and banners
+    sit under the card so buttons never move under the operator's cursor. Buttons announce as
+    "Done"/"Skip" with `aria-keyshortcuts` instead of "Done D".
+  - *Admin.* When `/predict` is down the chart shows actual waits only, with a banner saying why,
+    instead of a fake flat 0-minute line. Empty values read "Unassigned"/"None"/"No data yet",
+    which exposed a real display bug: counters with staff whose profiles have no name looked
+    unassigned. Every page keeps its h1 in error states and row buttons name their row.
+  - *Shared.* Page titles use a `"%s | Queueless"` template (no em dashes), slate regions get a
+    cyan focus ring via `data-surface="slate"`, and every text/background pair was recomputed for
+    both themes and passes AA (`node apps/web/brand/contrast-check.mjs`).
+  - *Known limits, left for a logic/DB pass.* `board_counters` has no service or org column and an
+    open anon read policy, so each TV board lists every counter. After a validation or RPC error
+    the kiosk form is reset by React 19's form action, so the chosen service and name are cleared.
+
 ## Backend
 
 - **What it is.** `apps/api` is a separate Python FastAPI service that runs beside Supabase, not
