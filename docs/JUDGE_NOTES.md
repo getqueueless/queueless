@@ -852,3 +852,33 @@ under "Web app" above.
   motion blur), and the colours and timings are copied from the web version so both feel like
   one product.
 
+## Patient home and live status (2026-09-26)
+
+- **Home is now a hub.** The five things a patient can do -- take a token, book an appointment,
+  see their active tokens, add a paper ticket, and edit their profile -- are now five buttons on
+  Home, matching the action set the web `/my` page is meant to have (it's still a placeholder
+  there). "Take a token" and "book an appointment" open the same department screen, since that
+  screen already offers both a walk-in token and a per-doctor booking list.
+- **My active tokens.** A new screen lists every token a patient currently has open (waiting,
+  called, serving, or mid-payment), tapping one opens its live status. Home's own button shows a
+  quick count so a patient can tell at a glance whether they already have something in progress.
+- **Profile, second time around.** The same mandatory first-login form now also serves as an edit
+  screen: opening it from Home reads the existing profile first and prefills every field, so
+  fixing a typo in your phone number doesn't mean retyping your whole profile.
+- **Live status stays live.** The token screen and My active tokens now re-pull the real status
+  every time the screen comes into view, and every 10 seconds while it's open, on top of the
+  existing realtime subscription -- the same belt-and-suspenders pattern already used for staff
+  and admin screens, tuned tighter here since a queue position is the one number a patient
+  actually watches.
+- **Verified against production.** Signed in as a QA patient account and walked every screen live:
+  the doctors list (specialty, fee, today's shifts, running-late/available status), taking a
+  walk-in token (real position and ETA), booking and cancelling a doctor appointment, the profile
+  edit prefill, the Home and My active tokens counts, the Hindi/Punjabi language switch, and the
+  paper-ticket claim's error path (a made-up code is correctly rejected). Test tokens and
+  bookings were cancelled after; one walk-in ticket (ORT-004) is left in "waiting" because this
+  session's browser sandbox wouldn't let it enter a staff password to issue a matching paper
+  ticket to claim, and separately wouldn't let it complete the in-app cancel confirmation on the
+  web build of the app (`Alert.alert` doesn't show a dialog under `expo start --web`; unaffected
+  on a real device). Email-code and Google sign-in themselves weren't re-tested end to end --
+  same blocker the QA session already logged: no access to the test inbox or a real Google
+  account.

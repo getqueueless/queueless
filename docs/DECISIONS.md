@@ -579,3 +579,13 @@ One line per deviation from the plan/spec, with why.
 - 2026-09-26 (mobile): live staff/admin screens poll every 15 s plus refetch on focus
   (`use-live-refresh.ts`). Switch to the DB broadcast topics once `docs/API_CONTRACT.md` lists
   them; none are documented yet.
+- 2026-09-26 (mobile, patient pass): `POST https://api.lpu.lol/predict` has no CORS headers, so
+  every call from `expo start --web` (this app's own dev/test target, `localhost:8830`) fails
+  preflight and falls back to the local estimate -- confirmed live against prod, not a guess.
+  Native iOS/Android builds aren't affected (browser CORS doesn't apply there), so this doesn't
+  block real users, but it does mean the "predicted" (vs "estimate") wait label can't be verified
+  from a web build. Fix is `apps/api`'s (add `Access-Control-Allow-Origin`), not mobile's dir.
+- 2026-09-26 (mobile, patient pass): reused `use-live-refresh.ts`'s existing pattern for the
+  token and My-active-tokens screens (10 s here, not the shared 15 s default -- a queue position
+  is the one number a patient actually watches) rather than writing a second poll/focus
+  mechanism, per the task's own "add refetch on focus and a 10s poll" ask.
