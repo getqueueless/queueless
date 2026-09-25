@@ -39,14 +39,23 @@ async def _predict_rate_limit(request: Request, response: Response) -> None:
 async def predict(request: Request, body: PredictIn) -> dict:
     # apps/api's DB role (queueless_api, supabase/migrations/0018) has SELECT
     # on board_services but not on services, so service_id existence is
-    # validated against board_services -- which already carries
-    # (service_id, day) as its primary key -- rather than the services table.
+    # validated against board_services rather than the services table. No
+    # `day` filter: this only needs to prove the id is a real service, not
+    # that it has today's row -- a `day = current_date` filter compared
+    # Postgres-session-UTC against callers' local dates for no benefit (this
+    # bit us locally: dev_db.py seeds with Python's date.today(), which is
+    # Asia/Kolkata here, off by a day from UTC current_date near midnight
+    # IST), and in prod migration 0030_rls_public_tables.sql's RLS policy on
+    # board_services only names `anon, authenticated` -- not queueless_api --
+    # so a day-scoped row lookup was silently RLS-filtered to zero rows
+    # regardless of the date bug. See docs/DECISIONS.md for the grant fix
+    # that's still needed on the DB side; this query is correct once granted.
     exists = await request.app.state.db_pool.fetchval(
-        "SELECT 1 FROM board_services WHERE service_id = $1 AND day = current_date",
+        "SELECT 1 FROM board_services WHERE service_id = $1",
         body.service_id,
     )
     if not exists:
-        raise HTTPException(status_code=404, detail="unknown service_id for today")
+        raise HTTPException(status_code=404, detail="unknown service_id")
 
     return predict_with_fallback(
         request.app.state.ml_model,
