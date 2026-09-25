@@ -512,6 +512,7 @@
 .stat {
   display: flex;
   flex-direction: column-reverse; /* number above its label, dt still first in the DOM */
+  justify-content: flex-end; /* numbers share a top line when a label wraps */
   gap: 2px;
   padding: 0 var(--space-lg);
   border-left: 1px solid var(--color-hairline);
