@@ -18,11 +18,11 @@ values
 
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000041', 'p051a@queueless.test');
 
-insert into public.appointments (id, slot_id, service_id, patient_id, status)
+insert into public.appointments (id, slot_id, service_id, patient_id, status, starts_at)
 values
-  ('eeeeeeee-0000-0000-0000-000000000011', 'dddddddd-0000-0000-0000-000000000021', 'bbbbbbbb-0000-0000-0000-000000000041', '55555555-0000-0000-0000-000000000041', 'booked'),
-  ('eeeeeeee-0000-0000-0000-000000000012', 'dddddddd-0000-0000-0000-000000000022', 'bbbbbbbb-0000-0000-0000-000000000042', '55555555-0000-0000-0000-000000000041', 'booked'),
-  ('eeeeeeee-0000-0000-0000-000000000013', 'dddddddd-0000-0000-0000-000000000023', 'bbbbbbbb-0000-0000-0000-000000000043', '55555555-0000-0000-0000-000000000041', 'booked');
+  ('eeeeeeee-0000-0000-0000-000000000011', 'dddddddd-0000-0000-0000-000000000021', 'bbbbbbbb-0000-0000-0000-000000000041', '55555555-0000-0000-0000-000000000041', 'booked', now() + interval '10 minutes'),
+  ('eeeeeeee-0000-0000-0000-000000000012', 'dddddddd-0000-0000-0000-000000000022', 'bbbbbbbb-0000-0000-0000-000000000042', '55555555-0000-0000-0000-000000000041', 'booked', now() + interval '2 hours'),
+  ('eeeeeeee-0000-0000-0000-000000000013', 'dddddddd-0000-0000-0000-000000000023', 'bbbbbbbb-0000-0000-0000-000000000043', '55555555-0000-0000-0000-000000000041', 'booked', now() - interval '1 hour');
 
 create or replace function pg_temp.try_checkin(p_appt uuid, out ok boolean, out err_code text, out tok public.tokens) as $$
 declare v_message text;

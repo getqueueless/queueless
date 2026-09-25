@@ -73,8 +73,8 @@ values ('55555555-0000-0000-0000-000000000105', 'ExponentPushToken[t105]', 'ios'
 
 insert into public.appointment_slots (id, service_id, starts_at, capacity, booked)
 values ('eeeeeeee-0000-0000-0000-000000000105', 'bbbbbbbb-0000-0000-0000-000000000105', now() + interval '1 day', 1, 1);
-insert into public.appointments (id, slot_id, service_id, patient_id, status, fee_inr)
-values ('ffffffff-0000-0000-0000-000000000105', 'eeeeeeee-0000-0000-0000-000000000105', 'bbbbbbbb-0000-0000-0000-000000000105', '55555555-0000-0000-0000-000000000105', 'pending_payment', 500);
+insert into public.appointments (id, slot_id, service_id, patient_id, status, fee_inr, starts_at)
+values ('ffffffff-0000-0000-0000-000000000105', 'eeeeeeee-0000-0000-0000-000000000105', 'bbbbbbbb-0000-0000-0000-000000000105', '55555555-0000-0000-0000-000000000105', 'pending_payment', 500, now() + interval '1 day');
 
 set local role queueless_api;
 

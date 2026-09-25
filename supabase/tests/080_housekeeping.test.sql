@@ -18,11 +18,11 @@ values
   ('dddddddd-0000-0000-0000-0000000000d2', 'bbbbbbbb-0000-0000-0000-0000000000d1', now() + interval '10 minutes', 1, 1),
   ('dddddddd-0000-0000-0000-0000000000d3', 'bbbbbbbb-0000-0000-0000-0000000000d1', now() + interval '2 hours', 1, 1);
 
-insert into public.appointments (id, slot_id, service_id, patient_id, status)
+insert into public.appointments (id, slot_id, service_id, patient_id, status, starts_at)
 values
-  ('eeeeeeee-0000-0000-0000-0000000000d1', 'dddddddd-0000-0000-0000-0000000000d1', 'bbbbbbbb-0000-0000-0000-0000000000d1', '55555555-0000-0000-0000-0000000000d1', 'booked'),
-  ('eeeeeeee-0000-0000-0000-0000000000d2', 'dddddddd-0000-0000-0000-0000000000d2', 'bbbbbbbb-0000-0000-0000-0000000000d1', '55555555-0000-0000-0000-0000000000d2', 'booked'),
-  ('eeeeeeee-0000-0000-0000-0000000000d3', 'dddddddd-0000-0000-0000-0000000000d3', 'bbbbbbbb-0000-0000-0000-0000000000d1', '55555555-0000-0000-0000-0000000000d3', 'booked');
+  ('eeeeeeee-0000-0000-0000-0000000000d1', 'dddddddd-0000-0000-0000-0000000000d1', 'bbbbbbbb-0000-0000-0000-0000000000d1', '55555555-0000-0000-0000-0000000000d1', 'booked', now() - interval '20 minutes'),
+  ('eeeeeeee-0000-0000-0000-0000000000d2', 'dddddddd-0000-0000-0000-0000000000d2', 'bbbbbbbb-0000-0000-0000-0000000000d1', '55555555-0000-0000-0000-0000000000d2', 'booked', now() + interval '10 minutes'),
+  ('eeeeeeee-0000-0000-0000-0000000000d3', 'dddddddd-0000-0000-0000-0000000000d3', 'bbbbbbbb-0000-0000-0000-0000000000d1', '55555555-0000-0000-0000-0000000000d3', 'booked', now() + interval '2 hours');
 
 -- called tokens: one timed out, one still fresh
 create temp table called_stale as select * from private.mint_token(

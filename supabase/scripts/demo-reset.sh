@@ -28,6 +28,8 @@ declare
   v_finished_c uuid;
   v_patient_demo uuid;
   v_slot uuid;
+  v_slot_starts_at timestamptz;
+  v_used_starts_at timestamptz[] := array[]::timestamptz[];
   v_appt_doctor uuid;
   v_names text[] := array['Asha','Ravi','Priya','Kiran','Meera','Vikram','Sunita','Arjun','Divya','Rohit','Neha','Sanjay','Pooja','Amit','Rekha'];
   i int;
@@ -299,15 +301,20 @@ begin
     -- slots for that doctor and skip this booking every 7th run.
     perform private.generate_doctor_slots(v_appt_doctor, v_day + 1, v_day + 7);
 
-    select id into v_slot from public.appointment_slots
+    -- every doctor's shift starts at the same time of day (seed data), so the soonest slot
+    -- across 3 different services very often lands on the exact same instant -- excluded here,
+    -- or this demo patient would trip its own appointments_patient_no_time_clash constraint.
+    select id, starts_at into v_slot, v_slot_starts_at from public.appointment_slots
       where service_id = v_svc and doctor_id = v_appt_doctor and booked < capacity
         and starts_at::date > v_day
+        and starts_at <> all(v_used_starts_at)
       order by starts_at limit 1;
 
     if v_slot is not null then
-      insert into public.appointments (slot_id, service_id, patient_id, status, doctor_id)
-      values (v_slot, v_svc, v_patient_demo, 'booked', v_appt_doctor);
+      insert into public.appointments (slot_id, service_id, patient_id, status, doctor_id, starts_at)
+      values (v_slot, v_svc, v_patient_demo, 'booked', v_appt_doctor, v_slot_starts_at);
       update public.appointment_slots set booked = booked + 1 where id = v_slot;
+      v_used_starts_at := v_used_starts_at || v_slot_starts_at;
     end if;
   end loop;
 

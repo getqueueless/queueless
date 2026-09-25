@@ -61,8 +61,8 @@ reset role;
 -- appointments: staff/admin visibility resolved via services.org_id (appointments has no org_id column)
 insert into public.appointment_slots (id, service_id, starts_at, capacity, booked) values
   ('cccccccc-1111-0000-0000-0000000000c1', 'bbbbbbbb-0000-0000-0000-0000000000c1', now() + interval '1 day', 1, 0);
-insert into public.appointments (slot_id, service_id, patient_id, status) values
-  ('cccccccc-1111-0000-0000-0000000000c1', 'bbbbbbbb-0000-0000-0000-0000000000c1', '55555555-0000-0000-0000-000000000196', 'booked');
+insert into public.appointments (slot_id, service_id, patient_id, status, starts_at) values
+  ('cccccccc-1111-0000-0000-0000000000c1', 'bbbbbbbb-0000-0000-0000-0000000000c1', '55555555-0000-0000-0000-000000000196', 'booked', now() + interval '1 day');
 
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000196', 'role', 'authenticated')::text, true);

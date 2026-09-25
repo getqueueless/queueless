@@ -65,8 +65,8 @@ select is(
 
 insert into public.appointment_slots (id, service_id, starts_at, capacity, booked)
 values ('dddddddd-0000-0000-0000-0000000000b1', 'bbbbbbbb-0000-0000-0000-0000000000b1', now() + interval '1 hour', 1, 1);
-insert into public.appointments (id, slot_id, service_id, patient_id, status)
-values ('eeeeeeee-0000-0000-0000-0000000000b1', 'dddddddd-0000-0000-0000-0000000000b1', 'bbbbbbbb-0000-0000-0000-0000000000b1', '55555555-0000-0000-0000-0000000000b1', 'booked');
+insert into public.appointments (id, slot_id, service_id, patient_id, status, starts_at)
+values ('eeeeeeee-0000-0000-0000-0000000000b1', 'dddddddd-0000-0000-0000-0000000000b1', 'bbbbbbbb-0000-0000-0000-0000000000b1', '55555555-0000-0000-0000-0000000000b1', 'booked', now() + interval '1 hour');
 update public.appointments set status = 'cancelled' where id = 'eeeeeeee-0000-0000-0000-0000000000b1';
 select is(
   (select count(*)::int from public.audit_log where entity = 'appointments' and entity_id = 'eeeeeeee-0000-0000-0000-0000000000b1'),

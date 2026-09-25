@@ -123,8 +123,8 @@ reset role;
 -- a booking whose slot already started can no longer be cancelled
 insert into public.appointment_slots (id, service_id, starts_at, capacity, booked)
 values ('dddddddd-0000-0000-0000-000000000009', 'bbbbbbbb-0000-0000-0000-000000000031', now() - interval '10 minutes', 1, 1);
-insert into public.appointments (id, slot_id, service_id, patient_id, status)
-values ('eeeeeeee-0000-0000-0000-000000000001', 'dddddddd-0000-0000-0000-000000000009', 'bbbbbbbb-0000-0000-0000-000000000031', '55555555-0000-0000-0000-000000000031', 'booked');
+insert into public.appointments (id, slot_id, service_id, patient_id, status, starts_at)
+values ('eeeeeeee-0000-0000-0000-000000000001', 'dddddddd-0000-0000-0000-000000000009', 'bbbbbbbb-0000-0000-0000-000000000031', '55555555-0000-0000-0000-000000000031', 'booked', now() - interval '10 minutes');
 
 select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000031', 'role', 'authenticated')::text, true);
 set local role authenticated;
