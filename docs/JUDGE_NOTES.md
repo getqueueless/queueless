@@ -1158,3 +1158,16 @@ under "Web app" above.
   session only has the web preview and the source. Native-only concerns (safe-area insets on a
   notch, real haptics, real `Alert.alert` behavior) should get a quick pass there before relying
   on this note alone.
+
+## Scan a slip on the site, and a theme switch you can see
+
+- **Scan QR.** The landing's "Check your status" has a Scan QR button next to Check status. It
+  opens the rear camera in a sheet and reads the slip's QR with the browser's own barcode reader
+  where one exists (Chrome on Android), or with the small jsQR library, loaded only when the
+  sheet opens, everywhere else (iPhone Safari, Firefox). A slip's code opens that token's live
+  page; any other QR code gets a plain "that isn't a Queueless slip" note; a blocked camera says
+  to allow it or type the link. The camera turns off the moment a code is read, the sheet
+  closes, or the page changes. Tested with a simulated camera showing a real slip QR.
+- **Theme switch.** Switching light/dark now visibly sweeps the whole page: the new theme grows
+  out of the switch in a circle (the browser's View Transitions feature). Older browsers get a
+  quick colour fade instead, and people who turn off motion get an instant swap.
