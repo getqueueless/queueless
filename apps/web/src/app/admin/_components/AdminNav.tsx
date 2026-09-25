@@ -30,6 +30,11 @@ const LINKS = [
     icon: <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 7v10M9.5 9.5h3a1.5 1.5 0 1 1 0 3h-3a1.5 1.5 0 1 0 0 3h3" />,
   },
   {
+    href: "/admin/payments",
+    label: "Payments",
+    icon: <path d="M3 8h18M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2ZM7 15h4" />,
+  },
+  {
     href: "/admin/staff",
     label: "Staff",
     icon: <path d="M9 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM3 20a6 6 0 0 1 12 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.4a6 6 0 0 1 3 5.6" />,

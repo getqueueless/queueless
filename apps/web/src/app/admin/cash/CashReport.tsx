@@ -7,13 +7,29 @@ import { getCashReportByDoctor, getCashReportByStaff, type CashReportByDoctorRow
 import { downloadCsv } from "../_lib/csv"
 import styles from "../admin.module.css"
 
-// payments_ledger (the online-payments view) doesn't exist in any migration
-// yet -- the payments engineer is still building it (see task brief). This
-// probes for it with no column assumptions (a raw select("*").limit(50)) so
-// this screen neither guesses a schema that isn't documented anywhere nor
-// errors while the view is missing -- any failure (missing view or
-// otherwise) just keeps the section hidden, same convention as
-// callWhenAvailable elsewhere in this codebase.
+// Online payments: reads public.payments directly (supabase/migrations/0053's
+// payments_admin_read RLS policy scopes this to the caller's own org
+// automatically, same as every other admin query on this page). The unified
+// payments_ledger VIEW (payments + cash_receipts) stays admin-function-only
+// (payments_ledger_report) -- it can't safely be made directly selectable
+// without cash_receipts' own owner adding a matching policy there too (see
+// 0053's migration comment for why: a security_invoker view errors on the
+// whole query, not just the ungranted branch). Only captured payments show
+// here -- a still-pending or failed order isn't "cash" yet.
+type OnlinePaymentRow = {
+  id: string
+  amount_inr: number
+  status: string
+  razorpay_payment_id: string | null
+  captured_at: string | null
+  tokens: { code: string } | { code: string }[] | null
+}
+
+function tokenCode(row: OnlinePaymentRow): string {
+  const t = row.tokens
+  if (!t) return "—"
+  return Array.isArray(t) ? (t[0]?.code ?? "—") : t.code
+}
 
 function daysAgo(n: number): string {
   const d = new Date()
@@ -26,7 +42,7 @@ export function CashReport() {
   const [to, setTo] = useState(daysAgo(0))
   const [byStaff, setByStaff] = useState<CashReportByStaffRow[] | null>(null)
   const [byDoctor, setByDoctor] = useState<CashReportByDoctorRow[] | null>(null)
-  const [onlinePayments, setOnlinePayments] = useState<Record<string, unknown>[] | null>(null)
+  const [onlinePayments, setOnlinePayments] = useState<OnlinePaymentRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -38,7 +54,14 @@ export function CashReport() {
     const [staffRes, doctorRes, ledgerRes] = await Promise.all([
       getCashReportByStaff(supabase, { from, to }),
       getCashReportByDoctor(supabase, { from, to }),
-      supabase.from("payments_ledger").select("*").limit(50),
+      supabase
+        .from("payments")
+        .select("id, amount_inr, status, razorpay_payment_id, captured_at, tokens(code)")
+        .eq("status", "captured")
+        .gte("captured_at", from)
+        .lt("captured_at", `${to}T23:59:59`)
+        .order("captured_at", { ascending: false })
+        .limit(50),
     ])
 
     if (!staffRes.ok) {
@@ -50,9 +73,9 @@ export function CashReport() {
 
     if (doctorRes.ok) setByDoctor(doctorRes.data)
 
-    // Any error here (missing view, or anything else) just means "nothing
-    // to show yet" -- this probe never surfaces its own error banner.
-    setOnlinePayments(ledgerRes.error ? null : (ledgerRes.data as Record<string, unknown>[]))
+    // Any error here just means "nothing to show yet" -- this section never
+    // surfaces its own error banner alongside the cash report's real one.
+    setOnlinePayments(ledgerRes.error ? null : (ledgerRes.data as unknown as OnlinePaymentRow[]))
 
     setLoading(false)
   }
@@ -186,35 +209,52 @@ export function CashReport() {
         </section>
       )}
 
-      {/* Online payments: only rendered once the payments engineer's
-          payments_ledger view actually exists -- see the probe in load()
-          above. Raw column dump (same generic-row rendering as the Ask
-          panel's fallback table) since this view's real shape isn't
-          documented anywhere yet to build a proper report against. */}
-      {onlinePayments && onlinePayments.length > 0 && (
+      {onlinePayments && (
         <section className={styles.card} aria-labelledby="cash-online-title">
-          <h2 id="cash-online-title" className={styles.cardTitle}>
-            Online payments
-          </h2>
-          <p className={styles.hint}>Raw preview of payments_ledger -- not yet date-filtered or totalled, pending its column contract.</p>
+          <div className={styles.pageHeader}>
+            <h2 id="cash-online-title" className={styles.cardTitle}>
+              Online payments
+            </h2>
+            <button
+              type="button"
+              className={styles.buttonSecondary}
+              disabled={onlinePayments.length === 0}
+              onClick={() =>
+                downloadCsv(
+                  `online-payments-${from}-to-${to}.csv`,
+                  ["Token", "Amount (INR)", "Reference", "Captured at"],
+                  onlinePayments.map((r) => [tokenCode(r), r.amount_inr, r.razorpay_payment_id ?? "", r.captured_at ?? ""]),
+                )
+              }
+            >
+              Export CSV
+            </button>
+          </div>
           <table className={styles.table}>
             <thead>
               <tr>
-                {Object.keys(onlinePayments[0]).map((k) => (
-                  <th key={k} scope="col">
-                    {k}
-                  </th>
-                ))}
+                <th scope="col">Token</th>
+                <th scope="col" className={styles.num}>Amount</th>
+                <th scope="col">Reference</th>
+                <th scope="col">Captured at</th>
               </tr>
             </thead>
             <tbody>
-              {onlinePayments.map((row, i) => (
-                <tr key={i}>
-                  {Object.values(row).map((v, j) => (
-                    <td key={j}>{String(v)}</td>
-                  ))}
+              {onlinePayments.map((r) => (
+                <tr key={r.id}>
+                  <td>{tokenCode(r)}</td>
+                  <td className={styles.num}>₹{r.amount_inr}</td>
+                  <td>{r.razorpay_payment_id}</td>
+                  <td>{r.captured_at ? new Date(r.captured_at).toLocaleString() : "—"}</td>
                 </tr>
               ))}
+              {onlinePayments.length === 0 && (
+                <tr>
+                  <td colSpan={4} className={styles.emptyCell}>
+                    No online payments in this range.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </section>

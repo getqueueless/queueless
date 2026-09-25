@@ -1,5 +1,5 @@
 begin;
-select plan(28);
+select plan(29);
 
 insert into public.organizations (id, slug, name, timezone) values
   ('a0000000-0000-0000-0000-000000000180', 't-180-a', 'Payments Org A', 'Asia/Kolkata'),
@@ -134,6 +134,7 @@ select is(
 create temp table refund180 as select * from public.record_refund((select id from cap180), 'rfnd_180', 'doctor on leave', null);
 grant select on refund180 to public;
 select is((select status from refund180), 'refunded'::public.payment_status, 'record_refund marks the payment refunded');
+select is((select initiated_by from refund180), null::uuid, 'a null p_initiated_by (the automatic doctor-leave job) is stored as null, not an admin id');
 select is(
   (select count(*)::int from private.doctor_leave_refund_candidates() where payment_id = (select id from cap180)),
   0, 'a refunded payment drops off the candidate list on its own'
