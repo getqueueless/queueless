@@ -1187,3 +1187,14 @@ under "Web app" above.
 - **Theme switch.** Switching light/dark now visibly sweeps the whole page: the new theme grows
   out of the switch in a circle (the browser's View Transitions feature). Older browsers get a
   quick colour fade instead, and people who turn off motion get an instant swap.
+
+## Get the app, from the website
+
+- A "Get the app" section after How it works (and a "Get app" link in the header and footer).
+  On a computer it shows Android and iPhone side by side, each with a QR code to scan from the
+  phone. On a phone the QR codes disappear and the site shows only the card for that phone:
+  Android gets one big Download button (plus the version number once a build is published),
+  iPhone gets the three SideStore steps, a copy button for the source link, and a one-tap
+  "Add to SideStore". The QR codes are drawn on our own server, not by a third-party QR service.
+- The landing's numbers and service list now count only the demo hospital, so a load test
+  running on the same database never inflates what visitors see.
