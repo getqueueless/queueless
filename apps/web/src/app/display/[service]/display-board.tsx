@@ -145,22 +145,20 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   }, [serviceId])
 
   // Initial load, inline for board_services (loadBoardService/loadCounters below exist for
-  // the realtime handlers to re-run). Resolves this service's own counter_ids first so the
-  // very first counters fetch is already scoped (QA #9) rather than flashing the unscoped
-  // hospital-wide list for one round-trip. Seeds `announcedRef` from whatever's already on
-  // the board so an unrelated change to an already-serving counter never fires a stale
-  // announcement on first render.
+  // the realtime handlers to re-run). Fetches board_services, counter_services (this
+  // service's own counter_ids, for QA #9) and the unscoped board_counters all in ONE
+  // parallel round-trip, then filters client-side -- awaiting counter_services first
+  // before even starting the board_counters fetch was measurably slower on prod (an extra
+  // serial round-trip flashed "No counters open yet." on every cold load, confirmed live),
+  // so scoping happens after the fetch here instead of before it. Later re-fetches
+  // (realtime handlers, the poll below) go through loadCounters(), which by then has
+  // counterIdsRef populated and scopes server-side via `.in(...)`. Seeds `announcedRef`
+  // from whatever's already on the board so an unrelated change to an already-serving
+  // counter never fires a stale announcement on first render.
   useEffect(() => {
     let cancelled = false
     async function init() {
-      const { data: csRows } = await supabase
-        .from("counter_services")
-        .select("counter_id")
-        .eq("service_id", serviceId)
-      if (cancelled) return
-      counterIdsRef.current = csRows && csRows.length > 0 ? csRows.map((r) => r.counter_id as string) : null
-
-      const [boardRes, rows] = await Promise.all([
+      const [boardRes, csRes, countersRes] = await Promise.all([
         supabase
           .from("board_services")
           .select("service_id, waiting_count, served_count, no_show_count, last_called_code, avg_service_secs")
@@ -168,10 +166,21 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
           .order("day", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        loadCounters(),
+        supabase.from("counter_services").select("counter_id").eq("service_id", serviceId),
+        supabase
+          .from("board_counters")
+          .select("counter_id, counter_name, state, token_code, token_status")
+          .order("counter_name", { ascending: true }),
       ])
       if (cancelled) return
+      counterIdsRef.current =
+        csRes.data && csRes.data.length > 0 ? csRes.data.map((r) => r.counter_id as string) : null
       setBoard((boardRes.data as BoardService | null) ?? null)
+      const allRows = (countersRes.data as BoardCounter[] | null) ?? []
+      const rows = counterIdsRef.current
+        ? allRows.filter((r) => counterIdsRef.current!.includes(r.counter_id))
+        : allRows
+      setCounters(rows)
       for (const row of rows) {
         if (row.token_code) announcedRef.current.set(row.counter_id, row.token_code)
       }
@@ -180,7 +189,7 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     return () => {
       cancelled = true
     }
-  }, [serviceId, loadCounters])
+  }, [serviceId])
 
   // Doctor status strip. There is no doctor-per-token path in this schema
   // (tokens has service_id + counter_id only, no doctor_id -- see
