@@ -2,7 +2,7 @@ import { StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { CardShadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useNetworkStatus } from '@/lib/use-network-status';
 
@@ -15,7 +15,7 @@ export function OfflineBanner() {
 
   return (
     <ThemedView style={[styles.banner, { backgroundColor: theme.warningSoft, borderColor: theme.warning }]}>
-      <ThemedText type="caption" themeColor="warning">
+      <ThemedText type="bodySm" themeColor="warning">
         You&apos;re offline — showing the last known status.
       </ThemedText>
     </ThemedView>
@@ -24,9 +24,10 @@ export function OfflineBanner() {
 
 const styles = StyleSheet.create({
   banner: {
-    paddingVertical: Spacing.xxs,
+    paddingVertical: Spacing.xs,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
     alignItems: 'center',
+    ...CardShadow,
   },
 });

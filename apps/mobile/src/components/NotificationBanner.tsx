@@ -2,7 +2,7 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Rounded, Spacing } from '@/constants/theme';
+import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type NotificationBannerProps = {
@@ -20,11 +20,9 @@ export function NotificationBanner({ visible, title, body, onPress, onDismiss }:
   if (!visible) return null;
 
   return (
-    <ThemedView style={[styles.banner, { backgroundColor: theme.primarySoft }]}>
+    <ThemedView style={[styles.banner, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
       <Pressable style={styles.content} onPress={onPress} hitSlop={8}>
-        <ThemedText type="headingSm" themeColor="primary">
-          {title}
-        </ThemedText>
+        <ThemedText type="headingSm">{title}</ThemedText>
         <ThemedText type="bodySm" themeColor="inkSecondary">
           {body}
         </ThemedText>
@@ -43,18 +41,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
-    borderRadius: Rounded.md,
+    borderRadius: Rounded.lg,
+    borderWidth: 1,
     marginHorizontal: Spacing.md,
     marginTop: Spacing.xs,
     gap: Spacing.sm,
+    ...CardShadow,
   },
   content: {
     flex: 1,
-    gap: 2,
+    gap: Spacing.xxs,
   },
   close: {
-    paddingHorizontal: Spacing.xxs,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
