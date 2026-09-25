@@ -25,7 +25,8 @@ const exchanges = new Map<string, Promise<ExchangeResult>>();
 
 async function exchange(code: string, flowId: string | undefined): Promise<ExchangeResult> {
   const { data, error } = await supabase.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined);
-  if (error) return { ok: false, message: error.message || 'That link didn’t work. Request a new one.' };
+  // Raw PKCE errors are developer text (they mention @supabase/ssr); users get one plain line.
+  if (error) return { ok: false, message: 'That link didn’t work on this phone. Request a new one from the app.' };
   // supabase-js returns redirectType ('recovery' for a password-reset link) at runtime but its
   // published type for this call omits it.
   const redirectType = (data as { redirectType?: string | null }).redirectType;

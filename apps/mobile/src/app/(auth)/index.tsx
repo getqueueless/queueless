@@ -116,6 +116,7 @@ export default function SignIn() {
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, { redirectTo: AUTH_REDIRECT });
     setBusy(false);
     if (resetError) return authError(resetError);
+    setCooldown(RESEND_COOLDOWN_SECONDS);
     setNotice(`If ${trimmedEmail} has an account, we emailed a reset link. Open it on this phone to choose a new password.`);
   }
 
@@ -145,12 +146,22 @@ export default function SignIn() {
       token: code,
       type: mode === 'signup' ? 'signup' : 'email',
     });
-    setVerifying(false);
     if (verifyError) {
+      setVerifying(false);
       authError(verifyError);
       clearCode();
       return;
     }
+    if (mode === 'signup') {
+      // GoTrue keeps the old password when the address already existed unconfirmed (an unused
+      // email code, or an abandoned first sign-up), so set the one typed here explicitly.
+      const { error: pwError } = await supabase.auth.updateUser({ password });
+      if (pwError && pwError.code !== 'same_password') {
+        setVerifying(false);
+        return authError(pwError);
+      }
+    }
+    setVerifying(false);
     await routeAfterAuth(router);
   }
 
@@ -363,7 +374,7 @@ export default function SignIn() {
             {notice}
           </ThemedText>
         ) : null}
-        {primaryButton('Send reset link', sendReset, !isPlausibleEmail(email))}
+        {primaryButton(cooldown > 0 ? `Send again in ${cooldown}s` : 'Send reset link', sendReset, !isPlausibleEmail(email) || cooldown > 0)}
         {link('Back to sign in', () => switchMode('password'))}
       </>,
     );

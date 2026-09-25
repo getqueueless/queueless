@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -14,7 +14,7 @@ import { supabase } from '@/lib/supabase';
 
 // Landing screen for queueless://auth/callback: an emailed sign-in link, a password-reset link,
 // or (on Android) the Google redirect. Lives outside (auth) so that group's "signed in -> tabs"
-// redirect can't yank the user away mid password reset.
+// redirect can't yank the user away mid password reset (and blocks Android back while resetting).
 
 const MIN_PASSWORD = 8;
 
@@ -35,6 +35,11 @@ export default function AuthCallback() {
       const result = await exchangeAuthRedirect({ code, sb_flow_id: flowId, error_description: errorDescription });
       if (cancelled) return;
       if (!result.ok) {
+        // A replayed, already-used link (Android relaunch from recents) fails the exchange but
+        // the first use already signed the user in: carry on instead of showing an error.
+        const { data } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (data.session) return routeAfterAuth(router);
         setMessage(result.message);
         setState('error');
       } else if (result.recovery) {
@@ -47,6 +52,14 @@ export default function AuthCallback() {
       cancelled = true;
     };
   }, [code, flowId, errorDescription, router]);
+
+  // A reset session is a real session: Android's back button would pop to (auth), whose layout
+  // sends any session to the tabs before a new password is saved. Hold the user here instead.
+  useEffect(() => {
+    if (state !== 'recovery') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, [state]);
 
   async function saveNewPassword() {
     if (password.length < MIN_PASSWORD) {

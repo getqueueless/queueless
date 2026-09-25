@@ -18,6 +18,11 @@ export const supabase = createClient(
       // exchange the code GoTrue hands back over `queueless://auth/callback` for a session.
       // Doesn't affect email OTP, which never goes through this exchange path.
       flowType: "pkce",
+      // Carries each flow's id through the redirect (?sb_flow_id=...), so an emailed reset or
+      // sign-in link still finds ITS code verifier after the user starts another flow. Without
+      // it every link shares one verifier slot. queueless://** on GoTrue's allow-list tolerates
+      // the extra query param.
+      experimental: { appendPkceFlowIdToRedirects: true },
     },
   },
 );
