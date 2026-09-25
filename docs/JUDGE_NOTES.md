@@ -11,11 +11,11 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   login (before a display name exists) drops into a one-field name screen, then the app. Root
   routing is split into `(auth)`/`(app)` route groups, each gated by its own
   `onAuthStateChange`-driven redirect, so the app can never show an authenticated screen without
-  a session or vice versa. A password sign-in screen is still reachable as a labeled fallback
-  path — kept only because OTP delivery couldn't be verified end-to-end against a live SMTP
-  relay from this machine (see `docs/DECISIONS.md`); every real error code (`otp_expired`,
-  `over_email_send_rate_limit`) is confirmed against the actual running GoTrue instance, not
-  just docs.
+  a session or vice versa. Checked end to end against production on 2026-09-26 for a first
+  sign-in: a real code arrived by email, the app exchanged it for a session, and the name screen
+  saved the patient's name to their profile. A password sign-in screen is still reachable as a
+  labeled fallback. The error codes (`otp_expired`, `over_email_send_rate_limit`) were checked
+  against the running GoTrue instance, not just its docs.
 - **Home.** Lists open services (`services where is_open = true`) with a live waiting count from
   `board_services`, kept current over Supabase Realtime (`postgres_changes` on `board_services`,
   no polling) and refetched on every reconnect since Realtime never replays missed events. Each
@@ -43,9 +43,10 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   its window (30 min before to 15 min after `starts_at`) and calls `check_in`, which mints a real
   token and hands off to the same live token-detail screen as a walk-in. Any RPC error triggers a
   full refetch of the slot list so a stale "Book" button on a slot that just filled never lingers.
-- **History.** Past tokens and appointments (done/no-show/cancelled/skipped), newest first — a
-  plain RLS-scoped `select`, no manual user-id filtering needed since the backend already scopes
-  every row to the caller.
+- **History.** Past tokens and appointments (done/no-show/cancelled/skipped), newest first. Each
+  query filters on the signed-in patient's own id instead of trusting row-level security alone,
+  so a missing policy can never show one patient another patient's history. Appointments uses
+  the same filter to find "my" bookings.
 - **Settings.** Language row (English active, Hindi shown but disabled — no i18n system for one
   placeholder string), a System/Light/Dark appearance control, and sign-out, which defers to the
   app's existing session-watcher redirect instead of navigating manually.
@@ -58,17 +59,39 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   `localStorage` polyfill the Supabase client already uses, no new dependency), and fixed several
   pre-existing spots where the brand cyan was used as small body/caption text — it measures
   ~2.4:1 contrast on white, under WCAG AA's 4.5:1 minimum, so it's fill/button/large-decorative
-  only now, never text at that size.
+  only now, never text at that size. The brand guide's contrast rules are tokens now too. Cyan
+  heading words use a darker display cyan (`#0a95ae`, 3.55:1, large text only), and text on
+  cyan buttons is ink (6.39:1) instead of white (2.40:1).
 - **Notifications — reliable path first.** Expo Go cannot receive remote push on Android since
   SDK 53, so the app doesn't treat push as the primary mechanism. The real path is a Supabase
   Realtime subscription on the signed-in patient's own `notifications` rows — the instant a
   `called`/`almost_turn` row lands, it shows an in-app banner and fires a local notification
-  (works even backgrounded), with zero push setup required. Remote Expo push registration is
-  layered on top as a best-effort enhancement: `getExpoPushTokenAsync()` is wrapped so the known
-  Expo-Go/Android gap degrades to "no token" instead of crashing, and registering the token with
-  the API is fire-and-forget, never blocking.
+  (works even backgrounded), with zero push setup required.
+- **Push token registration.** Remote Expo push sits on top of that as a best-effort extra.
+  - **Where tokens go.** The app writes its own push token straight into the `push_tokens` table
+    through the Supabase client, with no API in between. Row-level security lets a patient touch
+    only their own rows. That means one network hop fewer and one service fewer that can be down,
+    and it is the same pattern the app already uses to read `notifications`. The API only reads
+    these rows to deliver pushes, and it deletes a token once Expo reports it dead.
+  - **Keeping the row right.** A token is unique, so re-saving it after a restart is a no-op
+    rather than an error. When the phone's OS swaps the token, the app saves the new one.
+  - **Sign-out.** Sign-out deletes this phone's token and no other, so the patient's other phones
+    keep receiving. It runs before the session ends, because the security rule needs a live
+    session to allow the delete.
+  - **Failure is harmless.** No token, a denied permission or a failed save never blocks the app.
+  - **Tested.** The database side was checked against production using the app's own code and
+    two real accounts: save, save again, a second account blocked from taking over the token,
+    then delete.
+  - **Where it works.** Expo only issues tokens to a build linked to an EAS project, and Expo Go
+    on Android has no remote push at all. So this path runs in the installed app, not in Expo Go.
 - **Offline.** A slim banner (`@react-native-community/netinfo`) appears when connectivity drops
   and disappears on reconnect.
+- **App icon and splash.** The launcher icon, the Android adaptive icon (with a monochrome layer
+  for themed icons) and the splash screen all use the Queueless mark on the brand's slate-teal.
+  They are rasterized from the same SVGs as the web app's icon, so phone and web share one
+  identity.
+- **Production.** The app runs against the deployed backend (`sb.lpu.lol`, `api.lpu.lol`). A web
+  build of the same code also runs in a browser for quick checks.
 
 ## Database
 
