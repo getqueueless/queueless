@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 
 import { createClient } from "@/lib/supabase/client"
 
-import { cancelErrorText, CancelButton, Toast } from "./CancelButton"
+import { cancelErrorText, CancelButton, cancelHold, HOLD_OUTCOME, Toast } from "./CancelButton"
 import { loadAppointments, type Appointment } from "./data"
 import type { Tone } from "./format"
 import styles from "./History.module.css"
@@ -93,16 +93,25 @@ function AppointmentRow({ appt, onCancelled, onExpire }: { appt: Appointment; on
           <>
             <HoldTimer expiresAt={appt.holdExpiresAt} onExpire={onExpire} />
             <p className={styles.secondaryLine}>
-              Nothing charged yet. Don&apos;t want it? Skip paying and the slot is released at{" "}
-              {holdEnds(appt.holdExpiresAt)}.
+              Nothing charged yet. Unpaid, the slot is released at {holdEnds(appt.holdExpiresAt)}.
             </p>
           </>
         )}
       </div>
       {appt.state === "pending" ? (
-        <Link href={`/pay/${appt.id}`} className={styles.pay}>
-          Pay now{appt.feeInr ? ` ₹${appt.feeInr}` : ""}
-        </Link>
+        <div className={styles.actions}>
+          <Link href={`/pay/${appt.id}`} className={styles.pay}>
+            Pay now{appt.feeInr ? ` ₹${appt.feeInr}` : ""}
+          </Link>
+          <CancelButton
+            label="Cancel hold"
+            title="Cancel this hold?"
+            outcome={<p>{HOLD_OUTCOME}</p>}
+            confirmLabel="Cancel hold"
+            run={() => cancelHold(supabase, appt.id)}
+            onDone={onCancelled}
+          />
+        </div>
       ) : appt.state === "refunded" ? null : (
         <CancelButton
           title="Cancel this appointment?"

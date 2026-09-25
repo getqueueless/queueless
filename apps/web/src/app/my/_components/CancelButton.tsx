@@ -13,6 +13,19 @@ const CANCEL_ERRORS: Record<string, string> = {
   illegal_transition: "This can't be cancelled any more.",
 }
 
+/** cancel_hold (0070): one call for an appointment or a token hold. */
+export async function cancelHold(
+  supabase: { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ error: { code?: string; message?: string } | null }> },
+  id: string,
+): Promise<string | null> {
+  const { error } = await supabase.rpc("cancel_hold", { p_id: id })
+  // not_found here means the hold already lapsed, was paid, or was released.
+  if (error?.code === "not_found") return "This hold has already ended. Refresh to see where it stands."
+  return cancelErrorText(error)
+}
+
+export const HOLD_OUTCOME = "Nothing was charged for this hold, so there is nothing to refund. The slot goes back to other patients."
+
 export function cancelErrorText(error: { code?: string; message?: string } | null): string | null {
   if (!error) return null
   const code = error.code ?? ""

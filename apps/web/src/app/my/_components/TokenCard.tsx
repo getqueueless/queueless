@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/client"
 
 import { readTokenStatus } from "@/components/tokens/active-token"
 
-import { cancelErrorText, CancelButton, Toast } from "./CancelButton"
+import { cancelErrorText, CancelButton, cancelHold, HOLD_OUTCOME, Toast } from "./CancelButton"
 import type { ActiveToken } from "./data"
 import { TOKEN_STATUS } from "./format"
 import { ArrowIcon } from "./icons"
@@ -134,6 +134,24 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
         {pending ? "Finish payment" : "View live status"}
         <ArrowIcon />
       </Link>
+
+      {/* An unpaid hold is released through cancel_hold (0070). */}
+      {pending && (
+        <div className={styles.cancel}>
+          <CancelButton
+            label="Cancel hold"
+            title={`Cancel hold ${token.code}?`}
+            outcome={<p>{HOLD_OUTCOME}</p>}
+            confirmLabel="Cancel hold"
+            run={() => cancelHold(supabase, id)}
+            onDone={() => {
+              setToken((prev) => ({ ...prev, status: "cancelled" }))
+              setToast("Hold cancelled")
+              setTimeout(() => router.refresh(), 2500)
+            }}
+          />
+        </div>
+      )}
 
       {/* cancel_token (0011) only takes a token that is still waiting. */}
       {token.status === "waiting" && (

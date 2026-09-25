@@ -116,7 +116,7 @@ export function Dashboard({ supabase, userId, fullName, org, now }: DashboardPro
               <div className={h.policyBody}>
                 <ul>
                   <li>Cancel a booked appointment any time before it starts, from this list.</li>
-                  <li>An unpaid hold costs nothing: skip paying and the slot is released after 10 minutes.</li>
+                  <li>An unpaid hold costs nothing: cancel it here, or skip paying and it is released after 10 minutes.</li>
                   <li>Online payments are refunded automatically if the doctor goes on leave that day.</li>
                   <li>Any other refund is approved by the hospital. Ask at reception.</li>
                 </ul>
