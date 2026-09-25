@@ -135,20 +135,9 @@ export type DoctorStatusTodayRow = {
   late_minutes: number | null
 }
 
-// supabase/migrations/0041_cash_desk.sql
-export type CashReportByStaffRow = {
-  collected_by: string
-  staff_name: string
-  receipt_count: number
-  total_inr: number
-}
-
-export type CashReportByDoctorRow = {
-  doctor_id: string | null
-  doctor_name: string | null
-  receipt_count: number
-  total_inr: number
-}
+// Cash report row types (cash_report_by_staff / cash_report_by_doctor) live
+// in @/lib/cash, next to the RPC wrappers that return them -- not
+// duplicated here.
 
 // Payments engineer's addition, may not exist yet -- probed for at runtime
 // (42P01 "undefined table" means "not shipped", not a real error).

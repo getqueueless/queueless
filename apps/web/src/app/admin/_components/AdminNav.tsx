@@ -20,9 +20,31 @@ const LINKS = [
   },
   { href: "/admin/counters", label: "Counters", icon: <path d="M5 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM8 20h8M12 16v4" /> },
   {
+    href: "/admin/doctors",
+    label: "Doctors",
+    icon: <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 8v8M8 12h8" />,
+  },
+  {
+    href: "/admin/cash",
+    label: "Cash report",
+    icon: <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 7v10M9.5 9.5h3a1.5 1.5 0 1 1 0 3h-3a1.5 1.5 0 1 0 0 3h3" />,
+  },
+  {
     href: "/admin/staff",
     label: "Staff",
     icon: <path d="M9 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM3 20a6 6 0 0 1 12 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.4a6 6 0 0 1 3 5.6" />,
+  },
+  {
+    href: "/admin/ask",
+    label: "Ask your data",
+    icon: (
+      <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1ZM11 9.5a1.5 1.5 0 1 1 1.7 1.48c-.42.07-.7.4-.7.82V12M12 14.5h.01" />
+    ),
+  },
+  {
+    href: "/admin/summary",
+    label: "Daily summary",
+    icon: <path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM14 3v5h5M8 12h8M8 15h8M8 18h5" />,
   },
   {
     href: "/admin/settings",
