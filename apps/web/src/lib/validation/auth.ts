@@ -57,8 +57,17 @@ export type NewPasswordInput = z.infer<typeof newPasswordSchema>
 // told what a bit of client-side arithmetic already knows.
 const INDIA_MOBILE = /^[6-9]\d{9}$/
 
+// Strips a leading "91" ONLY when it's actually a country-code prefix (12 digits total:
+// 91 + a 10-digit number) -- unconditionally stripping "91" from the front broke every
+// real 10-digit number that itself starts with 91 (e.g. 9123456789 -> 23456789, an
+// 8-digit string that can never pass INDIA_MOBILE). A patient with a 91xx number could
+// never complete the mandatory profile. Bug: P2 from code review, 2026-09-26.
+function stripCountryCode(digits: string): string {
+  return digits.length === 12 ? digits.replace(/^91/, "") : digits
+}
+
 function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "").replace(/^91/, "")
+  const digits = stripCountryCode(raw.replace(/\D/g, ""))
   return `+91${digits}`
 }
 
@@ -67,7 +76,7 @@ export const profileSchema = z
     fullName: z.string().trim().min(1, "Name is required").max(120),
     phone: z
       .string()
-      .transform((v) => v.replace(/\D/g, "").replace(/^91/, ""))
+      .transform((v) => stripCountryCode(v.replace(/\D/g, "")))
       .pipe(z.string().regex(INDIA_MOBILE, "Enter a 10-digit Indian mobile number")),
     dateOfBirth: z
       .string()
