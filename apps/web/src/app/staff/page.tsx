@@ -55,9 +55,9 @@ export default async function StaffPage({ searchParams }: PageProps<"/staff">) {
         <div className={styles.card}>
           <TwoToneHeading as="h1" lead="Sign" accent="in" />
           <p className={styles.subtitle}>
-            Patients sign in with Google or a one-time email code — no password, no separate
-            sign-up. Staff and admin accounts sign in with the password an administrator gave
-            them.
+            Staff and admin accounts sign in with the password an administrator gave them — and
+            so can any patient who&apos;s set one. Most patients don&apos;t need a password at
+            all: Google or a one-time email code works too, no separate sign-up.
           </p>
           <LoginTabs next={next} initialTab={initialTab} />
         </div>
