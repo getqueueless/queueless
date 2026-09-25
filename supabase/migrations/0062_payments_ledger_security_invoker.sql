@@ -1,0 +1,24 @@
+-- public.payments_ledger (0051) was created as an ordinary (definer-security) view: querying it
+-- runs with the VIEW OWNER's privileges, reading straight through payments' and cash_receipts'
+-- RLS regardless of who's actually asking. Its only intended caller, payments_ledger_report
+-- (0052), is itself SECURITY DEFINER and unaffected either way -- but the view was never given
+-- an explicit grant/revoke of its own, so it defaulted to the same "wide open to anon/
+-- authenticated" hole every other table in this schema started with. 0063's hand-run hotfix
+-- caught and closed the anon half; authenticated could still read every org's payments and cash
+-- receipts straight through this view. security_invoker=on plus revoking authenticated's select
+-- closes the rest: the view now runs as the querying role, which -- with no grant left on the
+-- view itself -- means nobody queries it directly again. payments_ledger_report stays the one
+-- door, same as its own comment already said.
+--
+-- Only the view is touched here. 0053 (payments_admin_read, already on main -- landed while this
+-- migration was in progress) already gives an org's own admin a direct, org-scoped read policy
+-- on the raw payments table, with the exact same private.is_admin_of(org_id) check this migration
+-- would otherwise have added -- redoing it here would just be `create policy` colliding with
+-- itself on replay. 0053's own comment explains why it deliberately left payments_ledger alone
+-- (cash_receipts has no matching admin policy yet, and a security_invoker view's UNION ALL
+-- across an inaccessible table 403s the whole query, verified empirically by that migration) --
+-- that's still true here too, but doesn't block this narrower fix: payments_ledger_report stays
+-- SECURITY DEFINER regardless of the view's own security_invoker setting, so it's unaffected
+-- either way, and it remains the only thing that ever needs to read the cash_receipts half.
+alter view public.payments_ledger set (security_invoker = on);
+revoke all on public.payments_ledger from authenticated;
