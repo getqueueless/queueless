@@ -112,7 +112,10 @@ jobs:
         working-directory: apps/mobile
         run: |
           set -euo pipefail
-          VERSION=$(node -p "require('./app.json').expo.version")
+          # SideStore only offers an update when the version string changes, so the
+          # patch number is the run number: app.json 1.0.x ships as 1.0.<run>.
+          BASE=$(node -p "require('./app.json').expo.version.split('.').slice(0,2).join('.')")
+          VERSION="$BASE.${{ github.run_number }}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
           echo "Building Queueless $VERSION (build ${{ github.run_number }})"
