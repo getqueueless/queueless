@@ -22,6 +22,7 @@ export default function AdminLayout() {
       <Stack.Screen name="services" options={{ title: 'Services' }} />
       <Stack.Screen name="counters" options={{ title: 'Counters' }} />
       <Stack.Screen name="staff" options={{ title: 'Staff' }} />
+      <Stack.Screen name="cash" options={{ title: 'Cash report' }} />
       <Stack.Screen name="priority" options={{ title: 'Priority settings' }} />
       <Stack.Screen name="ai" options={{ title: 'Ask your data' }} />
     </Stack>
