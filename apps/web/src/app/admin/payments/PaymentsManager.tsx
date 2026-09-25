@@ -65,10 +65,8 @@ export function PaymentsManager() {
   const [refundReason, setRefundReason] = useState("")
   const [refundError, setRefundError] = useState<string | null>(null)
   const [refundBusy, setRefundBusy] = useState(false)
-  const [debugTick, setDebugTick] = useState(0)
 
   async function load() {
-    setDebugTick((n) => n + 1)
     setLoading(true)
     setError(null)
     const supabase = createClient()
@@ -164,10 +162,6 @@ export function PaymentsManager() {
           </div>
         </div>
       </div>
-
-      <p data-debug-tick={debugTick} style={{ position: "fixed", bottom: 0, right: 0, background: "red", color: "white", padding: 4, zIndex: 999 }}>
-        DEBUG load() calls: {debugTick}
-      </p>
 
       {error && <div className={`${styles.banner} ${styles.bannerDanger}`}>{error}</div>}
 
