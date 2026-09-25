@@ -549,3 +549,17 @@ One line per deviation from the plan/spec, with why.
   `apps/mobile` screen -- no match), so nothing live breaks by leaving the stub in place, but
   whoever wires up mobile's own "Book & pay" trigger next should read `docs/PAYMENTS.md` first
   rather than building against the local-only stub.
+- 2026-09-25 (payments, self-review flag -- not fixed here, out of `apps/pay`'s owned dirs):
+  `token_status` gained `pending_payment` (`0050_payments_enum.sql`). Four existing files declare
+  their own hand-written `TokenStatus` TypeScript union that does **not** include it:
+  `apps/web/src/app/admin/_lib/types.ts`, `apps/web/src/app/counter/types.ts`,
+  `apps/web/src/app/t/[id]/data.ts`, `apps/mobile/src/app/(app)/token/[id].tsx`. This doesn't
+  break type-checking (TS trusts the declared union, it can't see real DB rows), but
+  `apps/web/src/app/t/[id]/status-view.tsx`'s `STATUS_LABEL`/`STATUS_BADGE_CLASS` are
+  `Record<TokenStatus, ...>` lookups keyed off that type -- a real `pending_payment` row landing
+  on `/t/[id]` (a bookmarked/old link before the patient finishes paying, say) would look up
+  `undefined` there today: a blank status body with a literal "undefined" badge, not a crash.
+  Low probability (the normal flow only reaches `/t/[id]` after payment, via `/pay/[tokenId]`) but
+  real. Whoever owns those files should add a `pending_payment` case (or exclude it upstream)
+  before it's hit for real; `counter/types.ts`'s own use (`ACTIVE_TOKEN_STATUSES`, a plain array,
+  not a full lookup) looked lower-risk on a quick check but wasn't traced further.
