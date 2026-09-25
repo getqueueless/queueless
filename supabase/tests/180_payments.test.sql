@@ -1,5 +1,5 @@
 begin;
-select plan(44);
+select plan(47);
 
 insert into public.organizations (id, slug, name, timezone) values
   ('a0000000-0000-0000-0000-000000000180', 't-180-a', 'Payments Org A', 'Asia/Kolkata'),
@@ -296,6 +296,27 @@ select is(
   (select booked from public.appointment_slots where id = 'd0000000-0000-0000-0000-000000000183'),
   0, 'housekeeping releases the slot''s claimed capacity along with the cancelled hold'
 );
+
+-- my_payment_status (0058): the one owner-read door onto an otherwise admin-only table.
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000180', 'role', 'authenticated')::text, true);
+select is(
+  (select status from public.my_payment_status(null, (select appointment_id from apptCap180b))),
+  'captured'::public.payment_status, 'the owning patient reads their own appointment payment status'
+);
+select is(
+  (select status from public.my_payment_status((select token_id from cap180), null)),
+  'refunded'::public.payment_status, 'the owning patient reads their own (now refunded) token payment status'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '11100000-0000-0000-0000-000000000181', 'role', 'authenticated')::text, true);
+select is(
+  (select count(*)::int from public.my_payment_status((select token_id from cap180), null)),
+  0, 'a different patient (even an org admin) gets no rows from my_payment_status for someone else''s token'
+);
+reset role;
 
 select * from finish(true);
 rollback;
