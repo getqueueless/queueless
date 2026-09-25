@@ -133,6 +133,23 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   right now on a pre-existing `@queueless/db` package issue (its `errors.js` export doesn't resolve
   under Turbopack, even though typechecking passes clean) — outside this app's scope to fix, flagged
   for that package's owner.
+- **Design + accessibility pass.** Reviewed all six routes for contrast, keyboard/screen-reader
+  support, and responsive behavior from kiosk-laptop width up to a TV. Real fixes: three light-mode
+  colors (a muted gray, the success/warning badge text) fell short of WCAG AA 4.5:1 against their
+  own backgrounds and were darkened just enough to clear it; the admin sidebar's tablet-width
+  "collapse to icons" state (documented in DESIGN.md, never actually built) was leaving six blank,
+  unlabeled links, now labeled at every width; the three admin data tables had an unlabeled actions
+  column and un-scoped headers; five async forms/dashboards updated a status banner with no
+  `role="alert"`/`role="status"`, so screen readers never heard the result of a save or a delete;
+  added a skip-to-content link ahead of the sidebar; turned on Recharts' built-in
+  `accessibilityLayer` for the wait-time chart. Also ran `impeccable detect` against the design
+  system and closed 5 of 12 findings (2 real off-ramp font sizes snapped to the nearest step, 3
+  legitimate large-format sizes documented as named type steps instead of changed); the remaining 6
+  are `/display/[service]`'s intentional `clamp()` fluid type for the kiosk-to-TV size range, noted
+  in DESIGN.md rather than "fixed." `/impeccable init` needs an interactive PRODUCT.md interview and
+  couldn't run in this pass; `critique`/`polish` ran in a degraded, single-context form (no
+  sub-agent isolation, no live browser injection) since neither was available here, per the skill's
+  own documented fallback.
 
 ## Backend
 
