@@ -23,7 +23,7 @@ export const ratio = (a, b) => {
 
 // [foreground, background, minimum]
 const PAIRS = [
-  ["ink", "canvas", 4.5], ["ink", "canvas-soft", 4.5],
+  ["ink", "canvas", 4.5], ["ink", "canvas-soft", 4.5], ["ink", "surface", 4.5],
   ["ink-secondary", "surface", 4.5], ["ink-secondary", "canvas-soft", 4.5],
   ["ink-muted", "surface", 4.5], ["ink-muted", "canvas-soft", 4.5], ["ink-muted", "surface-sunken", 4.5],
   ["primary", "surface", 4.5], ["primary", "canvas-soft", 4.5], ["primary", "primary-soft", 4.5],
@@ -31,7 +31,7 @@ const PAIRS = [
   ["accent-display", "canvas", 3], ["accent-display", "canvas-soft", 3], ["accent-display", "surface", 3],
   ["on-accent", "accent", 4.5], ["on-accent", "accent-hover", 4.5],
   ["accent", "slate", 4.5], ["accent", "slate-deep", 4.5],
-  ["on-slate", "slate", 4.5], ["on-slate-muted", "slate", 4.5], ["on-slate-muted", "slate-deep", 4.5],
+  ["on-slate", "slate", 4.5], ["on-slate", "slate-deep", 4.5], ["on-slate-muted", "slate", 4.5], ["on-slate-muted", "slate-deep", 4.5],
   ["success", "surface", 4.5], ["success", "success-soft", 4.5],
   ["warning", "surface", 4.5], ["warning", "warning-soft", 4.5],
   ["danger", "surface", 4.5], ["danger", "danger-soft", 4.5],
