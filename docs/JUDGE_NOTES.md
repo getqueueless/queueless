@@ -866,10 +866,14 @@ under "Web app" above.
   screen: opening it from Home reads the existing profile first and prefills every field, so
   fixing a typo in your phone number doesn't mean retyping your whole profile.
 - **Live status stays live.** The token screen and My active tokens now re-pull the real status
-  every time the screen comes into view, and every 10 seconds while it's open, on top of the
-  existing realtime subscription -- the same belt-and-suspenders pattern already used for staff
-  and admin screens, tuned tighter here since a queue position is the one number a patient
-  actually watches.
+  every time the screen comes into view, and every 10 seconds while it's open -- the same
+  refetch-on-focus-plus-poll pattern already used for staff and admin screens, tuned tighter here
+  since a queue position is the one number a patient actually watches. The token screen also
+  switched its own-ticket subscription to the new `token:<id>` DB broadcast topic
+  (`docs/API_CONTRACT.md`'s "Realtime topics", migration 0044) once that landed mid-session --
+  the `postgres_changes` listener it replaces never fired on this stack at all (confirmed in that
+  doc: the realtime publication has no member tables), so the poll isn't a backup here, it was
+  doing all the work until the broadcast switch.
 - **Verified against production.** Signed in as a QA patient account and walked every screen live:
   the doctors list (specialty, fee, today's shifts, running-late/available status), taking a
   walk-in token (real position and ETA), booking and cancelling a doctor appointment, the profile
