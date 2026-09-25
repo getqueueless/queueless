@@ -239,10 +239,23 @@ CREATE TABLE IF NOT EXISTS doctor_leaves (
     to_date date NOT NULL
 );
 
+-- Real schema: supabase/migrations/0055-0057 (paid appointments). Mirrors just the columns
+-- app/payments/routes.py reads/writes (patient_id/status/fee_inr/hold_expires_at) -- same
+-- compatible-subset philosophy as the tokens table above.
+CREATE TABLE IF NOT EXISTS appointments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id uuid,
+    doctor_id uuid,
+    status text NOT NULL,
+    fee_inr int,
+    hold_expires_at timestamptz
+);
+
 CREATE TABLE IF NOT EXISTS payments (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id uuid,
-    token_id uuid NOT NULL,
+    token_id uuid,
+    appointment_id uuid,
     razorpay_order_id text NOT NULL UNIQUE,
     razorpay_payment_id text,
     razorpay_refund_id text,
@@ -262,23 +275,30 @@ CREATE TABLE IF NOT EXISTS private.razorpay_webhook_events (
     received_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE OR REPLACE FUNCTION record_order(p_token uuid, p_razorpay_order_id text, p_amount_inr int)
+CREATE OR REPLACE FUNCTION record_order(p_token uuid, p_appointment uuid, p_razorpay_order_id text, p_amount_inr int)
 RETURNS payments LANGUAGE plpgsql AS $$
 DECLARE
   v_token RECORD;
+  v_appt RECORD;
   v_payment payments;
 BEGIN
-  SELECT * INTO v_token FROM tokens WHERE id = p_token;
-  IF v_token.id IS NULL OR v_token.status <> 'pending_payment' THEN
-    RETURN NULL;
+  IF p_token IS NOT NULL THEN
+    SELECT * INTO v_token FROM tokens WHERE id = p_token;
+    IF v_token.id IS NULL OR v_token.status <> 'pending_payment' OR v_token.fee_inr IS DISTINCT FROM p_amount_inr THEN
+      RETURN NULL;
+    END IF;
+    INSERT INTO payments (org_id, token_id, razorpay_order_id, amount_inr, status)
+    VALUES (v_token.org_id, p_token, p_razorpay_order_id, p_amount_inr, 'created')
+    RETURNING * INTO v_payment;
+  ELSE
+    SELECT * INTO v_appt FROM appointments WHERE id = p_appointment;
+    IF v_appt.id IS NULL OR v_appt.status <> 'pending_payment' OR v_appt.fee_inr IS DISTINCT FROM p_amount_inr THEN
+      RETURN NULL;
+    END IF;
+    INSERT INTO payments (appointment_id, razorpay_order_id, amount_inr, status)
+    VALUES (p_appointment, p_razorpay_order_id, p_amount_inr, 'created')
+    RETURNING * INTO v_payment;
   END IF;
-  IF v_token.fee_inr IS DISTINCT FROM p_amount_inr THEN
-    RETURN NULL;
-  END IF;
-
-  INSERT INTO payments (org_id, token_id, razorpay_order_id, amount_inr, status)
-  VALUES (v_token.org_id, p_token, p_razorpay_order_id, p_amount_inr, 'created')
-  RETURNING * INTO v_payment;
   RETURN v_payment;
 END;
 $$;
@@ -310,7 +330,11 @@ BEGIN
   UPDATE payments SET status = 'captured', razorpay_payment_id = p_razorpay_payment_id, captured_at = now()
     WHERE id = v_payment.id
     RETURNING * INTO v_payment;
-  UPDATE tokens SET status = 'waiting' WHERE id = v_payment.token_id AND status = 'pending_payment';
+  IF v_payment.token_id IS NOT NULL THEN
+    UPDATE tokens SET status = 'waiting' WHERE id = v_payment.token_id AND status = 'pending_payment';
+  ELSE
+    UPDATE appointments SET status = 'booked' WHERE id = v_payment.appointment_id AND status = 'pending_payment';
+  END IF;
   RETURN v_payment;
 END;
 $$;
@@ -352,6 +376,15 @@ LANGUAGE sql STABLE AS $$
     AND EXISTS (
       SELECT 1 FROM doctor_leaves dl
       WHERE dl.doctor_id = t.doctor_id AND current_date BETWEEN dl.from_date AND dl.to_date
+    )
+  UNION ALL
+  SELECT p.id, NULL::uuid, a.doctor_id, p.org_id, p.razorpay_payment_id, p.amount_inr
+  FROM payments p
+  JOIN appointments a ON a.id = p.appointment_id
+  WHERE p.status = 'captured'
+    AND EXISTS (
+      SELECT 1 FROM doctor_leaves dl
+      WHERE dl.doctor_id = a.doctor_id AND current_date BETWEEN dl.from_date AND dl.to_date
     );
 $$;
 """

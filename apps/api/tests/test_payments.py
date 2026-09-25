@@ -66,6 +66,17 @@ async def _seed_pending_token(db_pool, patient_id, fee_inr=500, hold_minutes=10)
     return token_id, org_id
 
 
+async def _seed_pending_appointment(db_pool, patient_id, fee_inr=500, hold_minutes=10):
+    appointment_id = uuid.uuid4()
+    await db_pool.execute(
+        "INSERT INTO appointments (id, patient_id, status, fee_inr, hold_expires_at) "
+        "VALUES ($1, $2, 'pending_payment', $3, $4)",
+        appointment_id, patient_id, fee_inr,
+        datetime.now(timezone.utc) + timedelta(minutes=hold_minutes),
+    )
+    return appointment_id
+
+
 # ---- POST /payments/order ----------------------------------------------
 
 
@@ -149,6 +160,46 @@ async def test_order_success_creates_razorpay_order_and_payments_row(client, db_
     assert row["amount_inr"] == 750
 
 
+async def test_order_success_for_appointment_creates_razorpay_order_and_payments_row(client, db_pool):
+    from app.main import app
+
+    fake = FakeRazorpayClient()
+    app.state.razorpay_client = fake
+    patient = uuid.uuid4()
+    appointment_id = await _seed_pending_appointment(db_pool, patient, fee_inr=500)
+
+    resp = client.post(
+        "/payments/order", json={"appointment_id": str(appointment_id)},
+        headers={"Authorization": f"Bearer {make_token(sub=str(patient))}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["amount_inr"] == 500
+    assert body["appointment_id"] == str(appointment_id)
+    assert body["token_id"] is None
+
+    row = await db_pool.fetchrow("SELECT * FROM payments WHERE appointment_id = $1", appointment_id)
+    assert row["status"] == "created"
+    assert row["token_id"] is None
+
+
+async def test_order_rejects_both_token_and_appointment(client):
+    resp = client.post(
+        "/payments/order",
+        json={"token_id": str(uuid.uuid4()), "appointment_id": str(uuid.uuid4())},
+        headers={"Authorization": f"Bearer {make_token()}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_order_rejects_neither_token_nor_appointment(client):
+    resp = client.post(
+        "/payments/order", json={},
+        headers={"Authorization": f"Bearer {make_token()}"},
+    )
+    assert resp.status_code == 422
+
+
 # ---- POST /payments/verify ----------------------------------------------
 
 
@@ -224,6 +275,33 @@ async def test_verify_success_and_replay_has_no_double_effect(client, db_pool, m
     assert count == 1
 
 
+async def test_verify_success_for_appointment_updates_status_to_booked(client, db_pool, monkeypatch):
+    from app.main import app
+
+    _patch_settings(app, monkeypatch)
+    patient = uuid.uuid4()
+    appointment_id = await _seed_pending_appointment(db_pool, patient, fee_inr=500)
+    await db_pool.execute(
+        "INSERT INTO payments (appointment_id, razorpay_order_id, amount_inr, status) "
+        "VALUES ($1, 'order_appt_v1', 500, 'created')",
+        appointment_id,
+    )
+    signature = _sign_checkout("order_appt_v1", "pay_appt_v1")
+    body = {
+        "appointment_id": str(appointment_id), "razorpay_order_id": "order_appt_v1",
+        "razorpay_payment_id": "pay_appt_v1", "razorpay_signature": signature,
+    }
+    headers = {"Authorization": f"Bearer {make_token(sub=str(patient))}"}
+
+    resp = client.post("/payments/verify", json=body, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["appointment_status"] == "booked"
+    assert resp.json()["token_status"] is None
+
+    status = await db_pool.fetchval("SELECT status FROM appointments WHERE id = $1", appointment_id)
+    assert status == "booked"
+
+
 # ---- DB-level: the amount check is enforced independent of the caller ---
 
 
@@ -241,7 +319,7 @@ async def test_confirm_payment_rejects_a_tampered_amount(db_pool):
         token_id, org_id, uuid.uuid4(),
     )
     order = await db_pool.fetchrow(
-        "SELECT * FROM record_order($1, $2, $3)", token_id, "order_tamper", 500
+        "SELECT * FROM record_order($1, $2, $3, $4)", token_id, None, "order_tamper", 500
     )
     assert order["status"] == "created"
 

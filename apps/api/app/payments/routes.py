@@ -40,20 +40,35 @@ async def _webhook_rate_limit(request: Request, response: Response) -> None:
     return None
 
 
+async def _load_hold(pool, body: OrderRequest | VerifyRequest, user: AuthedUser) -> tuple[str, dict]:
+    """Resolves the token or appointment a hold request is about. Returns (target, row) where
+    target is 'token' or 'appointment' -- the two are otherwise handled identically."""
+    if body.token_id is not None:
+        row = await pool.fetchrow(
+            "SELECT id, patient_id, status, fee_inr, hold_expires_at FROM tokens WHERE id = $1",
+            body.token_id,
+        )
+        target = "token"
+    else:
+        row = await pool.fetchrow(
+            "SELECT id, patient_id, status, fee_inr, hold_expires_at FROM appointments WHERE id = $1",
+            body.appointment_id,
+        )
+        target = "appointment"
+    if row is None:
+        raise HTTPException(404, "not_found")
+    if row["patient_id"] != user.user_id:
+        raise HTTPException(403, "forbidden")
+    return target, row
+
+
 @router.post("/payments/order", response_model=OrderResponse, dependencies=[Depends(_order_rate_limit)])
 async def create_order(
     request: Request, body: OrderRequest, user: AuthedUser = Depends(get_current_user)
 ) -> OrderResponse:
     pool = request.app.state.db_pool
 
-    row = await pool.fetchrow(
-        "SELECT id, patient_id, status, fee_inr, hold_expires_at FROM tokens WHERE id = $1",
-        body.token_id,
-    )
-    if row is None:
-        raise HTTPException(404, "not_found")
-    if row["patient_id"] != user.user_id:
-        raise HTTPException(403, "forbidden")
+    target, row = await _load_hold(pool, body, user)
     if row["status"] != "pending_payment":
         raise HTTPException(409, "not_pending_payment")
     if row["hold_expires_at"] is None or row["hold_expires_at"] < datetime.now(timezone.utc):
@@ -72,25 +87,29 @@ async def create_order(
             amount_paise=amount_inr * 100, currency="INR", receipt=str(row["id"])
         )
     except RazorpayError as exc:
-        log.error("razorpay_create_order_failed", token_id=str(row["id"]), status=exc.status_code)
+        log.error("razorpay_create_order_failed", target=target, id=str(row["id"]), status=exc.status_code)
         raise HTTPException(502, "razorpay_error") from exc
 
     payment = await pool.fetchrow(
-        "SELECT * FROM record_order($1, $2, $3)", row["id"], order["id"], amount_inr
+        "SELECT * FROM record_order($1, $2, $3, $4)",
+        row["id"] if target == "token" else None,
+        row["id"] if target == "appointment" else None,
+        order["id"], amount_inr,
     )
     # record_order returns the SQL NULL public.payments composite on
     # rejection -- `SELECT * FROM fn()` unpacks that into one row of all-NULL
     # columns, not zero rows, so `payment is None` would never be true here.
     # id is the primary key: never null on a real row.
     if payment is None or payment["id"] is None:
-        # The token stopped being pending_payment between the check above and
-        # here (e.g. the hold expired mid-request) -- the Razorpay order now
-        # exists unused, which is harmless (it just expires unpaid on their side).
+        # The hold stopped being pending_payment between the check above and
+        # here (e.g. it expired mid-request) -- the Razorpay order now exists
+        # unused, which is harmless (it just expires unpaid on their side).
         raise HTTPException(409, "not_pending_payment")
 
     return OrderResponse(
-        order_id=order["id"], amount_inr=amount_inr, currency="INR",
-        key_id=client.key_id, token_id=row["id"],
+        order_id=order["id"], amount_inr=amount_inr, currency="INR", key_id=client.key_id,
+        token_id=row["id"] if target == "token" else None,
+        appointment_id=row["id"] if target == "appointment" else None,
     )
 
 
@@ -101,13 +120,7 @@ async def verify_payment(
     settings = request.app.state.settings
     pool = request.app.state.db_pool
 
-    token_row = await pool.fetchrow(
-        "SELECT id, patient_id, fee_inr FROM tokens WHERE id = $1", body.token_id
-    )
-    if token_row is None:
-        raise HTTPException(404, "not_found")
-    if token_row["patient_id"] != user.user_id:
-        raise HTTPException(403, "forbidden")
+    target, row = await _load_hold(pool, body, user)
 
     if not settings.razorpay_key_secret or not verify_payment_signature(
         body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature,
@@ -115,7 +128,7 @@ async def verify_payment(
     ):
         raise HTTPException(401, "invalid_signature")
 
-    amount_inr = token_row["fee_inr"] or 0
+    amount_inr = row["fee_inr"] or 0
     payment = await pool.fetchrow(
         "SELECT * FROM confirm_payment($1, $2, $3)",
         body.razorpay_order_id, body.razorpay_payment_id, amount_inr,
@@ -124,8 +137,11 @@ async def verify_payment(
     if payment is None or payment["id"] is None:
         raise HTTPException(409, "payment_rejected")
 
-    token_status = await pool.fetchval("SELECT status FROM tokens WHERE id = $1", body.token_id)
-    return VerifyResponse(status="captured", token_status=token_status)
+    if target == "token":
+        status = await pool.fetchval("SELECT status FROM tokens WHERE id = $1", row["id"])
+        return VerifyResponse(status="captured", token_status=status)
+    status = await pool.fetchval("SELECT status FROM appointments WHERE id = $1", row["id"])
+    return VerifyResponse(status="captured", appointment_status=status)
 
 
 @router.post("/payments/razorpay/webhook", status_code=200, dependencies=[Depends(_webhook_rate_limit)])
