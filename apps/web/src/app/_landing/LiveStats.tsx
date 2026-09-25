@@ -1,8 +1,7 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useEffect, useState } from "react"
 
-import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import { createClient } from "@/lib/supabase/client"
 
 import styles from "../page.module.css"
@@ -10,27 +9,39 @@ import { loadBoard, type BoardStats } from "./board"
 
 const supabase = createClient()
 
-// Server-rendered first paint, then re-read on every board change -- the same
-// two realtime tables the TV display listens to.
+// Server-rendered first paint, then re-read every 10s and on returning to the
+// tab. postgres_changes never fires on this stack (docs/API_CONTRACT.md,
+// "Realtime topics"), so the old board_services/board_counters listeners
+// here received nothing; the same poll caps staleness on /t/[id] and the TV.
 export function LiveStats({ initial }: { initial: BoardStats | null }) {
   const [stats, setStats] = useState(initial)
 
-  const refresh = useCallback(() => {
-    loadBoard(supabase).then((board) => {
-      if (board) setStats(board.stats)
-    })
+  useEffect(() => {
+    let cancelled = false
+    const refresh = () => {
+      loadBoard(supabase).then((board) => {
+        if (!cancelled && board) setStats(board.stats)
+      })
+    }
+    const interval = setInterval(refresh, 10_000)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
   }, [])
 
-  useResilientChannel({ channelName: "landing-board-services", table: "board_services", onEvent: refresh })
-  useResilientChannel({ channelName: "landing-board-counters", table: "board_counters", onEvent: refresh })
-
   // A zero reads as a dead product next to "Live", so it gets words instead.
-  // avgServiceMins is null until some service has a rolling average.
+  // The wait is an estimate from the board (see estimateWaitMins) and says so;
+  // null means no queue can be estimated yet.
   const tiles = [
-    { label: "Waiting now", value: stats?.waiting, zero: "No one" },
     { label: "Seen today", value: stats?.servedToday, zero: "None yet" },
+    { label: "Est. wait now", value: stats?.waitNowMins, unit: "min", zero: "No wait" },
     { label: "Counters open", value: stats?.countersOpen },
-    { label: "Typical visit", value: stats?.avgServiceMins, unit: "min" },
   ]
 
   return (
@@ -42,7 +53,7 @@ export function LiveStats({ initial }: { initial: BoardStats | null }) {
         <p className={stats ? styles.live : `${styles.live} ${styles.liveOff}`}>
           {/* Keyed on the numbers, so the dot pulses again each time they change. */}
           <span
-            key={stats ? `${stats.waiting}-${stats.servedToday}-${stats.countersOpen}` : "off"}
+            key={stats ? `${stats.servedToday}-${stats.waitNowMins}-${stats.countersOpen}` : "off"}
             className={styles.liveDot}
             aria-hidden="true"
           />
