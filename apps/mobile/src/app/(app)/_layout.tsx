@@ -4,6 +4,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { NotificationBanner } from '@/components/NotificationBanner';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { PENDING_NAME_KEY } from '@/app/(app)/name-entry';
 import { useTheme } from '@/hooks/use-theme';
 import { registerForPushNotificationsAsync, showLocalNotification } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
@@ -63,6 +64,22 @@ export default function AppLayout() {
     registerForPushNotificationsAsync().catch(() => {});
   }, [session]);
 
+  // One-time retry for a display-name write that failed on a previous boot (see
+  // name-entry.tsx and docs/DECISIONS.md — profiles RLS for owner-column updates hadn't landed
+  // when this was written).
+  useEffect(() => {
+    if (!userId) return;
+    const pendingName = localStorage.getItem(PENDING_NAME_KEY);
+    if (!pendingName) return;
+    supabase
+      .from('profiles')
+      .update({ full_name: pendingName })
+      .eq('id', userId)
+      .then(({ error }) => {
+        if (!error) localStorage.removeItem(PENDING_NAME_KEY);
+      });
+  }, [userId]);
+
   useEffect(() => {
     if (!userId) return;
 
@@ -88,7 +105,7 @@ export default function AppLayout() {
   }, [userId, handleRow, refetch]);
 
   if (loading) return null;
-  if (!session) return <Redirect href="/(auth)/sign-in" />;
+  if (!session) return <Redirect href="/(auth)" />;
 
   return (
     <>
@@ -114,6 +131,7 @@ export default function AppLayout() {
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="token/[id]" options={{ title: 'Your ticket' }} />
+        <Stack.Screen name="name-entry" options={{ headerShown: false, gestureEnabled: false }} />
       </Stack>
     </>
   );
