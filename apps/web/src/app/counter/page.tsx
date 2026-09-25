@@ -69,13 +69,7 @@ export default async function CounterPage() {
     )
   }
 
-  const [otherCountersRes, currentTokenRes, servicesRes] = await Promise.all([
-    supabase
-      .from("counters")
-      .select("id, org_id, name, state")
-      .eq("org_id", counter.org_id)
-      .neq("id", counter.id)
-      .order("name"),
+  const [currentTokenRes, servicesRes] = await Promise.all([
     supabase
       .from("tokens")
       .select(TOKEN_COLUMNS)
@@ -96,7 +90,6 @@ export default async function CounterPage() {
     <main className={styles.page}>
       <CounterConsole
         counter={counter}
-        otherCounters={(otherCountersRes.data as CounterRow[] | null) ?? []}
         initialToken={(currentTokenRes.data as TokenRow | null) ?? null}
         serviceLabel={serviceLabel}
         staffName={profile.full_name ?? user.email ?? "Staff"}

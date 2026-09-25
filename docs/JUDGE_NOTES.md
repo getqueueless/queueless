@@ -150,6 +150,26 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   couldn't run in this pass; `critique`/`polish` ran in a degraded, single-context form (no
   sub-agent isolation, no live browser injection) since neither was available here, per the skill's
   own documented fallback.
+- **Counter screen wired to the real RPCs.** `docs/DECISIONS.md` flagged that this screen still
+  called `mark_done`/`mark_no_show`/`transfer_token`, none of which exist once the DB agent's
+  migrations landed — fixed against the real functions in `supabase/migrations/0020_call_next.sql`
+  and `0021_token_lifecycle.sql`: `call_next`/`start_serving`/`complete_token`/`skip_token`/
+  `recall_token`, each keyed by their actual `p_counter`/`p_token` argument names (the old code
+  also had those wrong, e.g. `counter_id` instead of `p_counter`, so Call Next never worked at
+  all). `complete_token` only accepts a ticket already in `serving`, so "Done" now calls
+  `start_serving` first when needed rather than exposing a separate click the display board never
+  visually distinguishes anyway. There's no staff-triggered no-show RPC (no-shows are set only by
+  the automatic housekeeping job on a timer), so that button is now "Skip" and calls `skip_token`;
+  "Transfer" is removed outright since moving a ticket to another desk isn't a real RPC and was
+  never in the spec. Also fixed: `call_next` returns `setof tokens`, so PostgREST always hands back
+  an array — the old `!data` check treated an empty array (no one waiting) as truthy and would have
+  rendered a garbled token card instead of "No one waiting."
+- **Verification pass.** Screenshots of every route in light/dark under `apps/web/qa-screenshots/`;
+  a scripted two-counter race (two staff, two desks on the same service, simultaneous Call Next)
+  confirmed no ticket is ever double-assigned — Postgres's `for no key update ... skip locked` in
+  `call_next` (0020) makes the two calls serialize instead of racing; ran gstack `/qa` before/after
+  the RPC fix above. Exact screenshot paths, race-test transcript, and qa scores/findings are in
+  the workflow report, not duplicated here.
 
 ## Backend
 

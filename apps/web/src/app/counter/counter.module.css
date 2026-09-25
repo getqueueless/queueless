@@ -280,28 +280,6 @@
   outline-offset: 2px;
 }
 
-.transferRow {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: var(--space-xs);
-}
-
-.transferSelect {
-  flex: 1;
-  min-height: 44px;
-  padding: 0 var(--space-sm);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-hairline);
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  font-size: 14px;
-}
-
-.transferSelect:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 1px;
-}
-
 .kbd {
   display: inline-block;
   min-width: 18px;

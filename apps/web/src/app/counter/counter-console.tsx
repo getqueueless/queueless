@@ -40,13 +40,11 @@ function formatElapsed(seconds: number): string {
 
 export function CounterConsole({
   counter,
-  otherCounters,
   initialToken,
   serviceLabel,
   staffName,
 }: {
   counter: CounterRow
-  otherCounters: CounterRow[]
   initialToken: TokenRow | null
   serviceLabel: string
   staffName: string
@@ -55,7 +53,6 @@ export function CounterConsole({
   const [current, setCurrent] = useState<TokenRow | null>(initialToken)
   const [banner, setBanner] = useState<Banner>(null)
   const [pending, setPending] = useState(false)
-  const [transferTarget, setTransferTarget] = useState("")
   const [now, setNow] = useState(() => Date.now())
   const pendingRef = useRef(false)
 
@@ -84,32 +81,51 @@ export function CounterConsole({
     }
   }, [])
 
-  // GOLDEN RULE: every mutation is an RPC -- call_next/mark_done/mark_no_show/
-  // recall_token/transfer_token own queue ordering and state transitions.
-  // None of these Postgres functions have landed in supabase/migrations yet
-  // (only private.handle_new_user/forbid_audit_log_mutation/fail/service_day
-  // exist there today), so each call is expected to fail with PGRST202
-  // ("server updating, retry shortly") until the DB agent ships them --
-  // handled the same as any other mapped error, not a special case.
+  // Every mutation is an RPC in public.tokens' real state machine (see
+  // supabase/migrations/0020_call_next.sql, 0021_token_lifecycle.sql):
+  // call_next(p_counter) -> 'called', start_serving(p_token) -> 'serving',
+  // complete_token(p_token) -> 'done', skip_token(p_token) -> 'skipped',
+  // recall_token(p_token) re-rings a 'called' ticket. docs/DECISIONS.md
+  // flagged this screen was still wired to non-existent mark_done/
+  // mark_no_show/transfer_token with wrong param names (counter_id/token_id
+  // instead of p_counter/p_token) -- fixed here. There is no staff-facing
+  // no-show RPC (no-shows are set only by the automatic housekeeping job on
+  // a timer), so "No-show" is now "Skip", and transfer isn't in the spec so
+  // that control is removed rather than left calling a function that
+  // doesn't exist.
   const callNext = useCallback(async () => {
     await run(async () => {
-      const { data, error } = await supabase.rpc("call_next", { counter_id: counter.id })
+      const { data, error } = await supabase.rpc("call_next", { p_counter: counter.id })
       if (error) {
         setBanner({ kind: "error", text: mapSupabaseError(error) })
         return
       }
-      if (!data) {
+      // call_next is `returns setof tokens`, so PostgREST always hands back
+      // an array -- empty, not null/undefined, when no one is waiting.
+      const token = (data as TokenRow[] | null)?.[0] ?? null
+      if (!token) {
         setBanner({ kind: "info", text: "No one waiting." })
         return
       }
-      setCurrent(data as TokenRow)
+      setCurrent(token)
     })
   }, [counter.id, run, supabase])
 
+  // "Done" covers both remaining lifecycle steps: a ticket lands here as
+  // 'called' (complete_token only accepts 'serving'), so this starts serving
+  // first and then completes it as one staff action rather than exposing an
+  // extra "start serving" click the display board never distinguishes.
   const markDone = useCallback(async () => {
     if (!current) return
     await run(async () => {
-      const { error } = await supabase.rpc("mark_done", { token_id: current.id })
+      if (current.status === "called") {
+        const { error: startError } = await supabase.rpc("start_serving", { p_token: current.id })
+        if (startError) {
+          setBanner({ kind: "error", text: mapSupabaseError(startError) })
+          return
+        }
+      }
+      const { error } = await supabase.rpc("complete_token", { p_token: current.id })
       if (error) {
         setBanner({ kind: "error", text: mapSupabaseError(error) })
         return
@@ -118,10 +134,10 @@ export function CounterConsole({
     })
   }, [current, run, supabase])
 
-  const markNoShow = useCallback(async () => {
+  const skip = useCallback(async () => {
     if (!current) return
     await run(async () => {
-      const { error } = await supabase.rpc("mark_no_show", { token_id: current.id })
+      const { error } = await supabase.rpc("skip_token", { p_token: current.id })
       if (error) {
         setBanner({ kind: "error", text: mapSupabaseError(error) })
         return
@@ -134,7 +150,7 @@ export function CounterConsole({
     if (!current) return
     const code = current.code
     await run(async () => {
-      const { data, error } = await supabase.rpc("recall_token", { token_id: current.id })
+      const { data, error } = await supabase.rpc("recall_token", { p_token: current.id })
       if (error) {
         setBanner({ kind: "error", text: mapSupabaseError(error) })
         return
@@ -143,22 +159,6 @@ export function CounterConsole({
       setBanner({ kind: "info", text: `Recalled ${code}.` })
     })
   }, [current, run, supabase])
-
-  const transfer = useCallback(async () => {
-    if (!current || !transferTarget) return
-    await run(async () => {
-      const { error } = await supabase.rpc("transfer_token", {
-        token_id: current.id,
-        target_counter_id: transferTarget,
-      })
-      if (error) {
-        setBanner({ kind: "error", text: mapSupabaseError(error) })
-        return
-      }
-      setCurrent(null)
-      setTransferTarget("")
-    })
-  }, [current, transferTarget, run, supabase])
 
   // Realtime: a second screen open on this same counter (a supervisor view, a
   // second tab) sees calls/done/no-show/recall/transfer without a refresh.
@@ -213,7 +213,7 @@ export function CounterConsole({
         case "s":
           if (current) {
             event.preventDefault()
-            void markNoShow()
+            void skip()
           }
           break
         case "r":
@@ -226,7 +226,7 @@ export function CounterConsole({
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [current, callNext, markDone, markNoShow, recall])
+  }, [current, callNext, markDone, skip, recall])
 
   return (
     <div className={styles.shell}>
@@ -294,10 +294,10 @@ export function CounterConsole({
             <button
               type="button"
               className={styles.actionDanger}
-              onClick={() => void markNoShow()}
+              onClick={() => void skip()}
               disabled={pending}
             >
-              No-show <kbd className={styles.kbd}>S</kbd>
+              Skip <kbd className={styles.kbd}>S</kbd>
             </button>
             <button
               type="button"
@@ -307,30 +307,6 @@ export function CounterConsole({
             >
               Recall <kbd className={styles.kbd}>R</kbd>
             </button>
-            <div className={styles.transferRow}>
-              <select
-                className={styles.transferSelect}
-                value={transferTarget}
-                onChange={(event) => setTransferTarget(event.target.value)}
-                disabled={pending || otherCounters.length === 0}
-                aria-label="Transfer to counter"
-              >
-                <option value="">Transfer to…</option>
-                {otherCounters.map((other) => (
-                  <option key={other.id} value={other.id}>
-                    {other.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className={styles.actionSecondary}
-                onClick={() => void transfer()}
-                disabled={pending || !transferTarget}
-              >
-                Transfer
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -343,7 +319,7 @@ export function CounterConsole({
           <kbd className={styles.kbd}>D</kbd> Done
         </span>
         <span>
-          <kbd className={styles.kbd}>S</kbd> No-show
+          <kbd className={styles.kbd}>S</kbd> Skip
         </span>
         <span>
           <kbd className={styles.kbd}>R</kbd> Recall
