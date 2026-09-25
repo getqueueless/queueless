@@ -95,6 +95,38 @@ Plain-English notes per feature: what was built, how it actually works, and why.
 - **Env vars.** `.env.example` lists the 4 required vars as placeholders — the two public Supabase
   values, the server-only service-role key (never `NEXT_PUBLIC_`), and `NEXT_PUBLIC_API_BASE_URL`
   for the FastAPI service's `/predict` and `/metrics`. Real values live in untracked `.env.local`.
+- **Counter (`/counter`).** The staff screen for calling patients forward. Shows a big "Call Next"
+  button when the desk is idle, or the current ticket (code, lane, a live timer since it was
+  called) with Done / No-show / Recall / Transfer actions — each one a single Postgres RPC call
+  (`call_next`, `mark_done`, `mark_no_show`, `recall_token`, `transfer_token`), never re-implemented
+  client-side. Keyboard shortcuts (N/D/S/R) are wired and shown on-screen. A second screen open on
+  the same counter updates live over Supabase Realtime, no refresh needed. Gated to staff/admin
+  accounts.
+- **Display board (`/display/[service]`).** The public TV screen for a waiting room — no login. It
+  reads only `board_services`/`board_counters`, the two tables open to anonymous visitors today, and
+  updates live. It announces a called number out loud (tap-to-enable sound, then a short chime
+  followed by speech), and shows a "next up" number as a clearly-labeled estimate rather than
+  claiming certainty, since it can't read the raw ticket list.
+- **Admin dashboard (`/admin`).** A live view of queue length, average wait, tokens/hour and no-show
+  rate, next to a chart comparing the ML service's predicted wait against what actually happened.
+  Also where staff manage services, counters, and priority-lane settings, and where an admin creates
+  new staff logins — that last part runs on the server with the elevated Supabase key, never in the
+  browser, and re-checks the caller is really an admin before doing anything.
+- **Kiosk (`/kiosk`).** The front-desk screen for walk-ins with no phone or app. Staff type the
+  visitor's name, the system issues a ticket, and prints a slip with a QR code linking to that
+  ticket's own status page — sized for either a receipt printer or a regular sheet of paper.
+- **Status page (`/t/[id]`).** The page a patient's QR code opens — no login. Shows their ticket's
+  live status, how many people are ahead of them, and an estimated wait, updating on its own so
+  there's nothing to refresh.
+- **Shared gap.** Several of the RPCs the pages above call (`call_next`, `mark_done`,
+  `mark_no_show`, `recall_token`, `transfer_token`, `staff_issue_token`) aren't in
+  `supabase/migrations` yet, and no RLS policy lets a signed-in user read their own `profiles` row
+  yet either — every page fails closed with a plain "server updating, retry shortly" message rather
+  than crashing or erroring, and the counter/kiosk/admin screens using them will start working
+  end-to-end the moment the database side ships those. Separately, `next build` fails repo-wide
+  right now on a pre-existing `@queueless/db` package issue (its `errors.js` export doesn't resolve
+  under Turbopack, even though typechecking passes clean) — outside this app's scope to fix, flagged
+  for that package's owner.
 
 ## Backend
 
