@@ -1,0 +1,219 @@
+name: Android APK build
+
+# Release-signed APK for direct install (lpu.lol/android). Same signing key every build so each
+# new APK installs over the old one. applicationId com.queueless.mobile must never change.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/android-apk.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  actions: read   # wait-turn lists this workflow's runs
+
+# No `concurrency:` block: it cancels queued runs. Same queue as ios-sidestore.yml: wait for
+# older runs, skip the build if a newer run is already waiting.
+
+jobs:
+  wait-turn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    outputs:
+      newest: ${{ steps.turn.outputs.newest }}
+    steps:
+      - name: Wait for earlier Android builds to finish
+        id: turn
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -uo pipefail   # no -e: one failed gh call must not kill the wait
+          count_runs() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow android-apk.yml --limit 50 \
+              --json databaseId,status \
+              --jq "[.[] | select(.databaseId $1 $RUN_ID and .status != \"completed\")] | length"
+          }
+          while true; do
+            OLDER=$(count_runs "<") || OLDER=""
+            if [ "$OLDER" = "0" ]; then
+              break
+            fi
+            echo "${OLDER:-unknown (gh failed)} earlier Android build(s) still running; waiting"
+            sleep 60
+          done
+          NEWER=$(count_runs ">") || NEWER="0"
+          if [ "$NEWER" = "0" ]; then
+            echo "newest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "newest=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$NEWER newer Android run(s) queued; skipping this superseded build"
+          fi
+
+  build:
+    needs: wait-turn
+    if: needs.wait-turn.outputs.newest == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Job level: Metro inlines EXPO_PUBLIC_* while Gradle bundles the JS, not only at prebuild.
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@12.6.0 --activate
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Stamp version into app.json
+        id: ver
+        working-directory: apps/mobile
+        env:
+          BUILD: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          # versionCode = run number, versionName = 1.0.<run>. The in-app update check compares
+          # versionCode, and expo-constants reads these same values back at runtime.
+          node -e '
+            const fs = require("fs");
+            const j = JSON.parse(fs.readFileSync("app.json", "utf8"));
+            if (j.expo.android?.package !== "com.queueless.mobile") {
+              console.error("android.package must stay com.queueless.mobile");
+              process.exit(1);
+            }
+            const base = j.expo.version.split(".").slice(0, 2).join(".");
+            j.expo.version = base + "." + process.env.BUILD;
+            j.expo.android.versionCode = Number(process.env.BUILD);
+            fs.writeFileSync("app.json", JSON.stringify(j, null, 2) + "\n");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "version=" + j.expo.version + "\n");
+          '
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+
+      - name: Expo prebuild (Android)
+        working-directory: apps/mobile
+        env:
+          CI: "1"
+        run: npx expo prebuild --platform android --clean
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KS="$RUNNER_TEMP/release.keystore"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KS"
+          # AGP's injected signing properties override the release signingConfig (prebuild's
+          # template signs release with the debug key). Written to the user gradle.properties,
+          # never passed on a command line or printed.
+          mkdir -p ~/.gradle
+          {
+            echo "android.injected.signing.store.file=$KS"
+            echo "android.injected.signing.store.password=$ANDROID_KEYSTORE_PASSWORD"
+            echo "android.injected.signing.key.alias=$ANDROID_KEY_ALIAS"
+            echo "android.injected.signing.key.password=$ANDROID_KEY_PASSWORD"
+          } >> ~/.gradle/gradle.properties
+          # The certificate fingerprint is public; the verify step checks the APK against it.
+          keytool -list -v -keystore "$KS" -storepass:env ANDROID_KEYSTORE_PASSWORD -alias "$ANDROID_KEY_ALIAS" \
+            | awk -F': ' '/SHA256:/ {gsub(":", "", $2); print tolower($2); exit}' > "$RUNNER_TEMP/release-cert.sha256"
+          echo "Release cert SHA-256: $(cat "$RUNNER_TEMP/release-cert.sha256")"
+
+      - name: Build release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --no-daemon
+
+      - name: Verify and package APK
+        id: apk
+        run: |
+          set -euo pipefail
+          SRC=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$SRC" ]; then
+            echo "::error::No app-release.apk -- outputs:" >&2
+            find apps/mobile/android/app/build/outputs -maxdepth 4 >&2 || true
+            exit 1
+          fi
+          NAME="Queueless-${{ steps.ver.outputs.version }}.apk"
+          cp "$SRC" "$NAME"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/aapt2" dump badging "$NAME" | head -1
+          "$BT/aapt2" dump badging "$NAME" | head -1 | grep -q "name='com.queueless.mobile' versionCode='${{ steps.ver.outputs.build }}' versionName='${{ steps.ver.outputs.version }}'"
+          APK_CERT=$("$BT/apksigner" verify --print-certs "$NAME" | awk -F': ' '/certificate SHA-256 digest/ {print tolower($2); exit}')
+          echo "APK cert SHA-256: $APK_CERT"
+          if [ "$APK_CERT" != "$(cat "$RUNNER_TEMP/release-cert.sha256")" ]; then
+            echo "::error::APK is not signed with the release key" >&2
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c%s "$NAME")" >> "$GITHUB_OUTPUT"
+          echo "APK: $NAME ($(stat -c%s "$NAME") bytes)"
+
+      - name: Write android-version.json
+        env:
+          BUILD: ${{ steps.ver.outputs.build }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          NAME: ${{ steps.apk.outputs.name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const e = process.env;
+            const out = {
+              versionCode: Number(e.BUILD),
+              versionName: e.VERSION,
+              apk: "https://lpu.lol/android/" + e.NAME,
+              notes: "Queueless " + e.VERSION + " (build " + e.BUILD + ", " + e.SHA.slice(0, 7) + ")",
+            };
+            require("fs").writeFileSync("android-version.json", JSON.stringify(out, null, 2) + "\n");
+          '
+          cat android-version.json
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "android-${{ steps.ver.outputs.build }}" \
+            "${{ steps.apk.outputs.name }}" \
+            android-version.json \
+            --repo "${{ github.repository }}" \
+            --latest=false \
+            --title "Android ${{ steps.ver.outputs.version }} (${{ steps.ver.outputs.build }})" \
+            --notes "Release-signed APK for com.queueless.mobile, built from ${{ github.sha }}. Installs over earlier builds."
