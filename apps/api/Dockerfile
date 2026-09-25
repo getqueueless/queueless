@@ -11,6 +11,7 @@ RUN useradd -u 10001 appuser
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY app ./app
+COPY scripts ./scripts
 # --chown, not a separate `RUN chown`: /admin/retrain writes a new model
 # file + model_meta.json at runtime (tmp-then-os.replace swap) as appuser,
 # so appuser must own ml/, not just be able to read it.
