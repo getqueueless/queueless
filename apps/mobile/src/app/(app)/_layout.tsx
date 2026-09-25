@@ -4,6 +4,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { NotificationBanner } from '@/components/NotificationBanner';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { SignOutButton } from '@/components/sign-out-button';
 import { useTheme } from '@/hooks/use-theme';
 import {
   registerForPushNotificationsAsync,
@@ -120,6 +121,7 @@ export default function AppLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="token/[id]" options={{ title: 'Your ticket' }} />
         <Stack.Screen name="name-entry" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="cash-desk" options={{ title: 'Cash desk', headerRight: () => <SignOutButton /> }} />
       </Stack>
     </>
   );

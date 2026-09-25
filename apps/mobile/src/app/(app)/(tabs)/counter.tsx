@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { type Href, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -59,6 +60,7 @@ async function rpc<T>(name: string, args: Record<string, unknown>): Promise<{ da
 
 export default function Counter() {
   const theme = useTheme();
+  const router = useRouter();
   const { session } = useSession();
   const { orgId, loading: roleLoading } = useRole(session?.user?.id);
 
@@ -272,6 +274,11 @@ export default function Counter() {
             Counter
           </ThemedText>
           <View style={styles.toolbar}>
+            <Pressable onPress={() => router.push('/cash-desk' as Href)} accessibilityRole="link" hitSlop={8} style={styles.toolbarLink}>
+              <ThemedText type="button" themeColor="primaryText">
+                Cash desk ›
+              </ThemedText>
+            </Pressable>
             <SignOutButton />
           </View>
 
@@ -507,7 +514,8 @@ export default function Counter() {
 }
 
 const styles = StyleSheet.create({
-  toolbar: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: -Spacing.sm },
+  toolbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: -Spacing.sm },
+  toolbarLink: { minHeight: 44, justifyContent: 'center' },
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
