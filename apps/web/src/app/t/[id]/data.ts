@@ -67,7 +67,10 @@ export type TokenStatusRow = TokenRow & { people_ahead: number | null }
 // as-is (apps/web/src/app/my/_components and apps/web/src/app/pay/[tokenId] still import
 // them directly), just no longer called from anywhere in this route.
 export async function fetchTokenStatus(supabase: AnySupabase, id: string): Promise<TokenStatusRow | null> {
-  const { data, error } = await supabase.rpc("get_token_status", { p_id: id })
+  // get_token_status is `RETURNS TABLE`, so PostgREST wraps the result in an array even
+  // for one row -- .single() unwraps it (and errors, caught below, on the zero-row
+  // not_found case instead of silently returning an array-shaped non-row).
+  const { data, error } = await supabase.rpc("get_token_status", { p_id: id }).single()
   if (error || !data) return null
   return data as TokenStatusRow
 }
