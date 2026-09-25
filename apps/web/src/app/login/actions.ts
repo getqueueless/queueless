@@ -15,7 +15,8 @@ export type LoginState = {
 // could send the browser off-site.
 function safeNextPath(value: FormDataEntryValue | null): string {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return "/"
+    // Default to the staff area: proxy.ts sends non-admins on to /counter.
+    return "/admin"
   }
   return value
 }

@@ -16,7 +16,8 @@ export const metadata: Metadata = {
 function safeNextPath(value: string | string[] | undefined): string {
   const path = Array.isArray(value) ? value[0] : value
   if (!path || !path.startsWith("/") || path.startsWith("//")) {
-    return "/"
+    // Default to the staff area: proxy.ts sends non-admins on to /counter.
+    return "/admin"
   }
   return path
 }
