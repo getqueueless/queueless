@@ -13,12 +13,15 @@ import { createClient } from "@/lib/supabase/server"
 // error screen.
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
+  // Behind Caddy, a route handler's request.url is the container's own
+  // http://localhost:3000, so redirects are built on the public origin.
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? request.url
   const code = url.searchParams.get("code")
   const rawNext = url.searchParams.get("next")
   const next = safeNextPath(rawNext, "/my")
 
   if (!code) {
-    const fallback = new URL("/staff", request.url)
+    const fallback = new URL("/staff", base)
     fallback.searchParams.set("tab", "otp")
     fallback.searchParams.set("next", next)
     return NextResponse.redirect(fallback)
@@ -28,7 +31,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error || !data.user) {
-    const fallback = new URL("/staff", request.url)
+    const fallback = new URL("/staff", base)
     fallback.searchParams.set("tab", "otp")
     fallback.searchParams.set("next", next)
     return NextResponse.redirect(fallback)
@@ -36,5 +39,5 @@ export async function GET(request: NextRequest) {
 
   const profile = await getMyProfile(supabase, data.user.id)
   const landing = rawNext ? safeNextPath(rawNext, roleLandingPath(profile)) : roleLandingPath(profile)
-  return NextResponse.redirect(new URL(landing, request.url))
+  return NextResponse.redirect(new URL(landing, base))
 }
