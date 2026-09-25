@@ -9,24 +9,18 @@ import { registerForPushNotificationsAsync, showLocalNotification } from '@/lib/
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/use-session';
 
-/**
- * `notifications` columns beyond `patient_id` aren't fully enumerated in supabase/README.md —
- * assuming `id`, `kind`, `read_at` (nullable), `token_id` per the task brief. There's no
- * title/body column assumed, so banner copy is derived from `kind` here.
- */
+// Confirmed against supabase/migrations/0006_boards_notifications_audit.sql: `notifications`
+// has real `title`/`body` columns (both NOT NULL) — use the server's own copy directly instead
+// of re-deriving text from `kind`. `kind` is constrained to a fixed check-list (`called`,
+// `almost_turn`, `no_show`, `expired`, `appointment_reminder`); every kind gets a banner here,
+// not just called/almost_turn, since the server already wrote appropriate title/body for each.
 type NotificationRow = {
   id: string;
-  kind: string | null;
+  title: string;
+  body: string;
   token_id: string | null;
   read_at: string | null;
 };
-
-function describeNotification(kind: string | null | undefined): { title: string; body: string } | null {
-  const k = (kind ?? '').toLowerCase();
-  if (k.includes('called')) return { title: "You've been called", body: 'Please head to the counter now.' };
-  if (k.includes('almost')) return { title: "You're almost up", body: 'Your turn is coming soon — stay nearby.' };
-  return null;
-}
 
 async function markNotificationRead(id: string) {
   try {
@@ -42,14 +36,12 @@ export default function AppLayout() {
   const router = useRouter();
   const userId = session?.user?.id;
 
-  const [banner, setBanner] = useState<{ row: NotificationRow; title: string; body: string } | null>(null);
+  const [banner, setBanner] = useState<NotificationRow | null>(null);
 
   const handleRow = useCallback((row: NotificationRow) => {
     if (row.read_at) return;
-    const desc = describeNotification(row.kind);
-    if (!desc) return;
-    setBanner({ row, ...desc });
-    showLocalNotification(desc.title, desc.body).catch(() => {});
+    setBanner(row);
+    showLocalNotification(row.title, row.body).catch(() => {});
   }, []);
 
   const refetch = useCallback(async () => {
@@ -57,7 +49,7 @@ export default function AppLayout() {
     // Realtime never replays missed events — refetch the latest unread row on (re)connect/foreground.
     const { data } = await supabase
       .from('notifications')
-      .select('id, kind, token_id, read_at')
+      .select('id, title, body, token_id, read_at')
       .eq('patient_id', userId)
       .is('read_at', null)
       .order('id', { ascending: false })
@@ -107,8 +99,8 @@ export default function AppLayout() {
         body={banner?.body ?? ''}
         onPress={() => {
           if (!banner) return;
-          markNotificationRead(banner.row.id);
-          const tokenId = banner.row.token_id;
+          markNotificationRead(banner.id);
+          const tokenId = banner.token_id;
           setBanner(null);
           if (tokenId) router.push(`/(app)/token/${tokenId}`);
         }}

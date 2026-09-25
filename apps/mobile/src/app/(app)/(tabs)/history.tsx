@@ -11,8 +11,12 @@ import { supabase } from '@/lib/supabase';
 type Row = Record<string, unknown> & { id?: string | number; status?: string };
 type HistoryItem = { key: string; kind: 'token' | 'appointment'; label: string; status: string; timestamp: string | null };
 
+// Confirmed against supabase/migrations/0001_enums.sql: token_status has no 'booked'/'checked_in'
+// (those are appointment_status only), and appointment_status has no 'done' — a checked-in
+// appointment becomes a token (tracked below via token_status='done' instead); 'booked' is an
+// active, not-yet-resolved booking, so it's excluded from history.
 const TOKEN_STATUSES = ['done', 'no_show', 'cancelled', 'skipped'];
-const APPOINTMENT_STATUSES = ['cancelled', 'done'];
+const APPOINTMENT_STATUSES = ['cancelled', 'no_show'];
 
 // Column names aren't fully confirmed against the live schema yet — try the columns the
 // backend contract documents, and if the row shape differs, fall back gracefully instead
@@ -27,7 +31,9 @@ function pickTimestamp(row: Row): string | null {
   return null;
 }
 
-function pickLabel(row: Row, kind: HistoryItem['kind']): string {
+function pickLabel(row: Row, kind: HistoryItem['kind'], serviceNames: Record<string, string>): string {
+  const serviceId = row.service_id;
+  if (typeof serviceId === 'string' && serviceNames[serviceId]) return serviceNames[serviceId];
   const candidate = row.service_name ?? row.label ?? row.code;
   if (typeof candidate === 'string' && candidate.length > 0) return candidate;
   return kind === 'token' ? 'Queue ticket' : 'Appointment';
@@ -85,23 +91,29 @@ export default function History() {
 
     async function load() {
       try {
-        const [tokens, appointments] = await Promise.all([
+        const [tokens, appointments, servicesRes] = await Promise.all([
           fetchPastRows('tokens', TOKEN_STATUSES),
           fetchPastRows('appointments', APPOINTMENT_STATUSES),
+          supabase.from('services').select('id, name'),
         ]);
+
+        const serviceNames: Record<string, string> = {};
+        for (const row of (servicesRes.data ?? []) as { id: string; name: string }[]) {
+          serviceNames[row.id] = row.name;
+        }
 
         const merged: HistoryItem[] = [
           ...tokens.map((row, i) => ({
             key: `token-${String(row.id ?? i)}`,
             kind: 'token' as const,
-            label: pickLabel(row, 'token'),
+            label: pickLabel(row, 'token', serviceNames),
             status: row.status ?? 'unknown',
             timestamp: pickTimestamp(row),
           })),
           ...appointments.map((row, i) => ({
             key: `appointment-${String(row.id ?? i)}`,
             kind: 'appointment' as const,
-            label: pickLabel(row, 'appointment'),
+            label: pickLabel(row, 'appointment', serviceNames),
             status: row.status ?? 'unknown',
             timestamp: pickTimestamp(row),
           })),

@@ -12,14 +12,21 @@ import { mapSupabaseError } from '@/lib/errors';
 import { estimateWaitSeconds } from '@/lib/predict';
 import { supabase } from '@/lib/supabase';
 
-// Schema assumption (migrations for services/board_services haven't landed yet — see
-// docs/JUDGE_NOTES.md for the reconciliation note): services(id, name, is_open),
-// board_services(service_id, waiting_count, avg_service_secs, open_counters), one row per
-// service, joined client-side on service_id === id. Single-org hackathon demo, no org filter.
-type Service = { id: string; name: string; is_open: boolean };
-type BoardService = { service_id: string; waiting_count: number; avg_service_secs: number; open_counters: number };
+// Confirmed against supabase/migrations/0003_services_counters.sql and
+// 0006_boards_notifications_audit.sql (landed after this screen's first draft): `services` has
+// `default_service_secs`, not `avg_service_secs`. `board_services` is keyed by
+// `(service_id, day)` — must filter to today — and has `waiting_count`/`avg_service_secs`
+// (nullable until a service has served anyone today) but NO `open_counters` column at all;
+// that's computed client-side from `counter_services` joined to `counters.state`.
+type Service = { id: string; name: string; is_open: boolean; default_service_secs: number };
+type BoardServiceRow = { service_id: string; waiting_count: number; avg_service_secs: number | null };
+type BoardService = { waiting_count: number; avg_service_secs: number; open_counters: number };
 
-const EMPTY_BOARD_ROW: BoardService = { service_id: '', waiting_count: 0, avg_service_secs: 0, open_counters: 0 };
+const EMPTY_BOARD_ROW: BoardService = { waiting_count: 0, avg_service_secs: 0, open_counters: 0 };
+
+function todayDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 // apps/api's /predict only knows this fixed 5-service Hospital OPD demo preset (see
 // apps/api/app/routes/predict.py's Service Literal) — it takes a slug, not services.id, and
@@ -128,7 +135,8 @@ export default function Home() {
   const router = useRouter();
 
   const [services, setServices] = useState<Service[]>([]);
-  const [board, setBoard] = useState<Record<string, BoardService>>({});
+  const [boardRows, setBoardRows] = useState<Record<string, BoardServiceRow>>({});
+  const [openCounters, setOpenCounters] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -139,22 +147,45 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
 
+    const today = todayDateString();
+
     async function load() {
       try {
-        const [servicesRes, boardRes] = await Promise.all([
+        const [servicesRes, boardRes, counterRes] = await Promise.all([
           supabase.from('services').select('*').eq('is_open', true),
-          supabase.from('board_services').select('*'),
+          supabase.from('board_services').select('service_id, waiting_count, avg_service_secs').eq('day', today),
+          // No `open_counters` column exists anywhere — derive it from which counters serving
+          // each service are currently open. Refreshed on load/reconnect, not on every
+          // waiting_count tick (counters opening/closing is rare by comparison).
+          supabase.from('counter_services').select('service_id, counters(state)'),
         ]);
         if (servicesRes.error) throw servicesRes.error;
         if (boardRes.error) throw boardRes.error;
+        if (counterRes.error) throw counterRes.error;
         if (cancelled) return;
 
-        const nextBoard: Record<string, BoardService> = {};
-        for (const row of (boardRes.data ?? []) as BoardService[]) {
-          nextBoard[row.service_id] = row;
+        const nextBoardRows: Record<string, BoardServiceRow> = {};
+        for (const row of (boardRes.data ?? []) as BoardServiceRow[]) {
+          nextBoardRows[row.service_id] = row;
         }
+
+        // Without generated Database types, supabase-js can't tell this embed is many-to-one
+        // (counter_services.counter_id -> counters.id) — it infers `counters` as an array even
+        // though PostgREST returns a single object at runtime. Handle both shapes defensively.
+        const nextOpenCounters: Record<string, number> = {};
+        for (const row of (counterRes.data ?? []) as unknown as {
+          service_id: string;
+          counters: { state: string } | { state: string }[] | null;
+        }[]) {
+          const counter = Array.isArray(row.counters) ? row.counters[0] : row.counters;
+          if (counter?.state === 'open') {
+            nextOpenCounters[row.service_id] = (nextOpenCounters[row.service_id] ?? 0) + 1;
+          }
+        }
+
         setServices((servicesRes.data ?? []) as Service[]);
-        setBoard(nextBoard);
+        setBoardRows(nextBoardRows);
+        setOpenCounters(nextOpenCounters);
         setLoadError(null);
       } catch {
         if (!cancelled) setLoadError("Couldn't load services right now — check your connection and try again.");
@@ -171,15 +202,15 @@ export default function Home() {
       .channel('home-board-services')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'board_services' },
-        (payload: RealtimePostgresChangesPayload<BoardService>) => {
-          setBoard((prev) => {
+        { event: '*', schema: 'public', table: 'board_services', filter: `day=eq.${today}` },
+        (payload: RealtimePostgresChangesPayload<BoardServiceRow>) => {
+          setBoardRows((prev) => {
             const next = { ...prev };
             if (payload.eventType === 'DELETE') {
-              const oldRow = payload.old as Partial<BoardService>;
+              const oldRow = payload.old as Partial<BoardServiceRow>;
               if (oldRow.service_id) delete next[oldRow.service_id];
             } else {
-              const row = payload.new as BoardService;
+              const row = payload.new as BoardServiceRow;
               next[row.service_id] = row;
             }
             return next;
@@ -275,7 +306,11 @@ export default function Home() {
               <ServiceCard
                 key={service.id}
                 service={service}
-                boardRow={board[service.id] ?? { ...EMPTY_BOARD_ROW, service_id: service.id }}
+                boardRow={{
+                  waiting_count: boardRows[service.id]?.waiting_count ?? EMPTY_BOARD_ROW.waiting_count,
+                  avg_service_secs: boardRows[service.id]?.avg_service_secs ?? service.default_service_secs,
+                  open_counters: openCounters[service.id] ?? EMPTY_BOARD_ROW.open_counters,
+                }}
                 onPress={() => setSelected(service)}
               />
             ))}
