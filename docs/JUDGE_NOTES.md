@@ -687,3 +687,36 @@ patient's name or any row-level PII to DeepSeek — only pre-aggregated counts a
   delay (5 seconds by default) — this system has no way to instantly invalidate a token once
   issued, so that periodic re-check *is* the revocation mechanism, and it's proven to actually
   work, not just described.
+
+## Admin: Ask your data, daily summary, doctors, cash report
+
+Four more `/admin` screens, on top of the dashboard/services/counters/staff already covered
+under "Web app" above.
+
+- **Ask your data (`/admin/ask`).** A question box (English or Hindi, with example chips) that
+  posts to the FastAPI `/admin/ask` route with the admin's own login token. That route picks one
+  of 8 fixed, read-only database functions (never a free-form query) and answers in plain
+  language; this screen renders that answer, labeled "AI-generated" since it comes from DeepSeek,
+  plus whatever rows came back — as a bar chart when the shape fits (one label column, one or more
+  number columns, read generically off whatever came back rather than one hard-coded chart per
+  function) or a plain table otherwise.
+- **Daily AI summary (`/admin/summary`).** Reads the cached report for a day/language pair; a
+  "Generate now" button re-runs it for real. One report per org per day, translated on the fly for
+  Hindi/Punjabi rather than stored three times.
+- **Doctors (`/admin/doctors`).** Create/edit doctors, and manage each one's weekly shifts
+  (multiple per day), breaks and leaves inline. "Deactivate" never deletes a doctor row — matches
+  the database's own soft-delete design, so their history (past tickets, past shifts) stays intact.
+  Today's status (available / running late / on break / off) is a live dropdown per row, backed by
+  `set_doctor_status`.
+- **Cash report (`/admin/cash`).** Per-staff and per-doctor totals over a chosen date range, each
+  with its own CSV export button. An "online payments" section only appears once the payments
+  engineer's `payments_ledger` view actually exists in the database — checked with a plain
+  existence probe that makes no assumption about its columns (that view isn't documented anywhere
+  yet), so this screen neither breaks nor shows a fake number while it's still being built.
+- **Found while wiring this up:** two speculative RPC wrapper files (`lib/cash.ts`,
+  `lib/claim-token.ts`) had been written against the task brief's *assumed* contract before the
+  real migrations landed — different parameter names throughout, and a combined `cash_report` RPC
+  that was never actually built that way (it shipped as two separate functions,
+  `cash_report_by_staff` and `cash_report_by_doctor`). Fixed both to match the real, shipped
+  signatures in `supabase/migrations/0041`-`0042`. Neither file had a caller yet, so this was a
+  pure signature correction, not a behavior change to anything already working.
