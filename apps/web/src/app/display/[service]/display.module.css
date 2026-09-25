@@ -1,0 +1,177 @@
+/* Local-only tokens: rounded.xl and the success/warning pair from DESIGN.md aren't in
+   globals.css yet (owned by another concurrent agent) -- kept here rather than added there,
+   per this feature's file-ownership boundary. Values match DESIGN.md verbatim. */
+.page {
+  --radius-xl: 16px;
+  --color-surface-sunken: #eef0f3;
+  --color-warning: #a9660c;
+  --color-warning-soft: #faf0dd;
+
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  padding: var(--space-xl) clamp(var(--space-lg), 4vw, var(--space-xl));
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  .page {
+    --color-surface-sunken: #0e1114;
+    --color-warning: #dba24d;
+    --color-warning-soft: #2e2211;
+  }
+}
+
+.unlockOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: color-mix(in srgb, var(--color-canvas) 92%, transparent);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: clamp(24px, 4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  cursor: pointer;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(32px, 4vw, 56px);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.6px;
+}
+
+.stats {
+  display: flex;
+  gap: var(--space-md);
+  margin: 0;
+}
+
+.stat {
+  min-width: 140px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.stat dt {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  color: var(--color-ink-muted);
+}
+
+.stat dd {
+  margin: 0;
+  font-size: clamp(20px, 2vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.counters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: var(--space-lg);
+  flex: 1;
+}
+
+.counterTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.counterTile[data-state="open"] {
+  border-color: var(--color-primary);
+}
+
+.counterTile[data-state="paused"] {
+  opacity: 0.75;
+}
+
+.counterTile[data-state="closed"] {
+  opacity: 0.5;
+  background: var(--color-surface-sunken);
+}
+
+.counterName {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 28px);
+  font-weight: 600;
+  color: var(--color-ink-secondary);
+}
+
+.tokenNumber {
+  margin: 0;
+  font-family: var(--font-jetbrains-mono), ui-monospace, SF Mono, Menlo, monospace;
+  font-size: clamp(64px, 10vw, 180px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  grid-column: 1 / -1;
+  align-self: center;
+  text-align: center;
+  color: var(--color-ink-muted);
+  font-size: clamp(18px, 2vw, 24px);
+}
+
+.nextUp {
+  border-top: 1px solid var(--color-hairline);
+  padding-top: var(--space-lg);
+}
+
+.nextUpTitle {
+  margin: 0 0 var(--space-sm);
+  font-size: clamp(16px, 1.6vw, 22px);
+  font-weight: 600;
+  color: var(--color-ink-secondary);
+}
+
+.nextUpList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nextUpList li {
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  font-family: var(--font-jetbrains-mono), ui-monospace, SF Mono, Menlo, monospace;
+  font-size: clamp(20px, 2.4vw, 36px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
