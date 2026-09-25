@@ -1,0 +1,441 @@
+/* The /t/[id] waiting screen: ETA ring, queue lane, stage bar, now serving.
+   Theme tokens only, so light and dark both come from globals.css. Motion
+   explains a real change (a person leaving, a priority arrival, a new
+   stage) and sits behind prefers-reduced-motion; the resting states are the
+   same either way. */
+.tracker {
+  --spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+
+  display: grid;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+  font-family: var(--font-display);
+  color: var(--color-ink);
+}
+
+/* ---------- a) ETA ring ---------- */
+
+@property --eta {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+
+.ring {
+  position: relative;
+  justify-self: center;
+  width: clamp(128px, 36vw, 156px);
+  aspect-ratio: 1;
+}
+
+.ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 8;
+}
+
+.ringTrack {
+  stroke: var(--color-hairline);
+}
+
+/* pathLength 100, so the offset is just the percentage left. */
+.ringArc {
+  stroke: var(--color-accent);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: calc(100 - var(--p) * 100);
+  transform: rotate(-90deg);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.ringCentre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* The number is a registered integer, so a new estimate counts to itself. */
+.ringMins {
+  counter-reset: eta var(--eta);
+  font-size: clamp(32px, 9vw, 40px);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ringMins::before {
+  content: "~" counter(eta);
+}
+
+.ringUnit {
+  margin-top: 4px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.ringNow {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.ringNone {
+  max-width: 10ch;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--color-ink-secondary);
+}
+
+/* ---------- b) Queue lane: you, the people ahead, the counter ---------- */
+
+.laneWrap {
+  display: grid;
+  gap: var(--space-xxs);
+}
+
+.lane {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Slots are counted from the counter end: slot 0 is the front of the line.
+   Ten slots (8 dots, +N, you) always fit, down to a 390px phone. */
+.laneTrack {
+  container-type: inline-size;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+}
+
+.laneTrack > * {
+  --step: min(26px, 10cqi);
+}
+
+.laneTrack::before {
+  content: "";
+  position: absolute;
+  top: calc(50% + 4px);
+  left: 0;
+  right: 0;
+  border-top: 2px dashed var(--color-hairline-strong);
+}
+
+.dot,
+.you,
+.more {
+  position: absolute;
+  top: calc(50% + 4px);
+  transform: translate(calc(var(--i) * var(--step) * -1), -50%);
+}
+
+.dot {
+  right: 8px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-ink-muted);
+}
+
+.dot[data-leaving] {
+  opacity: 0;
+}
+
+.more {
+  right: 0;
+  width: 30px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-secondary);
+}
+
+/* Cyan with a ring: a surface-coloured gap, then a cyan halo. */
+.you {
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow:
+    0 0 0 3px var(--color-surface),
+    0 0 0 5px var(--color-accent);
+}
+
+.youTag {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.counter {
+  flex: none;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.note {
+  min-height: 18px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-ink-secondary);
+  text-align: center;
+}
+
+/* ---------- c) Stage bar ---------- */
+
+.stages {
+  position: relative;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+/* The rail runs icon centre to icon centre; the fill scales, never resizes. */
+.stages::before,
+.stages::after {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: 10%;
+  right: 10%;
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-hairline);
+}
+
+.stages::after {
+  background: var(--color-primary);
+  transform: scaleX(var(--fill));
+  transform-origin: left;
+}
+
+.stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.stageIcon {
+  display: grid;
+  place-items: center;
+  width: 33px;
+  height: 33px;
+  border: 2px solid var(--color-hairline-strong);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+}
+
+.stageIcon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stageLabel {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-ink-muted);
+  text-wrap: balance;
+}
+
+.stage[data-state="past"] .stageIcon {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* Ink on cyan (6.39:1), like the landing page's middle step. */
+.stage[data-state="current"] .stageIcon {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.stage[data-state="current"] .stageLabel {
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+/* Skipped / no-show / cancelled: the rail and every step go grey, and the
+   last step turns into the outcome, in red. */
+.stages[data-ended] .stage[data-state="past"] .stageIcon {
+  border-color: var(--color-hairline-strong);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+}
+
+.stages[data-ended] .stage[data-state="current"] .stageIcon {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.stages[data-ended] .stage[data-state="current"] .stageLabel {
+  color: var(--color-danger);
+}
+
+/* ---------- Detail line and now serving ---------- */
+
+.detail {
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--color-ink-secondary);
+  text-wrap: balance;
+}
+
+/* Called gets the loudest line, not a takeover. */
+.tracker[data-status="called"] .detail {
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-primary);
+}
+
+.nowServing {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-hairline);
+  font-size: 14px;
+  color: var(--color-ink-secondary);
+}
+
+.nowCode {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Motion ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .ringArc {
+    transition: stroke-dashoffset 600ms var(--ease-out);
+  }
+
+  .ringMins {
+    transition: --eta 600ms var(--ease-out);
+  }
+
+  /* Everyone behind the front springs one step forward. */
+  .dot,
+  .you,
+  .more {
+    transition: transform 420ms var(--spring);
+  }
+
+  .dot[data-leaving] {
+    animation: dot-out 420ms var(--ease-out) both;
+  }
+
+  .dot[data-enter="front"] {
+    animation: dot-in-front 420ms var(--spring) both;
+  }
+
+  .dot[data-enter="back"] {
+    animation: dot-in-back 420ms var(--ease-out) both;
+  }
+
+  .note:not(:empty) {
+    animation: note-in 300ms var(--ease-out) both;
+  }
+
+  .stages::after {
+    transition: transform 600ms var(--ease-out);
+  }
+
+  /* Three soft pulses on arriving at a stage, then still (WCAG 2.2.2). */
+  .stages:not([data-ended]) .stage[data-state="current"] .stageIcon {
+    animation: stage-pulse 1.6s var(--ease-out) 3;
+  }
+}
+
+/* Out toward the counter. */
+@keyframes dot-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    translate: calc(var(--step) * 1.4) 0;
+    scale: 0.5;
+  }
+}
+
+/* A priority arrival drops into the front of the line. */
+@keyframes dot-in-front {
+  from {
+    opacity: 0;
+    translate: 0 -24px;
+    scale: 0.5;
+  }
+}
+
+@keyframes dot-in-back {
+  from {
+    opacity: 0;
+    scale: 0.3;
+  }
+}
+
+@keyframes note-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+@keyframes stage-pulse {
+  from {
+    box-shadow: 0 0 0 0 rgba(12, 183, 214, 0.55);
+  }
+  to {
+    box-shadow: 0 0 0 10px rgba(12, 183, 214, 0);
+  }
+}
