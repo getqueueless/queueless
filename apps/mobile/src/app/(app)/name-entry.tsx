@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,6 +9,16 @@ import { CardShadow, Rounded, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mapSupabaseError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
+
+type ProfileRow = {
+  full_name: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  gender: Gender | null;
+  city: string | null;
+  address_line: string | null;
+  profile_completed_at: string | null;
+};
 
 type Gender = 'female' | 'male' | 'other' | 'prefer_not';
 
@@ -46,6 +56,11 @@ const PHONE_PATTERN = /^[6-9][0-9]{9}$/;
  * supabase/migrations/0037_mandatory_profile.sql). Kept at this route path
  * (`(app)/name-entry`) rather than renamed, since `(auth)/index.tsx`'s post-login redirect
  * points here — see docs/DECISIONS.md.
+ *
+ * Also doubles as the "Profile" screen reached from Home once a profile already exists —
+ * `complete_my_profile` is a plain re-runnable UPDATE (`profile_completed_at` uses
+ * `coalesce(profile_completed_at, now())`, see the migration above), so re-submitting this same
+ * form edits the profile instead of erroring. Prefilling just reads the existing row first.
  */
 export default function CompleteProfile() {
   const theme = useTheme();
@@ -62,6 +77,39 @@ export default function CompleteProfile() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getSession().then(async ({ data: auth }) => {
+      const userId = auth.session?.user.id;
+      if (!userId) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, phone, date_of_birth, gender, city, address_line, profile_completed_at')
+        .eq('id', userId)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      const row = data as ProfileRow;
+      if (!row.profile_completed_at) return;
+
+      setIsEditing(true);
+      setFullName(row.full_name ?? '');
+      setPhone((row.phone ?? '').replace(/^\+91/, ''));
+      if (row.date_of_birth) {
+        const [y, m, d] = row.date_of_birth.split('-');
+        setYear(y ?? '');
+        setMonth(m ?? '');
+        setDay(d ?? '');
+      }
+      setGender(row.gender ?? null);
+      setCity(row.city ?? '');
+      setAddressLine(row.address_line ?? '');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const dob = toIsoDate(day, month, year);
   const phoneValid = PHONE_PATTERN.test(phone);
@@ -94,9 +142,11 @@ export default function CompleteProfile() {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <ThemedView type="surface" style={[styles.card, { borderColor: theme.hairline }, CardShadow]}>
-            <ThemedText type="displayMd">Complete your profile</ThemedText>
+            <ThemedText type="displayMd">{isEditing ? 'My profile' : 'Complete your profile'}</ThemedText>
             <ThemedText type="body" themeColor="inkSecondary" style={styles.subtitle}>
-              We need a few details before you can take a token or book an appointment.
+              {isEditing
+                ? 'Update your details on file with the hospital.'
+                : 'We need a few details before you can take a token or book an appointment.'}
             </ThemedText>
 
             <ThemedText type="headingSm" style={styles.label}>
@@ -232,7 +282,7 @@ export default function CompleteProfile() {
                 <ActivityIndicator color={theme.onPrimary} />
               ) : (
                 <ThemedText type="button" themeColor="onPrimary">
-                  Continue
+                  {isEditing ? 'Save changes' : 'Continue'}
                 </ThemedText>
               )}
             </Pressable>
