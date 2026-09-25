@@ -58,19 +58,28 @@ function AppointmentRow({ appt }: { appt: Appointment }) {
         <span className={ui.chip} data-tone="warning">
           Awaiting payment
         </span>
-      ) : confirming ? (
-        <div className={styles.confirm} role="group" aria-label="Cancel this appointment?">
-          <button type="button" className={styles.danger} onClick={cancel} disabled={pending}>
-            {pending ? "Cancelling…" : "Yes, cancel"}
-          </button>
-          <button type="button" className={styles.quiet} onClick={() => setConfirming(false)} disabled={pending}>
-            Keep it
-          </button>
-        </div>
       ) : (
-        <button type="button" className={styles.quiet} onClick={() => setConfirming(true)}>
-          Cancel
-        </button>
+        <div className={styles.actions}>
+          {appt.paidStatus && (
+            <span className={ui.chip} data-tone={appt.paidStatus.tone}>
+              {appt.paidStatus.label}
+            </span>
+          )}
+          {confirming ? (
+            <div className={styles.confirm} role="group" aria-label="Cancel this appointment?">
+              <button type="button" className={styles.danger} onClick={cancel} disabled={pending}>
+                {pending ? "Cancelling…" : "Yes, cancel"}
+              </button>
+              <button type="button" className={styles.quiet} onClick={() => setConfirming(false)} disabled={pending}>
+                Keep it
+              </button>
+            </div>
+          ) : (
+            <button type="button" className={styles.quiet} onClick={() => setConfirming(true)}>
+              Cancel
+            </button>
+          )}
+        </div>
       )}
     </li>
   )

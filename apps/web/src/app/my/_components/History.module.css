@@ -78,6 +78,13 @@
   gap: var(--space-xs);
 }
 
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .quiet,
 .danger {
   flex: none;

@@ -188,8 +188,8 @@ async function VisitsSlot({ visits }: { visits: Promise<Visit[]> }) {
               {v.doctor ? `${v.service}, ` : ""}
               {v.date}
             </span>
-            <span className={ui.chip} data-tone={TOKEN_STATUS[v.status].tone}>
-              {TOKEN_STATUS[v.status].label}
+            <span className={ui.chip} data-tone={(v.paidStatus ?? TOKEN_STATUS[v.status]).tone}>
+              {(v.paidStatus ?? TOKEN_STATUS[v.status]).label}
             </span>
           </Link>
         </li>

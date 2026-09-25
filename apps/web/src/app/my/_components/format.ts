@@ -25,6 +25,19 @@ export const AVAILABILITY_TONE: Record<Availability["kind"], Tone> = {
   off: "neutral",
 }
 
+// payments stays admin-only (0051/0053) -- my_payment_status (0058) is the one owner-read door,
+// returning just enough to override the plain token/appointment status chip when it's paid
+// online: "captured" means the underlying status already flipped away from pending_payment (so
+// TOKEN_STATUS would otherwise just say "Waiting"/"Booked"), "refunded" means it's cancelled FOR
+// a reason worth calling out, not just any cancellation.
+export function paidStatusOverride(
+  paymentStatus: "created" | "captured" | "failed" | "refunded" | null,
+): { label: string; tone: Tone } | null {
+  if (paymentStatus === "refunded") return { label: "Refunded", tone: "neutral" }
+  if (paymentStatus === "captured") return { label: "Paid", tone: "success" }
+  return null
+}
+
 /** "Dr. Neha Sharma" -> "NS": the title is not a name. */
 export function initials(name: string): string {
   const words = name.replace(/^(dr|mr|mrs|ms)\.?\s+/i, "").split(/\s+/).filter(Boolean)

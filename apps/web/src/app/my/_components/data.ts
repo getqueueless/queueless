@@ -4,7 +4,23 @@ import { loadBoard } from "@/app/_landing/board"
 import { fetchCounter, type CounterRow, type TokenRow, type TokenStatus } from "@/app/t/[id]/data"
 import type { DoctorStatus } from "@/lib/doctors"
 
-import { availability, dayKey, shiftsLabel, slotLabel, type Availability } from "./format"
+import { availability, dayKey, paidStatusOverride, shiftsLabel, slotLabel, type Availability, type Tone } from "./format"
+
+type PaymentStatus = "created" | "captured" | "failed" | "refunded" | null
+
+// my_payment_status (0058) is the one owner-read door onto the otherwise admin-only payments
+// table -- one row or none for a hold you own. Never worth calling for pending_payment (that
+// already renders its own "Awaiting payment" chip with no RPC needed).
+async function loadPaidStatus(
+  supabase: SupabaseClient,
+  target: { tokenId: string } | { appointmentId: string },
+): Promise<PaymentStatus> {
+  const { data } = await supabase.rpc("my_payment_status", {
+    p_token_id: "tokenId" in target ? target.tokenId : null,
+    p_appointment_id: "appointmentId" in target ? target.appointmentId : null,
+  })
+  return (data?.[0]?.status as PaymentStatus) ?? null
+}
 
 // Server-side reads for /my. Every table here is already read the same way
 // elsewhere (t/[id]/data.ts, lib/doctors.ts, _landing/board.ts, the mobile
@@ -203,6 +219,8 @@ export type Appointment = {
   service: string
   /** pending_payment: a paid slot held for 10 minutes until the payment lands (0056). */
   status: "booked" | "pending_payment"
+  /** Overrides the plain status chip when the slot was paid online; null for pending_payment. */
+  paidStatus: { label: string; tone: Tone } | null
 }
 
 export async function loadAppointments(
@@ -223,23 +241,43 @@ export async function loadAppointments(
     doctors: Named
     services: Named
   }
-  return ((data ?? []) as Row[])
+  const upcoming = ((data ?? []) as Row[])
     .map((a) => {
       const slot = Array.isArray(a.appointment_slots) ? a.appointment_slots[0] : a.appointment_slots
       return { ...a, startsAt: slot?.starts_at ?? "" }
     })
     .filter((a) => a.startsAt && new Date(a.startsAt) > now)
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-    .map((a) => ({
+
+  const withPaidStatus = await Promise.all(
+    upcoming.map(async (a) => ({
       id: a.id,
       when: slotLabel(a.startsAt, timeZone, now),
       doctor: nameOf(a.doctors),
       service: nameOf(a.services) ?? "",
       status: a.status,
-    }))
+      paidStatus:
+        a.status === "booked" ? paidStatusOverride(await loadPaidStatus(supabase, { appointmentId: a.id })) : null,
+    })),
+  )
+  return withPaidStatus
 }
 
-export type Visit = { id: string; code: string; service: string; doctor: string | null; status: TokenStatus; date: string }
+export type Visit = {
+  id: string
+  code: string
+  service: string
+  doctor: string | null
+  status: TokenStatus
+  date: string
+  /** Overrides the plain status chip when the token was paid online. */
+  paidStatus: { label: string; tone: Tone } | null
+}
+
+// A token that was ever paid online only needs the check when it's not still pending_payment
+// (that already has its own chip) -- covers both a currently-waiting/done paid token ("Paid")
+// and one that was later cancelled and refunded ("Refunded" instead of a plain "Cancelled").
+const PAID_STATUS_CHECK_STATUSES: TokenStatus[] = ["waiting", "called", "serving", "done", "cancelled"]
 
 export async function loadRecentVisits(supabase: SupabaseClient, userId: string, timeZone: string): Promise<Visit[]> {
   const { data } = await supabase
@@ -249,12 +287,17 @@ export async function loadRecentVisits(supabase: SupabaseClient, userId: string,
     .order("created_at", { ascending: false })
     .limit(5)
   type Row = { id: string; code: string; status: TokenStatus; created_at: string; services: Named; doctors: Named }
-  return ((data ?? []) as Row[]).map((t) => ({
+  return Promise.all(
+    ((data ?? []) as Row[]).map(async (t) => ({
     id: t.id,
     code: t.code,
     service: nameOf(t.services) ?? "",
     doctor: nameOf(t.doctors),
     status: t.status,
+    paidStatus: PAID_STATUS_CHECK_STATUSES.includes(t.status)
+      ? paidStatusOverride(await loadPaidStatus(supabase, { tokenId: t.id }))
+      : null,
     date: new Date(t.created_at).toLocaleDateString("en-US", { timeZone, day: "numeric", month: "short", year: "numeric" }),
-  }))
+    })),
+  )
 }
