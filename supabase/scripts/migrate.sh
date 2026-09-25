@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+set -a; . ./.env; set +a
+: "${QUEUELESS_API_DB_PASSWORD:?QUEUELESS_API_DB_PASSWORD must be set}"
 
 PSQL="docker exec -i supabase-db psql -X -v ON_ERROR_STOP=1 -U postgres -h localhost -d postgres"
 
@@ -27,7 +29,7 @@ for f in migrations/*.sql; do
   fi
   echo "Apply $name"
   { cat "$f"; printf "\ninsert into private.schema_migrations(filename) values ('%s');\n" "$name"; } \
-    | $PSQL -q -1
+    | $PSQL -q -1 -v queueless_api_db_password="$QUEUELESS_API_DB_PASSWORD"
 done
 
 $PSQL -q -c "notify pgrst, 'reload schema'"
