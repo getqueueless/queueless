@@ -90,6 +90,8 @@ function DepartmentChip({ dept, day }: { dept: Department; day: string }) {
               <span className={`${ui.skel} ${styles.skelValue}`} />
             ) : eta === null ? (
               <span className={styles.none}>No estimate</span>
+            ) : eta.minutes === 0 ? (
+              <span className={styles.none}>No wait</span>
             ) : (
               <>
                 <span aria-hidden="true">~</span>
