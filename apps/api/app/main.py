@@ -6,7 +6,7 @@ from app.config import Settings
 from app.db import create_pool
 from app.logging_config import configure_logging
 from app.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
-from app.routes import health
+from app.routes import health, push_tokens
 
 configure_logging()
 settings = Settings()
@@ -26,3 +26,4 @@ app.state.settings = settings
 app.add_middleware(SecurityHeadersMiddleware, settings=settings)
 app.add_middleware(RequestIDMiddleware)
 app.include_router(health.router)
+app.include_router(push_tokens.router)
