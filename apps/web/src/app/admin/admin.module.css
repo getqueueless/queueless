@@ -27,6 +27,28 @@
   min-height: 100vh;
 }
 
+/* Lets a keyboard user jump past the five sidebar links straight to the
+   page content. Off-screen until it receives focus (Tab from the page's
+   first focusable element), same pattern as any standard skip link. */
+.skipLink {
+  position: absolute;
+  top: -100%;
+  left: var(--space-sm);
+  z-index: 100;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.skipLink:focus-visible {
+  top: var(--space-sm);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
 .sidebar {
   width: 200px;
   flex-shrink: 0;

@@ -29,9 +29,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className={styles.root}>
+      <a href="#admin-main" className={styles.skipLink}>
+        Skip to content
+      </a>
       <div className={styles.shell}>
         <AdminNav orgName={orgName} />
-        <main className={styles.content}>{children}</main>
+        <main id="admin-main" className={styles.content}>
+          {children}
+        </main>
       </div>
     </div>
   )
