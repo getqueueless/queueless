@@ -65,8 +65,8 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!userId) return;
-    registerForPushNotificationsAsync();
-    return watchPushTokenRotation();
+    registerForPushNotificationsAsync(userId);
+    return watchPushTokenRotation(userId);
   }, [userId]);
 
   // One-time retry for a display-name write that failed on a previous boot (see

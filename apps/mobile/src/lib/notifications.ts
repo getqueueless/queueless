@@ -17,16 +17,19 @@ Notifications.setNotificationHandler({
 // devices keep theirs.
 let registeredToken: string | null = null;
 
+// The device token behind the last registration. Every native device-token fetch also fires the
+// push-token listener, so watchPushTokenRotation skips this echo instead of registering again.
+let lastDeviceToken: string | null = null;
+
 /**
- * Best-effort remote push registration. Returns `null` (never throws) whenever a token can't be
- * obtained — notably Expo Go on Android since SDK 53, which no longer supports remote push at
- * all, and any build without an EAS projectId: `getExpoPushTokenAsync` throws
- * ERR_NOTIFICATIONS_NO_EXPERIENCE_ID, and app.json has no `extra.eas.projectId` yet. The token
- * is saved straight to `push_tokens` under owner-only RLS. This is a nice-to-have layered on top
- * of the Realtime + local-notification path in `(app)/_layout.tsx`, which is the reliable
- * mechanism and works with zero push wiring.
+ * Best-effort remote push registration; never throws. There is no token in Expo Go on Android
+ * (no remote push since SDK 53), nor in any build without an EAS projectId:
+ * `getExpoPushTokenAsync` throws ERR_NOTIFICATIONS_NO_EXPERIENCE_ID, and app.json has no
+ * `extra.eas.projectId` yet. The token is saved straight to `push_tokens` under owner-only RLS.
+ * This is a nice-to-have layered on top of the Realtime + local-notification path in
+ * `(app)/_layout.tsx`, which is the reliable mechanism and works with zero push wiring.
  */
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
+export async function registerForPushNotificationsAsync(userId: string): Promise<void> {
   try {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
@@ -40,27 +43,27 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     if (status !== 'granted') {
       ({ status } = await Notifications.requestPermissionsAsync());
     }
-    if (status !== 'granted') return null;
+    if (status !== 'granted') return;
 
-    const { data: token } = await Notifications.getExpoPushTokenAsync();
-    if (!token) return null;
-
-    const { data } = await supabase.auth.getSession();
-    const userId = data.session?.user.id;
-    if (!userId) return token;
-
-    const code = await savePushToken(supabase, userId, token, Platform.OS as PushPlatform);
-    if (code === null) {
-      registeredToken = token;
-    } else if (code === OWNED_BY_ANOTHER_ACCOUNT) {
-      console.log('[push] token belongs to a different account on this device');
-    } else {
-      console.log(`[push] saving push token failed (non-fatal): ${code}`);
-    }
-    return token;
+    await saveDeviceToken(userId, await Notifications.getDevicePushTokenAsync());
   } catch (err) {
-    console.log('[notifications] no push token available:', err);
-    return null;
+    console.log('[push] no push token available:', err);
+  }
+}
+
+/** Exchanges a device token for this app's Expo token and saves it to `push_tokens`. */
+async function saveDeviceToken(userId: string, devicePushToken: Notifications.DevicePushToken): Promise<void> {
+  lastDeviceToken = JSON.stringify(devicePushToken.data);
+  // Passing the device token stops getExpoPushTokenAsync from fetching (and re-emitting) it.
+  const { data: token } = await Notifications.getExpoPushTokenAsync({ devicePushToken });
+
+  const code = await savePushToken(supabase, userId, token, Platform.OS as PushPlatform);
+  if (code === null) {
+    registeredToken = token;
+  } else if (code === OWNED_BY_ANOTHER_ACCOUNT) {
+    console.log('[push] token belongs to a different account on this device');
+  } else {
+    console.log(`[push] saving push token failed (non-fatal): ${code}`);
   }
 }
 
@@ -75,12 +78,20 @@ export async function unregisterPushTokenAsync(): Promise<void> {
   }
 }
 
-/** Re-registers when the OS rotates the token. Returns the unsubscribe (a no-op when unsupported). */
-export function watchPushTokenRotation(): () => void {
+/**
+ * Re-registers when the OS rotates this device's token. Returns the unsubscribe, or a no-op when
+ * unsupported. Expo's own auto-registration already forwards a rotated device token to Expo, so the
+ * Expo token usually stays the same; this keeps the row right when it doesn't.
+ */
+export function watchPushTokenRotation(userId: string): () => void {
   try {
-    // Throws in Expo Go on Android, which has no remote push.
-    const sub = Notifications.addPushTokenListener(() => {
-      registerForPushNotificationsAsync();
+    // Throws in Expo Go on Android, which has no remote push. Use the event's own token: fetching
+    // one in here would fire this event again, forever.
+    const sub = Notifications.addPushTokenListener((devicePushToken) => {
+      if (JSON.stringify(devicePushToken.data) === lastDeviceToken) return;
+      saveDeviceToken(userId, devicePushToken).catch((err) =>
+        console.log('[push] saving rotated push token failed (non-fatal):', err),
+      );
     });
     return () => sub.remove();
   } catch {
