@@ -1010,3 +1010,22 @@ under "Web app" above.
   no supporting index — 17.1ms and growing with a full-table scan, 0.1ms with the new one, a
   ~150x difference that would only get worse over the queue's lifetime.
 
+## Shared UI kit for the app redesign
+
+- **What it is.** One set of building blocks for the phone app's new look, so the patient and
+  payment screens (built by other team members in parallel) share buttons, cards, colours and type
+  instead of each inventing their own: buttons, tappable cards, colourful department tiles with a
+  live wait, doctor cards, status chips (Available, Running late, On leave, Paid, Pending,
+  Refunded), loading placeholders, empty states, section titles, a checkout bar pinned to the
+  bottom, and the tab bar's look.
+- **Readability first.** Body text is 17pt and nothing is smaller than 15pt; every button is at
+  least 48pt tall. Each department gets a warm colour of its own over the brand teal, and every
+  text and icon colour on those tiles was measured against WCAG contrast in both light and dark
+  mode.
+- **Motion with restraint.** Buttons and cards give a small press, loading placeholders shimmer,
+  and a department's wait fades in when it changes. With the phone's Reduce Motion on, all of it
+  stops.
+- **Why this way.** No new libraries: gradients use React Native's own built-in support, icons
+  come from the symbol set the app already ships. A hidden gallery screen shows every piece in
+  both themes, which is how the team checks new screens against the kit.
+

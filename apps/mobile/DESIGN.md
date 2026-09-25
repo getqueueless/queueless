@@ -146,6 +146,29 @@ Spacing/radius scales are unchanged from the pre-redesign `theme.ts` (`Spacing`,
 template's proportions don't call for new tokens, just softer shadows and roomier card padding
 using the scales that already exist.
 
+## UI kit (redesign)
+
+`src/components/ui/`, imported from `@/components/ui`. Built for the Swiggy/Zomato-style patient
+and payment screens; the gallery is the hidden route `/ui-kit` (`src/app/(app)/ui-kit.tsx`).
+
+- **Type scale** (`Type`, `UIText`): body 17, secondary 15 (the floor: nothing in the kit is
+  smaller), titles 22 / 28 / 34. Poppins 400/700, sentence case. Screen titles stay the uppercase
+  AnimatedHeading.
+- **Tap targets**: `MIN_TAP` 48. Button md is 48 tall, lg 56.
+- **Department tones** (`Tones`, `toneFor`, `iconFor`): teal (the MedWin base), orange, rose,
+  amber, green, blue, each a light and a dark two-stop gradient plus an icon colour. Tile text is
+  `ink` on every stop (9.7:1 at worst); icons are 3.8:1 or better. Known departments map by
+  keyword, anything else by a stable name hash. Violet stays reserved for ThemeToggle.
+- **Gradients** (`gradient`, `cssGradient`): React Native's own `experimental_backgroundImage`
+  linear-gradient on native, plain CSS on web. No gradient dependency.
+- **Components**: `Button` (primary / secondary / ghost / danger, loading, haptic tap), `Card`
+  (0.98 press scale), `DeptTile`, `DoctorCard`, `StatusChip`, `Skeleton`, `EmptyState`,
+  `SectionHeader` (AnimatedHeading at a new 22pt `title` size), `StickyBottomBar` (+
+  `useStickyBottomBarHeight`), and `useTabBarStyle` / `TAB_ICONS` for the NativeTabs bar.
+- **Rules**: never nest a Button inside a pressable Card (screen readers lose the inner one;
+  DoctorCard makes only its name row tappable for that reason). Every press animation and the
+  skeleton shimmer stop under Reduce Motion.
+
 ## Dark-mode preference
 
 `useColorScheme()` (`src/hooks/use-color-scheme.ts`, and its `.web.ts` twin) resolves a `"system" | "light" | "dark"` preference (default `"system"`) stored under
