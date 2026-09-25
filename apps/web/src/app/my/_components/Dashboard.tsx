@@ -50,8 +50,8 @@ export function Dashboard({ supabase, userId, fullName, org, now }: DashboardPro
     month: "long",
   })
   const token = userId ? loadActiveToken(supabase, userId) : Promise.resolve(null)
-  const departments = loadDepartments(supabase)
-  const doctors = loadDoctors(supabase, org.timeZone, now)
+  const departments = loadDepartments(supabase, org.id)
+  const doctors = loadDoctors(supabase, org.id, org.timeZone, now)
   const appointments = userId ? loadAppointments(supabase, userId, org.timeZone, now) : Promise.resolve([])
   const visits = userId ? loadRecentVisits(supabase, userId, org.timeZone) : Promise.resolve([])
 

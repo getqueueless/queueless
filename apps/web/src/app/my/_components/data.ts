@@ -16,13 +16,14 @@ type Named = { name: string } | { name: string }[] | null
 // know that, so accept either shape.
 const nameOf = (v: Named): string | null => (Array.isArray(v) ? v[0]?.name : v?.name) ?? null
 
-export type Org = { name: string; timeZone: string }
+export type Org = { id: string | null; name: string; timeZone: string }
 
 export async function loadOrg(supabase: SupabaseClient, orgId: string | null): Promise<Org> {
   // Patients usually have no org_id; the demo runs one hospital, so fall back to it.
-  const query = supabase.from("organizations").select("name, timezone")
-  const { data } = await (orgId ? query.eq("id", orgId) : query.limit(1)).maybeSingle()
-  return { name: data?.name ?? "Queueless", timeZone: data?.timezone ?? "Asia/Kolkata" }
+  // Oldest first: the hospital, not an org a load test added later.
+  const query = supabase.from("organizations").select("id, name, timezone")
+  const { data } = await (orgId ? query.eq("id", orgId) : query.order("created_at").limit(1)).maybeSingle()
+  return { id: data?.id ?? null, name: data?.name ?? "Queueless", timeZone: data?.timezone ?? "Asia/Kolkata" }
 }
 
 // ---------- the patient's live token ----------
@@ -77,9 +78,12 @@ export async function loadActiveToken(supabase: SupabaseClient, userId: string):
 
 export type Department = { id: string; name: string; code: string; waiting: number }
 
-export async function loadDepartments(supabase: SupabaseClient): Promise<Department[]> {
+// Scoped to the hospital: services is readable across orgs, and prod also
+// carries a load-test org whose queue a patient should never see.
+export async function loadDepartments(supabase: SupabaseClient, orgId: string | null): Promise<Department[]> {
+  const services = supabase.from("services").select("id, name, code").eq("is_open", true).order("name")
   const [{ data }, board] = await Promise.all([
-    supabase.from("services").select("id, name, code").eq("is_open", true).order("name"),
+    orgId ? services.eq("org_id", orgId) : services,
     loadBoard(supabase),
   ])
   return ((data ?? []) as { id: string; name: string; code: string }[]).map((s) => ({
@@ -110,13 +114,23 @@ export type DashboardDoctor = {
 type DoctorRow = { id: string; service_id: string; name: string; specialty: string; room: string | null; fee_inr: number }
 type SlotRow = { id: string; starts_at: string; capacity: number; booked: number }
 
-export async function loadDoctors(supabase: SupabaseClient, timeZone: string, now: Date): Promise<DashboardDoctor[]> {
+export async function loadDoctors(
+  supabase: SupabaseClient,
+  orgId: string | null,
+  timeZone: string,
+  now: Date,
+): Promise<DashboardDoctor[]> {
   const today = dayKey(now, timeZone)
   // doctor_schedules.weekday is Postgres dow (Sunday = 0), same as getUTCDay on a noon-UTC date.
   const weekday = new Date(`${today}T12:00:00Z`).getUTCDay()
 
+  const doctorsQuery = supabase
+    .from("doctors")
+    .select("id, service_id, name, specialty, room, fee_inr")
+    .eq("active", true)
+    .order("name")
   const [doctorsRes, servicesRes, statusRes, shiftsRes, leavesRes] = await Promise.all([
-    supabase.from("doctors").select("id, service_id, name, specialty, room, fee_inr").eq("active", true).order("name"),
+    orgId ? doctorsQuery.eq("org_id", orgId) : doctorsQuery,
     supabase.from("services").select("id, name"),
     supabase.from("doctor_status_today").select("doctor_id, status, late_minutes"),
     supabase.from("doctor_schedules").select("doctor_id, start_time, end_time").eq("weekday", weekday),
