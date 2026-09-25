@@ -105,11 +105,22 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   database owner — enforced by a trigger, not just a permission grant, because permission grants
   don't bind table owners.
 - **API isolation.** `apps/api` connects to Postgres as its own `queueless_api` role, never as
-  the database owner. That role can only read `tokens`/`board_services` (for wait predictions),
-  read and prune `push_tokens` (to send/clean up push notifications), and record which pushes it
-  already sent in `private.token_notifications` — it cannot write `tokens`, `profiles`, or
-  anything the RPC layer owns. Registering a push token is still the client's own job through
-  normal RLS (`push_tokens` is owner-only for `authenticated`), not the API's.
+  the database owner. It can read only what it uses — the caller's role and org (never names or
+  phone numbers), queue state for wait predictions and metrics, a patient's push-device tokens and
+  undelivered notifications — and write only two things: marking a notification delivered and
+  deleting a dead device token. A test proves that exact list, including that each read returns
+  real rows. Registering a push token is still the client's own job through normal RLS
+  (`push_tokens` is owner-only for `authenticated`), not the API's.
+- **Why "real rows" matters.** Turning on Row Level Security hides every row from a role that no
+  policy names, even when the role holds a grant — no error, just nothing. That is exactly what
+  happened: the API's reads of the queue boards came back empty and its dead-device cleanup
+  deleted nothing, while the permission table looked correct. Each now has an explicit policy,
+  and the test counts rows instead of checking grants.
+- **Push delivery without a spam hole.** Once the API pushes every notification row to a phone,
+  whoever can write that table can push any text to any patient. Apps can no longer create
+  notifications or reset the "already pushed" marker — only the database's own logic creates
+  them, and the app can still mark one read. Notifications that existed before delivery was
+  switched on were marked delivered during the upgrade, so no phone gets a burst of stale alerts.
 - **Why email OTP.** Patients sign in with a 6-digit code emailed to them, not a password with
   autoconfirmed signup. One verified inbox per patient closes the "make 50 accounts to spam the
   queue" hole that autoconfirm-only signup left wide open — getting a token now costs a real

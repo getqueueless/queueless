@@ -290,3 +290,37 @@ One line per deviation from the plan/spec, with why.
 - 2026-09-26 (mobile, prod test data): three test patient accounts (plus-addressed aliases of a
   team inbox) were created on prod to verify OTP, name entry and push. One Pharmacy ticket
   (PHA-002) was taken and then cancelled. `push_tokens` was left empty.
+- 2026-09-26 (db): `0031_queueless_api_least_privilege` + `0032_notifications_client_writes`. Resolves
+  the apps/api request above (`board_services_api_read` landed, plus `services_api_read` and
+  `push_tokens_api_delete`: the `push_tokens` delete grant from 0018 had no delete policy, so
+  apps/api's dead-device cleanup deleted nothing, silently). Test `105` counts real rows as
+  `queueless_api` rather than checking grants, so the next RLS rollout that forgets this role fails
+  loudly. Choices that differ from the task prompt, on purpose:
+  - NOTIFY uses channel `notifications_events` with JSON `{id, patient_id, body}`, which is what
+    `apps/api/app/notifications.py` `listen_task` already parses. The prompt's `notifications_new`
+    channel with a bare id has no listener. `body` is capped at 1,000 characters: an uncapped
+    10,000-character body made `pg_notify` raise `payload string too long`, which fails the insert
+    and the `call_next` behind it (the called body embeds the counter name).
+  - `profiles` is granted `select (id, org_id, role)` only, all apps/api reads; `full_name` and
+    `phone` stay unreadable.
+  - 0031 sets `pushed_at = now()` on every existing row in its own transaction. Without that the
+    5-second poller pushes the whole backlog (646 of 646 rows on a seeded DB). A later migration
+    would race the poller.
+  - 0031 revokes public execute on its new trigger function. 0029's `alter default privileges in
+    schema private revoke execute on functions from public` does nothing in Postgres (per-schema
+    defaults can only add to the global ones), so every new `private` function is callable by
+    `public` until revoked. Test 105 sweeps for this; 0029's line itself is left as is.
+  - 0032 (approved separately): `notifications` is still RLS-off with Supabase's default grants,
+    so the public anon key could insert a notification for any patient (now pushed to their phone)
+    or reset `pushed_at` to replay old ones. Revoked insert/update from `anon`/`authenticated`,
+    granted `update (read_at)` back for the app's mark-read. Reads and deletes stay open until the
+    RLS pass.
+  - `migrate.sh` loads `supabase/.env` the way `seed.sh`/`demo-reset.sh`/`smoke.sh` do, so
+    `QUEUELESS_API_DB_PASSWORD` can live there. Two variables now set one password
+    (`QUEUELESS_API_PASSWORD` when 0018 creates the role, `QUEUELESS_API_DB_PASSWORD` when 0031
+    resets it; the second wins). Left as the prompt asked; merging them is a team call.
+  - Test 105 grants `postgres` SET on `queueless_api` and `queueless_api` usage on `extensions`
+    (where pgTAP lives) inside its own rolled-back transaction, not in a migration.
+  - Not changed: `queueless_api` still holds `select, insert` on `private.token_notifications`,
+    unused since 1d271f3. apps/api's `/admin/retrain` wants `insert` on `audit_log`; not granted,
+    it was outside this task's list.
