@@ -9,7 +9,7 @@ import { ACTIVE_TOKEN_STATUSES, type CounterRow, type ProfileRow, type TokenRow 
 import styles from "./counter.module.css"
 
 export const metadata: Metadata = {
-  title: "Counter — Queueless",
+  title: "Counter",
 }
 
 const TOKEN_COLUMNS =

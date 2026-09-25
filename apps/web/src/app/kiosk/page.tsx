@@ -14,7 +14,7 @@ import styles from "./kiosk.module.css"
 import { TokenSlip } from "./token-slip"
 
 export const metadata: Metadata = {
-  title: "Kiosk — Queueless",
+  title: "Kiosk",
 }
 
 // Reduced chrome on purpose, instead of PublicHeader/PublicFooter: this

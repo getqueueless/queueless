@@ -21,7 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Queueless",
+  title: { default: "Queueless", template: "%s | Queueless" },
   description: "Take a token. Leave the line.",
 };
 

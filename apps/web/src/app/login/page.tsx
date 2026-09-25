@@ -10,7 +10,7 @@ import { LoginForm } from "./login-form"
 import styles from "./login.module.css"
 
 export const metadata: Metadata = {
-  title: "Sign in | Queueless",
+  title: "Sign in",
 }
 
 function safeNextPath(value: string | string[] | undefined): string {

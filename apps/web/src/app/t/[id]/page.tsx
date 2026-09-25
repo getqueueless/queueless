@@ -19,7 +19,7 @@ import { StatusView } from "./status-view"
 import styles from "./status.module.css"
 
 export const metadata: Metadata = {
-  title: "Your token — Queueless",
+  title: "Your token",
 }
 
 function NotFoundCard() {

@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from "next"
 import { DisplayBoard } from "./display-board"
 
 export const metadata: Metadata = {
-  title: "Queue Display — Queueless",
+  title: "Queue display",
 }
 
 // The board is always slate-deep (it ignores the theme toggle), so the browser
