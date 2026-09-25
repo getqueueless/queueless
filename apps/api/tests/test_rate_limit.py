@@ -82,3 +82,10 @@ async def test_admin_summary_run_rate_limited(client, db_pool):
         last = client.post("/admin/summary/run", json={}, headers=headers)
     assert last.status_code == 429
     assert "retry-after" in {k.lower() for k in last.headers}
+
+
+def test_limit_is_per_client_ip_behind_the_proxy(client):
+    for _ in range(60):
+        client.post("/predict", json={}, headers={"cf-connecting-ip": "203.0.113.1"})
+    other = client.post("/predict", json={}, headers={"cf-connecting-ip": "203.0.113.2"})
+    assert other.status_code != 429
