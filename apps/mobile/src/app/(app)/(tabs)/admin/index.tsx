@@ -99,6 +99,7 @@ const MANAGE_LINKS: { href: string; label: string; hint: string }[] = [
   { href: '/admin/counters', label: 'Counters', hint: 'Names, state, services served' },
   { href: '/admin/staff', label: 'Staff', hint: 'Roles for your team' },
   { href: '/admin/cash', label: 'Cash report', hint: 'Cash collected by staff and doctor' },
+  { href: '/admin/payments', label: 'Payments', hint: 'Online bookings, refunds, doctor-leave auto-refunds' },
   { href: '/admin/priority', label: 'Priority', hint: 'Head start for priority lanes' },
   { href: '/admin/ai', label: 'Ask your data', hint: 'Questions and the daily summary' },
 ];
