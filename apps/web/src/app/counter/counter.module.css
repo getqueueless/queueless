@@ -68,9 +68,33 @@
   white-space: nowrap;
 }
 
-.toggle {
+.topbarActions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
 }
+
+.signOut {
+  padding: 8px var(--space-sm);
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-on-slate-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.signOut:hover {
+  /* Same faint on-slate hover tint as the admin sidebar's --rail-hover
+     (admin.module.css) -- inlined since that variable is scoped there. */
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--color-on-slate);
+}
+
 
 /* ---- Console column */
 

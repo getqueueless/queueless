@@ -87,6 +87,40 @@
   color: var(--color-primary);
 }
 
+.userName {
+  padding: 0 var(--space-xs);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-ink-secondary);
+}
+
+.slate .userName {
+  color: var(--color-on-slate);
+}
+
+.signOut {
+  padding: 0 var(--space-xs);
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--color-ink-secondary);
+  transition: color 0.15s ease;
+}
+
+.signOut:hover {
+  color: var(--color-primary);
+}
+
+.slate .signOut {
+  color: var(--color-on-slate);
+}
+
 /* MedWin's outlined button. */
 .login {
   margin-left: var(--space-xs);
@@ -175,13 +209,20 @@
   }
 
   .link,
-  .login {
+  .login,
+  .signOut {
     font-size: 12px;
     letter-spacing: 0.02em;
   }
 
   /* The logo already links home; dropping Home keeps STAFF LOGIN unclipped at 320. */
   .link[href="/"] {
+    display: none;
+  }
+
+  /* The full name doesn't fit next to Dashboard + Sign out at this width;
+     both links already imply who's signed in. */
+  .userName {
     display: none;
   }
 

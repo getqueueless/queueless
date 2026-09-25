@@ -1,7 +1,11 @@
 import Link from "next/link";
 
 import { Logo } from "@/components/brand/Logo";
+import { SignOutButton } from "@/components/auth/SignOutButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { roleLandingPath } from "@/lib/auth/redirect";
+import { getMyProfile } from "@/lib/supabase/get-role";
+import { createClient } from "@/lib/supabase/server";
 import styles from "./PublicHeader.module.css";
 
 // "/#how" and "/#status" are landing-page sections: they must carry id="how"
@@ -19,8 +23,16 @@ type PublicHeaderProps = {
   tone?: "surface" | "slate";
 };
 
-export function PublicHeader({ current, tone = "surface" }: PublicHeaderProps) {
+export async function PublicHeader({ current, tone = "surface" }: PublicHeaderProps) {
   const page = (key: string) => (current === key ? ("page" as const) : undefined);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const profile = user ? await getMyProfile(supabase, user.id) : null;
+  const displayName = profile?.fullName ?? user?.email ?? null;
+
   return (
     <header className={tone === "slate" ? `${styles.header} ${styles.slate}` : styles.header}>
       <a href="#main" className={styles.skip}>
@@ -36,9 +48,19 @@ export function PublicHeader({ current, tone = "surface" }: PublicHeaderProps) {
               {item.label}
             </Link>
           ))}
-          <Link href="/staff?tab=password" aria-current={page("login")} className={styles.login}>
-            Staff login
-          </Link>
+          {user ? (
+            <>
+              {displayName && <span className={styles.userName}>{displayName}</span>}
+              <Link href={roleLandingPath(profile)} className={styles.login}>
+                Dashboard
+              </Link>
+              <SignOutButton className={styles.signOut} redirectTo="/" />
+            </>
+          ) : (
+            <Link href="/staff?tab=password" aria-current={page("login")} className={styles.login}>
+              Staff login
+            </Link>
+          )}
         </nav>
         <ThemeToggle className={styles.toggle} />
       </div>

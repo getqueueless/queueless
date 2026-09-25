@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { Logo, LogoMark } from "@/components/brand/Logo"
 import { ThemeToggle } from "@/components/theme/ThemeToggle"
 import { createClient } from "@/lib/supabase/server"
+import { SignOutButton } from "@/components/auth/SignOutButton"
 import { CounterConsole } from "./counter-console"
 import { ACTIVE_TOKEN_STATUSES, type CounterRow, type ProfileRow, type TokenRow } from "./types"
 import styles from "./counter.module.css"
@@ -28,7 +29,10 @@ function CounterTopBar() {
         <Logo size={22} />
         <span className={styles.topbarDivider} aria-hidden="true" />
         <span className={styles.topbarLabel}>Counter console</span>
-        <ThemeToggle className={styles.toggle} />
+        <div className={styles.topbarActions}>
+          <SignOutButton className={styles.signOut} />
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   )
