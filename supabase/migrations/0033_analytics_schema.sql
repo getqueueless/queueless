@@ -1,238 +1,214 @@
--- "Ask your data" safety layer: a dedicated schema of read-only, parameterized, admin-only,
--- org-scoped functions. No dynamic SQL anywhere below -- every WHERE clause is static and every
--- parameter is bound, never concatenated into a query string.
+-- "Ask your data" safety layer for /admin/ask and the daily ops summary. No dynamic SQL
+-- anywhere below -- every WHERE clause is static and every parameter is bound, never
+-- concatenated into a query string.
+--
+-- Signatures below were rewritten to match apps/api's ALREADY LANDED, ALREADY TESTED caller
+-- exactly (app/analytics.py's ANALYTICS_FUNCTIONS whitelist, and the fixture it was built and
+-- tested against, apps/api/scripts/dev_db.py) -- discovered via `git pull --rebase` mid-task:
+-- apps/api and apps/web have been building against an assumed contract while this schema
+-- didn't exist yet. Matching that contract, not the original task wording, is what actually
+-- makes /admin/ask and the daily summary work end to end. Concretely this means: org_id is
+-- the function's own first positional argument (apps/api's call_analytics injects the
+-- caller's server-looked-up org_id there, never a client-suppliable param -- proven in its own
+-- tests/test_analytics.py::test_org_scoping_cannot_be_overridden_by_param), most functions take
+-- a single p_day rather than a date range, and every output column name matches the fixture's
+-- RETURNS TABLE exactly (dev_db.py's SCHEMA_SQL is the authoritative shape).
 create schema analytics;
 
 revoke all on schema analytics from public, anon, authenticated;
 grant usage on schema analytics to authenticated, queueless_api;
 alter default privileges in schema analytics revoke execute on functions from public;
 
--- Org scoping, shared by every function below. Two callers only:
---  - authenticated (an admin using the app): scope comes from their OWN JWT via
---    private.my_role()/private.my_org() -- a caller can never pass an org id and get a
---    different one back.
---  - queueless_api (apps/api generating a scheduled ops_summaries row): it has no JWT and
---    no org of its own. This system has exactly one organization today, so it gets that one.
---    A genuinely multi-org deployment would need queueless_api to supply an explicit org id,
---    checked against something it's allowed to read -- not built, because there is only one
---    organization to be wrong about right now.
--- session_user (not current_user) is what identifies the real login role here: SECURITY DEFINER
--- makes current_user the function owner (postgres) for the whole call, but session_user stays
--- whoever actually opened the connection.
-create function private.analytics_org()
-returns uuid
+-- Called at the top of every function below. Two trusted paths:
+--  - queueless_api (apps/api): already does its own whitelisting and server-side org lookup
+--    before ever building this call: trust the p_org_id it passes.
+--  - authenticated: must be an admin of EXACTLY the org they passed -- p_org_id is a real
+--    argument here (unlike the original private.analytics_org() design), so without this check
+--    any signed-in user could pass any org's id and read its analytics directly through
+--    PostgREST. This is what keeps a raw-org-id-as-parameter function safe for a JWT caller.
+-- session_user (not current_user): SECURITY DEFINER makes current_user the function owner
+-- (postgres) for the whole call, so current_user can never tell callers apart; session_user is
+-- fixed for the life of the connection and does. Can't be exercised by pgTAP for that reason
+-- (SET ROLE changes current_user, never session_user) -- verified with a real direct
+-- connection instead, see supabase/README.md.
+create function private.check_analytics_org(p_org_id uuid)
+returns void
 language plpgsql
 security definer
 stable
 set search_path = ''
 as $$
-declare
-  v_org uuid;
 begin
   if session_user = 'queueless_api' then
-    select id into v_org from public.organizations order by created_at limit 1;
-    return v_org;
+    return;
   end if;
 
-  -- IS DISTINCT FROM, not <>: private.my_role() is NULL for a caller with no profile row,
-  -- and `if null <> 'admin' then` is false in plpgsql (NULL is not TRUE), which would let a
-  -- caller with no admin role straight through. IS DISTINCT FROM treats NULL as not-admin.
-  if private.my_role() is distinct from 'admin' then
+  -- IS DISTINCT FROM, not <>/=: private.my_role()/my_org() are NULL for a caller with no
+  -- profile row, and `if null <> 'admin' then`/`if null = p_org_id then` are both false in
+  -- plpgsql (NULL is not TRUE), which would let such a caller straight through either check.
+  if private.my_role() is distinct from 'admin' or private.my_org() is distinct from p_org_id then
     perform private.fail(403, 'forbidden', 'Admins only');
   end if;
-
-  return private.my_org();
 end;
 $$;
 
-revoke execute on function private.analytics_org() from public, anon, authenticated, queueless_api;
+revoke execute on function private.check_analytics_org(uuid) from public, anon, authenticated, queueless_api;
 
--- 1. Did we lose patients to no-shows, and where.
-create function analytics.no_shows_by_service(p_from date, p_to date)
-returns table (service_id uuid, service_name text, total_tokens bigint, no_show_count bigint, no_show_rate numeric)
+-- 1. No-show counts per service for one day.
+create function analytics.no_shows_by_service(p_org_id uuid, p_day date)
+returns table (service_id uuid, no_show_count bigint, total_count bigint)
 language sql
 security definer
 stable
 set search_path = ''
 as $$
-  select s.id, s.name,
-         count(t.id),
-         count(t.id) filter (where t.status = 'no_show'),
-         round(
-           count(t.id) filter (where t.status = 'no_show')::numeric
-             / nullif(count(t.id), 0), 4
-         )
-  from public.services s
-  left join public.tokens t
-    on t.service_id = s.id and t.service_day between p_from and p_to
-  where s.org_id = private.analytics_org()
-  group by s.id, s.name
-  order by s.name;
-$$;
-
--- 2. When do people actually wait longest, for one service.
-create function analytics.avg_wait_by_hour(p_service uuid, p_from date, p_to date)
-returns table (hour smallint, avg_wait_minutes numeric, sample_count bigint)
-language sql
-security definer
-stable
-set search_path = ''
-as $$
-  select extract(hour from (t.created_at at time zone o.timezone))::smallint,
-         round(avg(extract(epoch from (t.called_at - t.created_at)) / 60.0)::numeric, 1),
-         count(*)
+  select private.check_analytics_org(p_org_id);
+  select t.service_id,
+         count(*) filter (where t.status = 'no_show') as no_show_count,
+         count(*) as total_count
   from public.tokens t
-  join public.services s on s.id = t.service_id
-  join public.organizations o on o.id = s.org_id
-  where s.org_id = private.analytics_org()
-    and t.service_id = p_service
-    and t.service_day between p_from and p_to
-    and t.called_at is not null
-  group by 1
-  order by 1;
+  where t.org_id = p_org_id and t.service_day = p_day
+  group by t.service_id;
 $$;
 
--- 3. Which desks actually carried the load on one day.
-create function analytics.busiest_counters(p_day date)
-returns table (counter_id uuid, counter_name text, tokens_served bigint, avg_service_secs numeric)
+-- 2. Average wait in minutes by hour of day, org-wide (not per service).
+create function analytics.avg_wait_by_hour(p_org_id uuid, p_day date)
+returns table (hour int, avg_wait_minutes numeric)
 language sql
 security definer
 stable
 set search_path = ''
 as $$
-  select c.id, c.name,
-         count(t.id) filter (where t.status = 'done') as tokens_served,
-         round(avg(extract(epoch from (t.finished_at - t.serving_at)))
-           filter (where t.status = 'done')::numeric, 0) as avg_service_secs
-  from public.counters c
-  left join public.tokens t
-    on t.counter_id = c.id and t.service_day = p_day
-  where c.org_id = private.analytics_org()
-  group by c.id, c.name
-  order by tokens_served desc nulls last;
-$$;
-
--- 4. Daily volume, chart-ready: every day in range appears even with zero tokens.
-create function analytics.tokens_per_day(p_from date, p_to date)
-returns table (day date, tokens_count bigint)
-language sql
-security definer
-stable
-set search_path = ''
-as $$
-  select d.day, count(t.id)
-  from generate_series(p_from, p_to, interval '1 day') as d(day)
-  left join public.tokens t
-    on t.service_day = d.day::date and t.org_id = private.analytics_org()
-  group by d.day
-  order by d.day;
-$$;
-
--- 5. Is one service's average visit getting slower or faster, day by day.
-create function analytics.service_time_trend(p_service uuid, p_days int)
-returns table (day date, avg_service_secs numeric, sample_count bigint)
-language sql
-security definer
-stable
-set search_path = ''
-as $$
-  select t.service_day,
-         round(avg(extract(epoch from (t.finished_at - t.serving_at)))::numeric, 0),
-         count(*)
+  select private.check_analytics_org(p_org_id);
+  select extract(hour from t.created_at)::int as hour,
+         avg(extract(epoch from (t.called_at - t.created_at)) / 60) as avg_wait_minutes
   from public.tokens t
-  join public.services s on s.id = t.service_id
-  where s.org_id = private.analytics_org()
-    and t.service_id = p_service
-    and t.status = 'done'
-    and t.service_day >= private.service_day(private.analytics_org(), now()) - greatest(p_days, 1) + 1
+  where t.org_id = p_org_id and t.service_day = p_day and t.called_at is not null
+  group by 1;
+$$;
+
+-- 3. Tokens served per counter for one day.
+create function analytics.busiest_counters(p_org_id uuid, p_day date)
+returns table (counter_id uuid, served_count bigint)
+language sql
+security definer
+stable
+set search_path = ''
+as $$
+  select private.check_analytics_org(p_org_id);
+  select t.counter_id, count(*) as served_count
+  from public.tokens t
+  where t.org_id = p_org_id and t.service_day = p_day
+    and t.status = 'done' and t.counter_id is not null
+  group by t.counter_id;
+$$;
+
+-- 4. Token volume per day across a range.
+create function analytics.tokens_per_day(p_org_id uuid, p_start_day date, p_end_day date)
+returns table (day date, token_count bigint)
+language sql
+security definer
+stable
+set search_path = ''
+as $$
+  select private.check_analytics_org(p_org_id);
+  select t.service_day as day, count(*) as token_count
+  from public.tokens t
+  where t.org_id = p_org_id and t.service_day between p_start_day and p_end_day
   group by t.service_day
   order by t.service_day;
 $$;
 
--- 6. Actual wait, per service per day, in range. NOTE: this DB has no stored "predicted wait" --
--- predictions are computed live by apps/api's model and never persisted. This returns the actual
--- half only; a real "vs predicted" comparison has to join this against a live prediction call at
--- the app layer. Naming it wait_vs_predicted (as asked) but not fabricating a predicted column.
-create function analytics.wait_vs_predicted(p_from date, p_to date)
-returns table (service_id uuid, service_name text, day date, avg_actual_wait_secs numeric, sample_count bigint)
+-- 5. Average service time trend for one service over the last N days.
+create function analytics.service_time_trend(p_org_id uuid, p_service_id uuid, p_days int)
+returns table (day date, avg_service_minutes numeric)
 language sql
 security definer
 stable
 set search_path = ''
 as $$
-  select s.id, s.name, t.service_day,
-         round(avg(extract(epoch from (t.called_at - t.created_at)))::numeric, 0),
-         count(*)
+  select private.check_analytics_org(p_org_id);
+  select t.service_day as day,
+         avg(extract(epoch from (t.finished_at - t.serving_at)) / 60) as avg_service_minutes
   from public.tokens t
-  join public.services s on s.id = t.service_id
-  where s.org_id = private.analytics_org()
-    and t.service_day between p_from and p_to
-    and t.called_at is not null
-  group by s.id, s.name, t.service_day
-  order by s.name, t.service_day;
+  where t.org_id = p_org_id and t.service_id = p_service_id and t.status = 'done'
+    and t.finished_at is not null and t.serving_at is not null
+    and t.service_day >= current_date - p_days
+  group by t.service_day
+  order by t.service_day;
 $$;
 
--- 7. Full 24h profile of arrivals in range -- every hour present, chart-ready.
-create function analytics.peak_hours(p_from date, p_to date)
-returns table (hour smallint, tokens_count bigint)
+-- 6. Actual wait per token, one day. NOTE: this DB never stores a predicted wait --
+-- predictions are computed live by apps/api's model and never persisted. This is the actual
+-- half only; "vs predicted" is joined at the app layer, per-token, against a live /predict call.
+create function analytics.wait_vs_predicted(p_org_id uuid, p_day date)
+returns table (token_id uuid, actual_wait_minutes numeric)
 language sql
 security definer
 stable
 set search_path = ''
 as $$
-  with org as (
-    select o.id, o.timezone from public.organizations o where o.id = private.analytics_org()
-  )
-  select h.hour, count(t.id)
-  from generate_series(0, 23) as h(hour)
-  cross join org
-  left join public.tokens t
-    on t.org_id = org.id
-   and t.service_day between p_from and p_to
-   and extract(hour from (t.created_at at time zone org.timezone))::smallint = h.hour
-  group by h.hour
-  order by h.hour;
+  select private.check_analytics_org(p_org_id);
+  select t.id as token_id, extract(epoch from (t.called_at - t.created_at)) / 60 as actual_wait_minutes
+  from public.tokens t
+  where t.org_id = p_org_id and t.service_day = p_day and t.called_at is not null;
 $$;
 
--- 8. Priority-lane mix in range, as a share of total.
-create function analytics.lane_mix(p_from date, p_to date)
-returns table (lane public.lane, tokens_count bigint, pct numeric)
+-- 7. Token volume by hour of day, one day.
+create function analytics.peak_hours(p_org_id uuid, p_day date)
+returns table (hour int, token_count bigint)
 language sql
 security definer
 stable
 set search_path = ''
 as $$
-  select t.lane, count(*) as tokens_count,
-         round(count(*)::numeric / nullif(sum(count(*)) over (), 0) * 100, 1) as pct
+  select private.check_analytics_org(p_org_id);
+  select extract(hour from t.created_at)::int as hour, count(*) as token_count
   from public.tokens t
-  where t.org_id = private.analytics_org()
-    and t.service_day between p_from and p_to
-  group by t.lane
-  order by tokens_count desc;
+  where t.org_id = p_org_id and t.service_day = p_day
+  group by 1
+  order by 1;
+$$;
+
+-- 8. Token counts by lane_rank (0 = emergency, 1 = everything else -- coarser than the full
+-- `lane` enum on purpose, matching apps/api's already-tested fixture exactly).
+create function analytics.lane_mix(p_org_id uuid, p_day date)
+returns table (lane_rank smallint, token_count bigint)
+language sql
+security definer
+stable
+set search_path = ''
+as $$
+  select private.check_analytics_org(p_org_id);
+  select t.lane_rank, count(*) as token_count
+  from public.tokens t
+  where t.org_id = p_org_id and t.service_day = p_day
+  group by t.lane_rank
+  order by t.lane_rank;
 $$;
 
 -- Written out one at a time, not looped with EXECUTE format(...): this schema's whole point is
 -- no dynamic SQL, and that applies to its own bootstrapping too, not just the data-access functions.
-revoke execute on function analytics.no_shows_by_service(date, date) from public, anon;
-grant execute on function analytics.no_shows_by_service(date, date) to authenticated, queueless_api;
+revoke execute on function analytics.no_shows_by_service(uuid, date) from public, anon;
+grant execute on function analytics.no_shows_by_service(uuid, date) to authenticated, queueless_api;
 
-revoke execute on function analytics.avg_wait_by_hour(uuid, date, date) from public, anon;
-grant execute on function analytics.avg_wait_by_hour(uuid, date, date) to authenticated, queueless_api;
+revoke execute on function analytics.avg_wait_by_hour(uuid, date) from public, anon;
+grant execute on function analytics.avg_wait_by_hour(uuid, date) to authenticated, queueless_api;
 
-revoke execute on function analytics.busiest_counters(date) from public, anon;
-grant execute on function analytics.busiest_counters(date) to authenticated, queueless_api;
+revoke execute on function analytics.busiest_counters(uuid, date) from public, anon;
+grant execute on function analytics.busiest_counters(uuid, date) to authenticated, queueless_api;
 
-revoke execute on function analytics.tokens_per_day(date, date) from public, anon;
-grant execute on function analytics.tokens_per_day(date, date) to authenticated, queueless_api;
+revoke execute on function analytics.tokens_per_day(uuid, date, date) from public, anon;
+grant execute on function analytics.tokens_per_day(uuid, date, date) to authenticated, queueless_api;
 
-revoke execute on function analytics.service_time_trend(uuid, int) from public, anon;
-grant execute on function analytics.service_time_trend(uuid, int) to authenticated, queueless_api;
+revoke execute on function analytics.service_time_trend(uuid, uuid, int) from public, anon;
+grant execute on function analytics.service_time_trend(uuid, uuid, int) to authenticated, queueless_api;
 
-revoke execute on function analytics.wait_vs_predicted(date, date) from public, anon;
-grant execute on function analytics.wait_vs_predicted(date, date) to authenticated, queueless_api;
+revoke execute on function analytics.wait_vs_predicted(uuid, date) from public, anon;
+grant execute on function analytics.wait_vs_predicted(uuid, date) to authenticated, queueless_api;
 
-revoke execute on function analytics.peak_hours(date, date) from public, anon;
-grant execute on function analytics.peak_hours(date, date) to authenticated, queueless_api;
+revoke execute on function analytics.peak_hours(uuid, date) from public, anon;
+grant execute on function analytics.peak_hours(uuid, date) to authenticated, queueless_api;
 
-revoke execute on function analytics.lane_mix(date, date) from public, anon;
-grant execute on function analytics.lane_mix(date, date) to authenticated, queueless_api;
+revoke execute on function analytics.lane_mix(uuid, date) from public, anon;
+grant execute on function analytics.lane_mix(uuid, date) to authenticated, queueless_api;

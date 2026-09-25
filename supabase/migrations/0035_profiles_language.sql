@@ -28,3 +28,9 @@ $$;
 
 revoke execute on function public.set_my_language(text) from public, anon;
 grant execute on function public.set_my_language(text) to authenticated;
+
+-- apps/api's app/notifications.py._patient_language does `select language from profiles where
+-- id = $1` as queueless_api, to translate a push notification before sending. 0031 narrowed
+-- queueless_api's profiles grant to (id, org_id, role) only -- add this new column to that
+-- same narrow list rather than opening the whole row.
+grant select (language) on public.profiles to queueless_api;

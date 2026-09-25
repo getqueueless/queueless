@@ -1,3 +1,7 @@
+-- Schema matches apps/api's already-landed, already-tested caller (app/summary.py,
+-- app/routes/ai.py's admin_summary_get) exactly: report/ai_generated/aggregates, unique
+-- (org_id, day) with no lang column -- translation happens live at read time, not per stored
+-- language. Discovered mid-task via `git pull --rebase`.
 begin;
 select plan(11);
 
@@ -23,27 +27,30 @@ grant queueless_api to postgres with set true;
 grant usage on schema extensions to queueless_api;
 set local role queueless_api;
 select lives_ok(
-  $$ insert into public.ops_summaries (org_id, day, lang, summary_text, model)
-     values ('a0000000-0000-0000-0000-000000000111', current_date, 'en', 'Quiet day.', 'test-model') $$,
-  'queueless_api can insert a summary'
+  $$ insert into public.ops_summaries (org_id, day, report, ai_generated, aggregates)
+     values ('a0000000-0000-0000-0000-000000000111', current_date, 'Quiet day.', true, '{}'::jsonb)
+     on conflict (org_id, day) do update set
+       report = excluded.report, ai_generated = excluded.ai_generated, aggregates = excluded.aggregates $$,
+  'queueless_api can insert a summary via the real upsert statement'
 );
-select throws_ok(
-  $$ insert into public.ops_summaries (org_id, day, lang, summary_text, model)
-     values ('a0000000-0000-0000-0000-000000000111', current_date, 'en', 'dup', 'test-model') $$,
-  '23505', null, 'the unique(org_id, day, lang) constraint rejects a duplicate'
+select lives_ok(
+  $$ insert into public.ops_summaries (org_id, day, report, ai_generated, aggregates)
+     values ('a0000000-0000-0000-0000-000000000111', current_date, 'Busier than expected.', true, '{}'::jsonb)
+     on conflict (org_id, day) do update set
+       report = excluded.report, ai_generated = excluded.ai_generated, aggregates = excluded.aggregates $$,
+  'a same-day rerun upserts in place -- needs insert AND update, not insert-only'
 );
 select is(
   (select count(*) from public.ops_summaries where org_id = 'a0000000-0000-0000-0000-000000000111'),
-  1::bigint, 'queueless_api can select its own inserted row back'
+  1::bigint, 'the upsert replaced the row rather than creating a second one'
 );
-select throws_ok(
-  $$ update public.ops_summaries set summary_text = 'x'
-     where org_id = 'a0000000-0000-0000-0000-000000000111' $$,
-  '42501', null, 'queueless_api cannot update ops_summaries -- select/insert only, as asked'
+select is(
+  (select report from public.ops_summaries where org_id = 'a0000000-0000-0000-0000-000000000111'),
+  'Busier than expected.', 'the replaced row has the second run''s report'
 );
 select throws_ok(
   $$ delete from public.ops_summaries where org_id = 'a0000000-0000-0000-0000-000000000111' $$,
-  '42501', null, 'queueless_api cannot delete ops_summaries'
+  '42501', null, 'queueless_api cannot delete ops_summaries -- select/insert/update only'
 );
 reset role;
 
@@ -54,13 +61,13 @@ select set_config(
   true
 );
 select is(
-  (select summary_text from public.ops_summaries
-     where org_id = 'a0000000-0000-0000-0000-000000000111' and day = current_date and lang = 'en'),
-  'Quiet day.', 'org A admin reads their own org''s summary'
+  (select report from public.ops_summaries
+     where org_id = 'a0000000-0000-0000-0000-000000000111' and day = current_date),
+  'Busier than expected.', 'org A admin reads their own org''s summary'
 );
 select throws_ok(
-  $$ insert into public.ops_summaries (org_id, day, lang, summary_text, model)
-     values ('a0000000-0000-0000-0000-000000000111', current_date, 'hi', 'x', 'test-model') $$,
+  $$ insert into public.ops_summaries (org_id, day, report, ai_generated, aggregates)
+     values ('a0000000-0000-0000-0000-000000000111', current_date + 1, 'x', true, '{}'::jsonb) $$,
   '42501', null, 'an admin cannot insert directly -- summaries only ever come from queueless_api'
 );
 reset role;
@@ -90,9 +97,9 @@ select is(
 reset role;
 
 select throws_ok(
-  $$ insert into public.ops_summaries (org_id, day, lang, summary_text, model)
-     values ('a0000000-0000-0000-0000-000000000111', current_date, 'fr', 'x', 'test-model') $$,
-  '23514', null, 'lang is constrained to en/hi/pa -- fr is rejected'
+  $$ insert into public.ops_summaries (org_id, day, report, ai_generated, aggregates)
+     values ('a0000000-0000-0000-0000-000000000111', current_date + 2, 'x', true, 'not json') $$,
+  '22P02', null, 'aggregates must be valid jsonb'
 );
 
 select * from finish(true);

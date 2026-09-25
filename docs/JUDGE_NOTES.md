@@ -133,18 +133,19 @@ Plain-English notes per feature: what was built, how it actually works, and why.
 
 - **"Ask your data" without a text-to-SQL hole.** An admin can ask questions about their queue
   (no-shows by service, wait times by hour, busiest desks, priority-lane mix) through 8 fixed,
-  read-only Postgres functions — never a generated SQL string. Whatever asks the question, the
-  only questions it can ever ask are these 8 shapes; there is no path from a typed question to
-  an arbitrary query. Every one of them is admin-only and scoped to the caller's own
-  organization from their signed session, never from a parameter — an admin cannot pass another
-  org's id and see its data, because nothing ever reads one. This is proven with two organizations
-  in the test suite, not just asserted: org A's admin gets zero rows for org B's service, and the
-  reverse.
+  read-only Postgres functions the backend's DeepSeek tool-calling can call — never a generated
+  SQL string. Whatever asks the question, the only questions it can ever ask are these 8 shapes;
+  there is no path from a typed question to an arbitrary query. Every one of them checks the
+  organization it's given against the caller's own signed session before running anything — an
+  admin cannot pass another org's id and see its data. This is proven with two organizations in
+  the test suite, not just asserted: org A's admin gets `forbidden` for org B's id, and the
+  reverse — and separately proven by running the backend's own real code (not a mock) against
+  this exact database and getting real rows back.
 - **AI-generated ops summaries are read-only for admins, write-only for the API.** The daily
-  summary text lives in its own table, one row per organization/day/language. The backend that
-  generates it can insert and read; nothing, including a signed-in admin, can edit or delete a
-  summary once written — if a regeneration is ever needed, it's a new row, not a silent edit of
-  an old one.
+  summary lives in its own table, one row per organization/day. The backend that generates it
+  can write and read; nothing else, including a signed-in admin, can write to it at all — a
+  same-day regeneration replaces that one row through the backend's own controlled path, never
+  through a client request.
 - **The API's audit door stays narrow even as its job grows.** Logging apps/api's own actions
   (a push delivered, a summary generated) into the same audit trail the RPCs use does **not**
   mean giving it `INSERT` on `audit_log` — that would let anything running as that role write

@@ -91,7 +91,7 @@ runs once, so changing the value later takes its own `alter role`.
 | `notifications` | `select`, `update (pushed_at)` | push delivery |
 | `push_tokens` | `select`, `delete` | a patient's devices; pruning dead ones |
 | `private.token_notifications` | `select`, `insert` | nothing since apps/api went delivery-only; left over from `0018` |
-| `ops_summaries` | `select`, `insert` | writing/reading the daily AI ops summary; no `update` — a rerun for the same `(org, day, lang)` hits the unique constraint, not an upsert |
+| `ops_summaries` | `select`, `insert`, `update` | writing/reading the daily AI ops summary via a real `ON CONFLICT (org_id, day) DO UPDATE` upsert |
 | `private.write_audit(...)` (execute) | — | logs apps/api's own actions (push delivered, summary generated) into `audit_log` with `actor` left null, without a raw insert grant on that table |
 
 **A grant is not access once RLS is on.** `services`, `board_services` and `push_tokens` have
@@ -184,57 +184,82 @@ Every RPC also implicitly returns `not_signed_in` (401) if called without a vali
 
 ## Analytics ("ask your data")
 
-Schema `analytics` holds 8 read-only, parameterized functions — no dynamic SQL anywhere in
-them, every filter is a static, bound `WHERE` clause. They're the safe surface for an
-"ask your data" feature: whatever asks the question, only these 8 shapes of question can
+Schema `analytics` holds 8 read-only, parameterized functions backing `/admin/ask` (DeepSeek
+tool-calling) and the daily ops summary — no dynamic SQL anywhere in them, every filter is a
+static, bound `WHERE` clause. Whatever asks the question, only these 8 shapes of question can
 ever be asked, none of them can be built into an arbitrary query string.
 
-All of them: `POST /rest/v1/rpc/<name>` with a signed-in **admin's** JWT (or `queueless_api`).
-Org scope always comes from the caller — an admin's own JWT, never a parameter — so there is
-nothing a caller can pass to see another org's data. A non-admin gets `forbidden`.
+**Signatures were rewritten mid-task to match apps/api's already-landed, already-tested caller
+exactly** (`apps/api/app/analytics.py`'s `ANALYTICS_FUNCTIONS` whitelist, tested against the
+fixture in `apps/api/scripts/dev_db.py`) — found via `git pull --rebase` after apps/api and
+apps/web had already been built against an assumed contract while this schema didn't exist.
+Matching that, not the original spec wording, is what actually makes `/admin/ask` and the
+daily summary work: **`org_id` is every function's own first positional argument** — apps/api
+looks it up server-side from the caller's profile and passes it in, never trusting a
+client/model-supplied one (its own `test_org_scoping_cannot_be_overridden_by_param` proves
+this) — and most take a single `p_day`, not a date range.
 
-- `no_shows_by_service(p_from date, p_to date) returns table(service_id uuid, service_name
-  text, total_tokens bigint, no_show_count bigint, no_show_rate numeric)`
-- `avg_wait_by_hour(p_service uuid, p_from date, p_to date) returns table(hour smallint,
-  avg_wait_minutes numeric, sample_count bigint)`
-- `busiest_counters(p_day date) returns table(counter_id uuid, counter_name text,
-  tokens_served bigint, avg_service_secs numeric)`
-- `tokens_per_day(p_from date, p_to date) returns table(day date, tokens_count bigint)` —
-  every day in range appears, zero-filled, chart-ready
-- `service_time_trend(p_service uuid, p_days int) returns table(day date, avg_service_secs
-  numeric, sample_count bigint)`
-- `wait_vs_predicted(p_from date, p_to date) returns table(service_id uuid, service_name
-  text, day date, avg_actual_wait_secs numeric, sample_count bigint)` — **name is aspirational
-  half the time**: this DB never stores a predicted wait (predictions are computed live by
-  apps/api's model and never persisted), so this returns the *actual* half only. A real
-  "vs predicted" comparison has to join this against a live `/predict` call at the app layer.
-- `peak_hours(p_from date, p_to date) returns table(hour smallint, tokens_count bigint)` —
-  always all 24 hours, zero-filled
-- `lane_mix(p_from date, p_to date) returns table(lane lane, tokens_count bigint, pct
-  numeric)`
+- `no_shows_by_service(org_id uuid, day date) returns table(service_id uuid, no_show_count
+  bigint, total_count bigint)`
+- `avg_wait_by_hour(org_id uuid, day date) returns table(hour int, avg_wait_minutes numeric)`
+  — **org-wide**, not per service
+- `busiest_counters(org_id uuid, day date) returns table(counter_id uuid, served_count
+  bigint)` — `done` tokens only
+- `tokens_per_day(org_id uuid, start_day date, end_day date) returns table(day date,
+  token_count bigint)`
+- `service_time_trend(org_id uuid, service_id uuid, days int) returns table(day date,
+  avg_service_minutes numeric)`
+- `wait_vs_predicted(org_id uuid, day date) returns table(token_id uuid, actual_wait_minutes
+  numeric)` — one row **per token**, not aggregated. **Name is aspirational half the time:**
+  this DB never stores a predicted wait (predictions are computed live by apps/api's model and
+  never persisted), so this returns the *actual* half only — a real "vs predicted" comparison
+  has to join this against a live `/predict` call at the app layer.
+- `peak_hours(org_id uuid, day date) returns table(hour int, token_count bigint)`
+- `lane_mix(org_id uuid, day date) returns table(lane_rank smallint, token_count bigint)` —
+  groups by `lane_rank` (0 = emergency, 1 = everything else), **not** the full `lane` enum —
+  coarser than a real priority-lane breakdown, matching apps/api's fixture exactly
 
-**`p_from`/`p_to`/`p_day` are service-day dates (the org's `Asia/Kolkata` calendar), not
-whatever "today" the caller's own clock computes.** The DB session is UTC; for roughly 5.5
+Rows with a zero count for a given hour/day/service simply don't appear (no zero-filling) —
+matches the fixture's plain `GROUP BY`, callers already handle a possibly-short row list.
+
+**Every `day`/`start_day`/`end_day` is a service-day date (the org's `Asia/Kolkata` calendar),
+not whatever "today" the caller's own clock computes.** The DB session is UTC; for roughly 5.5
 hours a day (00:00–05:30 IST) a UTC `current_date` and the real IST service day are different
-dates — this bit `busiest_counters` in testing (`current_date` found nothing; `(now() at time
-zone 'Asia/Kolkata')::date` found the token). Same trap as the admin dashboard's board lookup
-(below) — compute the date in IST before calling any of these, don't pass a raw `current_date`.
+dates — this bit `busiest_counters` in testing twice (once building it, once again writing its
+pgTAP test): a plain `current_date` found nothing for a desk that had, in fact, served someone
+that IST day; `(now() at time zone 'Asia/Kolkata')::date` found it. Same trap as the admin
+dashboard's board lookup (below) — apps/api's own `date.today()` must be computed in IST before
+calling any of these, not passed as the server's raw UTC date.
 
-**`queueless_api` calling these gets a different org-scoping path**, because it has no JWT and
-so no org of its own: `private.analytics_org()` checks `session_user = 'queueless_api'` (not
-`current_user` — `SECURITY DEFINER` makes `current_user` the function owner for the whole
-call, so it can never tell callers apart; `session_user` is fixed for the connection's life
-and does) and, for that one caller, returns the single organization this system has today.
-A genuinely multi-org deployment would need an explicit, queueless_api-only org parameter —
-not built, because there's exactly one organization to be wrong about right now. This path
-can't be exercised by pgTAP (`set local role` changes `current_user`, never `session_user`,
-so a pgTAP session can never really *be* `queueless_api`) — it's verified with a real direct
-connection instead:
+Org safety, checked by `private.check_analytics_org(p_org_id)` at the top of every function:
+`queueless_api` is trusted unconditionally (`session_user = 'queueless_api'` — not
+`current_user`: `SECURITY DEFINER` makes `current_user` the function owner for the whole call,
+so it can never tell callers apart; `session_user` is fixed for the connection's life and
+does). Any other caller (`authenticated`, direct `POST /rest/v1/rpc/<name>`) must be an admin
+of *exactly* the `org_id` they passed — without this, a raw org_id-as-parameter function would
+let any signed-in user read any org's analytics by just passing a different id. Proven with
+two orgs in the test, not just asserted: an admin passing their own org gets real rows: an
+admin passing someone else's org, or a non-admin passing any org, gets `forbidden`.
+
+`queueless_api`'s trust path can't be exercised by pgTAP (`set local role` changes
+`current_user`, never `session_user`, so a pgTAP session can never really *be*
+`queueless_api`) — verified with a real direct connection instead, and separately with
+apps/api's own `call_analytics`/`_gather_aggregates`/`_write_ops_summary` run against this
+schema for real (not its throwaway fixture):
 ```
 docker exec -i -e PGPASSWORD="$QUEUELESS_API_DB_PASSWORD" supabase-db \
   psql -U queueless_api -h localhost -d postgres \
-  -c "select * from analytics.tokens_per_day(current_date, current_date)"
+  -c "select * from analytics.tokens_per_day('<org-id>', current_date, current_date)"
 ```
+
+### ops_summaries
+
+One row per `(org_id, day)` — `report text, ai_generated boolean, aggregates jsonb`, **no
+`lang` column**: `GET /admin/summary?lang=hi|pa` translates `report` live via DeepSeek at read
+time rather than storing one row per language (`apps/api/app/routes/ai.py`). `queueless_api`
+gets `select, insert, update` (its write is a real
+`INSERT ... ON CONFLICT (org_id, day) DO UPDATE`, a same-day rerun replaces the row rather than
+erroring or accumulating) but no `delete`. Admins read only their own org.
 
 ## Tables the screens read
 

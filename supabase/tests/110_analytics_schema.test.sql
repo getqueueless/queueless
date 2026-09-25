@@ -1,15 +1,19 @@
--- private.analytics_org()'s queueless_api branch checks session_user, not current_user: SECURITY
--- DEFINER makes current_user the function owner (postgres) for the whole call, so current_user
--- can never distinguish callers. session_user is fixed for the life of a connection and does NOT
--- change with SET ROLE -- so `set local role queueless_api` (the only technique available inside
--- one pgTAP session) can NOT exercise that branch; it only ever proves the admin/JWT path. The
--- queueless_api branch was verified separately with a real direct connection:
+-- Signatures here match apps/api's already-landed, already-tested caller (app/analytics.py +
+-- apps/api/scripts/dev_db.py) exactly: org_id is the function's own first positional argument.
+-- private.check_analytics_org's queueless_api branch checks session_user, not current_user:
+-- SECURITY DEFINER makes current_user the function owner (postgres) for the whole call, so
+-- current_user can never distinguish callers. session_user is fixed for the life of a
+-- connection and does NOT change with SET ROLE -- so `set local role queueless_api` (the only
+-- technique available inside one pgTAP session) can NOT exercise that branch; it only ever
+-- proves the admin/JWT path (which itself matters: an authenticated caller passing someone
+-- else's org_id must still be rejected). The queueless_api branch was verified separately with
+-- a real direct connection:
 --   docker exec -i -e PGPASSWORD="$QUEUELESS_API_DB_PASSWORD" supabase-db \
---     psql -U queueless_api -h localhost -d postgres -c "select * from analytics.tokens_per_day(current_date, current_date)"
--- which returned rows with no error, confirming the single-org fallback actually fires for a real
--- queueless_api connection.
+--     psql -U queueless_api -h localhost -d postgres \
+--     -c "select * from analytics.no_shows_by_service('<org>'::uuid, (now() at time zone 'Asia/Kolkata')::date)"
+-- which returned real rows with no error.
 begin;
-select plan(20);
+select plan(16);
 
 select is_empty(
   $$ select p.oid::regprocedure::text from pg_proc p
@@ -24,8 +28,8 @@ select is_empty(
   'PUBLIC can execute nothing in schema analytics'
 );
 select is(
-  has_function_privilege('queueless_api', 'private.analytics_org()', 'EXECUTE'), false,
-  'queueless_api cannot call private.analytics_org() directly (only analytics.* functions do, as their owner)'
+  has_function_privilege('queueless_api', 'private.check_analytics_org(uuid)', 'EXECUTE'), false,
+  'queueless_api cannot call private.check_analytics_org directly (only analytics.* functions do, as their owner)'
 );
 
 insert into public.organizations (id, slug, name, timezone) values
@@ -33,8 +37,7 @@ insert into public.organizations (id, slug, name, timezone) values
   ('b0000000-0000-0000-0000-000000000110', 't-110-b', 'Org B 110', 'Asia/Kolkata');
 
 insert into public.services (id, org_id, code, name, is_open, max_tokens_per_day) values
-  ('c0000000-0000-0000-0000-000000000110', 'a0000000-0000-0000-0000-000000000110', 'A', 'Desk A', true, 500),
-  ('d0000000-0000-0000-0000-000000000110', 'b0000000-0000-0000-0000-000000000110', 'B', 'Desk B', true, 500);
+  ('c0000000-0000-0000-0000-000000000110', 'a0000000-0000-0000-0000-000000000110', 'A', 'Desk A', true, 500);
 
 insert into public.counters (id, org_id, name, state) values
   ('e0000000-0000-0000-0000-000000000110', 'a0000000-0000-0000-0000-000000000110', 'C1', 'open');
@@ -52,18 +55,27 @@ update public.profiles set role = 'staff', org_id = 'a0000000-0000-0000-0000-000
 update public.profiles set role = 'admin', org_id = 'b0000000-0000-0000-0000-000000000110'
   where id = '11100000-0000-0000-0000-000000000112';
 
--- One real done token in org A, today (IST), through legitimate mint + state-machine transitions.
-create temp table tok110 as select * from private.mint_token(
+-- One no_show and one done token today, through legitimate mint + state-machine transitions.
+create temp table tok110a as select * from private.mint_token(
   'a0000000-0000-0000-0000-000000000110', 'c0000000-0000-0000-0000-000000000110', 'normal',
-  null, 'Walkin110', null, now(), null
+  null, 'Walkin110a', null, now(), null
+);
+update public.tokens set status = 'called', counter_id = 'e0000000-0000-0000-0000-000000000110',
+    called_at = now() + interval '1 minute'
+  where id = (select id from tok110a);
+update public.tokens set status = 'no_show' where id = (select id from tok110a);
+
+create temp table tok110b as select * from private.mint_token(
+  'a0000000-0000-0000-0000-000000000110', 'c0000000-0000-0000-0000-000000000110', 'normal',
+  null, 'Walkin110b', null, now(), null
 );
 update public.tokens set status = 'called', counter_id = 'e0000000-0000-0000-0000-000000000110',
     called_at = now() + interval '2 minutes'
-  where id = (select id from tok110);
+  where id = (select id from tok110b);
 update public.tokens set status = 'serving', serving_at = now() + interval '3 minutes'
-  where id = (select id from tok110);
+  where id = (select id from tok110b);
 update public.tokens set status = 'done', finished_at = now() + interval '6 minutes'
-  where id = (select id from tok110);
+  where id = (select id from tok110b);
 
 set local role authenticated;
 select set_config(
@@ -72,91 +84,67 @@ select set_config(
   true
 );
 
--- Correct results for the org that actually has the token.
 select is(
-  (select tokens_served from analytics.busiest_counters((now() at time zone 'Asia/Kolkata')::date)
+  (select no_show_count from analytics.no_shows_by_service('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date)),
+  1::bigint, 'no_shows_by_service counts the one no-show'
+);
+select is(
+  (select total_count from analytics.no_shows_by_service('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date)),
+  2::bigint, 'no_shows_by_service counts both tokens as total'
+);
+select is(
+  (select served_count from analytics.busiest_counters('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date)
      where counter_id = 'e0000000-0000-0000-0000-000000000110'),
-  1::bigint, 'busiest_counters counts the one done token today (IST service day)'
+  1::bigint, 'busiest_counters counts only the done token, not the no-show'
 );
 select is(
-  (select avg_service_secs from analytics.busiest_counters((now() at time zone 'Asia/Kolkata')::date)
-     where counter_id = 'e0000000-0000-0000-0000-000000000110'),
-  180::numeric, 'busiest_counters computes avg_service_secs from serving_at/finished_at'
+  (select count(*) from analytics.avg_wait_by_hour('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date)),
+  1::bigint, 'avg_wait_by_hour returns one row for the hour both calls landed in'
 );
 select is(
-  (select avg_wait_minutes from analytics.avg_wait_by_hour(
-     'c0000000-0000-0000-0000-000000000110', current_date, current_date + 1)),
-  2.0::numeric, 'avg_wait_by_hour computes called_at minus created_at'
+  (select token_count from analytics.tokens_per_day(
+     'a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date)),
+  2::bigint, 'tokens_per_day counts both tokens'
 );
 select is(
-  (select avg_actual_wait_secs from analytics.wait_vs_predicted(current_date, current_date + 1)
-     where service_id = 'c0000000-0000-0000-0000-000000000110'),
-  120::numeric, 'wait_vs_predicted matches avg_wait_by_hour''s underlying wait, in seconds'
+  (select avg_service_minutes from analytics.service_time_trend(
+     'a0000000-0000-0000-0000-000000000110', 'c0000000-0000-0000-0000-000000000110', 7)),
+  3.0::numeric, 'service_time_trend averages the one done token''s 3-minute service time'
 );
 select is(
-  (select no_show_rate from analytics.no_shows_by_service(current_date, current_date + 1)
-     where service_id = 'c0000000-0000-0000-0000-000000000110'),
-  0::numeric, 'no_shows_by_service: one done token, zero no-shows, rate 0'
+  (select count(*) from analytics.wait_vs_predicted('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date)),
+  2::bigint, 'wait_vs_predicted returns one row per called token, not aggregated'
 );
 select is(
-  (select tokens_count from analytics.tokens_per_day(current_date, current_date + 1)
-     where day = (now() at time zone 'Asia/Kolkata')::date),
-  1::bigint, 'tokens_per_day counts the token on its IST service day'
+  (select sum(token_count)::bigint from analytics.peak_hours('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date)),
+  2::bigint, 'peak_hours sums to both tokens across whichever hour(s) they landed in'
 );
 select is(
-  (select tokens_count from analytics.tokens_per_day(current_date - 5, current_date + 5)
-     where day = current_date - 5),
-  0::bigint, 'tokens_per_day still zero-fills days with no tokens, not just days with data'
-);
-select is(
-  (select count(*) from analytics.tokens_per_day(current_date - 5, current_date + 5)),
-  11::bigint, 'tokens_per_day returns exactly one row per day in the 11-day range'
-);
-select is(
-  (select count(*) from analytics.peak_hours(current_date, current_date + 1)), 24::bigint,
-  'peak_hours always returns all 24 hours'
-);
-select is(
-  (select tokens_count from analytics.lane_mix(current_date, current_date + 1) where lane = 'normal'),
-  1::bigint, 'lane_mix counts the one normal-lane token'
-);
-select is(
-  (select pct from analytics.lane_mix(current_date, current_date + 1) where lane = 'normal'),
-  100.0::numeric, 'lane_mix percentages sum to 100 with only one lane present'
-);
-select is(
-  (select avg_service_secs from analytics.service_time_trend('c0000000-0000-0000-0000-000000000110', 7)),
-  180::numeric, 'service_time_trend matches busiest_counters'' avg_service_secs for the same token'
+  (select token_count from analytics.lane_mix('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date)
+     where lane_rank = 1),
+  2::bigint, 'lane_mix counts both normal-lane tokens under lane_rank 1'
 );
 
--- Org isolation: org A's admin sees nothing from org B, and vice versa -- scope always comes from
--- the caller's own JWT, never a parameter, so there is nothing to pass to see someone else's org.
-select is(
-  (select count(*) from analytics.no_shows_by_service(current_date - 30, current_date + 30)
-     where service_id = 'd0000000-0000-0000-0000-000000000110'),
-  0::bigint, 'org A admin sees nothing from org B''s service'
+-- Org isolation: an admin cannot pass a different org's id and see its data, even their own.
+select throws_ok(
+  $$ select * from analytics.no_shows_by_service('b0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date) $$,
+  'PGRST', null, 'org A''s admin is forbidden from passing org B''s id'
 );
-
 reset role;
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
   json_build_object('sub', '11100000-0000-0000-0000-000000000112', 'role', 'authenticated')::text,
   true
 );
-select is(
-  (select count(*) from analytics.no_shows_by_service(current_date - 30, current_date + 30)
-     where service_id = 'c0000000-0000-0000-0000-000000000110'),
-  0::bigint, 'org B admin symmetrically sees nothing from org A''s service'
+select throws_ok(
+  $$ select * from analytics.no_shows_by_service('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date) $$,
+  'PGRST', null, 'org B''s admin is symmetrically forbidden from passing org A''s id'
 );
-select is(
-  (select tokens_served from analytics.busiest_counters((now() at time zone 'Asia/Kolkata')::date)
-     where counter_id = 'e0000000-0000-0000-0000-000000000110'),
-  null, 'org B admin gets no row at all for org A''s counter'
-);
+reset role;
 
 -- Staff (not admin) is forbidden, same PGRST-shaped error every other RPC in this repo uses.
-reset role;
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -164,11 +152,11 @@ select set_config(
   true
 );
 select throws_ok(
-  $$ select * from analytics.no_shows_by_service(current_date, current_date) $$,
-  'PGRST', null, 'staff (not admin) is forbidden from every analytics function'
+  $$ select * from analytics.no_shows_by_service('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date) $$,
+  'PGRST', null, 'staff (not admin) is forbidden even for their own org'
 );
 select throws_ok(
-  $$ select * from analytics.busiest_counters(current_date) $$,
+  $$ select * from analytics.busiest_counters('a0000000-0000-0000-0000-000000000110', (now() at time zone 'Asia/Kolkata')::date) $$,
   'PGRST', null, 'staff (not admin) is forbidden -- busiest_counters too'
 );
 
