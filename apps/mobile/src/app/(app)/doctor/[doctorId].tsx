@@ -91,7 +91,8 @@ export default function DoctorDetail() {
 
   // Book & pay: skips the slot list entirely -- a token minted right now, paid online, no
   // appointment slot involved (a separate flow from Book/Check-in/Cancel above, same split the
-  // web app's /my page uses between "Take a token" and appointment booking).
+  // web app's /my page uses between "Take a token" and appointment booking). Mints the hold here,
+  // then hands off to the checkout review screen -- it owns the actual payment step.
   async function handlePayBooking() {
     if (!doctorId) return;
     setActionError(null);
@@ -102,9 +103,7 @@ export default function DoctorDetail() {
       setActionError(result.error);
       return;
     }
-    if (result.paid) {
-      router.push({ pathname: '/(app)/token/[id]', params: { id: result.tokenId } });
-    }
+    router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: result.tokenId } });
   }
 
   async function handleCancel(appt: Appointment) {
