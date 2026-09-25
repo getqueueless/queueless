@@ -10,9 +10,9 @@ select set_eq(
        and has_schema_privilege('queueless_api', n.oid, 'USAGE')
        and has_any_column_privilege('queueless_api', c.oid, 'SELECT') $$,
   array[
-    'private.razorpay_webhook_events', 'private.token_notifications', 'public.board_services',
-    'public.notifications', 'public.ops_summaries', 'public.payments', 'public.profiles',
-    'public.push_tokens', 'public.services', 'public.tokens'
+    'private.razorpay_webhook_events', 'private.token_notifications', 'public.appointment_slots',
+    'public.appointments', 'public.board_services', 'public.notifications', 'public.ops_summaries',
+    'public.payments', 'public.profiles', 'public.push_tokens', 'public.services', 'public.tokens'
   ],
   'queueless_api can read exactly these tables and nothing else'
 );
@@ -34,7 +34,7 @@ select set_eq(
   array[
     'confirm_payment(text,text,integer)', 'mark_payment_failed(text,text)',
     'private.doctor_leave_refund_candidates()', 'private.write_audit(uuid,text,uuid,text,jsonb,jsonb)',
-    'record_order(uuid,text,integer)', 'record_refund(uuid,text,text,uuid)'
+    'record_order(uuid,uuid,text,integer)', 'record_refund(uuid,text,text,uuid)'
   ],
   'queueless_api can execute exactly these functions in public or private'
 );
@@ -71,6 +71,11 @@ from tok;
 insert into public.push_tokens (user_id, expo_token, platform)
 values ('55555555-0000-0000-0000-000000000105', 'ExponentPushToken[t105]', 'ios');
 
+insert into public.appointment_slots (id, service_id, starts_at, capacity, booked)
+values ('eeeeeeee-0000-0000-0000-000000000105', 'bbbbbbbb-0000-0000-0000-000000000105', now() + interval '1 day', 1, 1);
+insert into public.appointments (id, slot_id, service_id, patient_id, status, fee_inr)
+values ('ffffffff-0000-0000-0000-000000000105', 'eeeeeeee-0000-0000-0000-000000000105', 'bbbbbbbb-0000-0000-0000-000000000105', '55555555-0000-0000-0000-000000000105', 'pending_payment', 500);
+
 set local role queueless_api;
 
 -- real rows, not just a grant: with RLS on and no policy naming this role, a select returns zero rows
@@ -98,6 +103,14 @@ select is(
   (select count(*) from public.notifications
      where id = 'dddddddd-0000-0000-0000-000000000105' and pushed_at is null),
   1::bigint, 'queueless_api reads an unpushed notification'
+);
+select is(
+  (select count(*) from public.appointments where id = 'ffffffff-0000-0000-0000-000000000105'),
+  1::bigint, 'queueless_api reads appointments (needed for order/verify ownership + fee checks)'
+);
+select is(
+  (select count(*) from public.appointment_slots where id = 'eeeeeeee-0000-0000-0000-000000000105'),
+  1::bigint, 'queueless_api reads appointment_slots (needed for the doctor-leave date match)'
 );
 
 select throws_ok(
@@ -132,8 +145,6 @@ select throws_ok(
 delete from public.push_tokens where expo_token = 'ExponentPushToken[t105]';
 
 select throws_ok($$ select 1 from public.audit_log $$, '42501', null, 'queueless_api cannot read audit_log');
-select throws_ok($$ select 1 from public.appointments $$, '42501', null, 'queueless_api cannot read appointments');
-select throws_ok($$ select 1 from public.appointment_slots $$, '42501', null, 'queueless_api cannot read appointment_slots');
 select throws_ok($$ select 1 from public.organizations $$, '42501', null, 'queueless_api cannot read organizations');
 select throws_ok($$ select 1 from public.counters $$, '42501', null, 'queueless_api cannot read counters');
 select throws_ok($$ select 1 from public.counter_services $$, '42501', null, 'queueless_api cannot read counter_services');
