@@ -199,15 +199,32 @@ export async function loadDoctors(
 
 export type Appointment = {
   id: string
+  /** "Today, 5:00 PM" */
   when: string
   doctor: string | null
   service: string
-  /** pending_payment: a paid slot held for 10 minutes until the payment lands (0056). */
-  status: "booked" | "pending_payment"
-  /** Overrides the plain status chip when the slot was paid online; null for pending_payment. */
-  paidStatus: { label: string; tone: Tone } | null
+  /** paid / booked (free, pre-0068) / pending: a 10-minute hold awaiting payment / refunded. */
+  state: "paid" | "booked" | "pending" | "refunded"
+  holdExpiresAt: string | null
+  feeInr: number | null
 }
 
+type AppointmentRow = {
+  id: string
+  status: "booked" | "pending_payment" | "cancelled"
+  fee_inr: number | null
+  hold_expires_at: string | null
+  appointment_slots: { starts_at: string } | { starts_at: string }[] | null
+  doctors: Named
+  services: Named
+}
+
+// Every upcoming appointment the patient holds: booked (Paid when an online
+// payment was captured), pending_payment holds still inside their 10 minutes,
+// and cancelled ones only when the payment came back as a refund. Paid vs
+// refunded comes from loadPaidStatus (my_payment_status, 0058), one call per row.
+// Plain function: /my renders it on the server and Appointments re-reads it
+// in the browser on mount and focus, so coming back from checkout is fresh.
 export async function loadAppointments(
   supabase: SupabaseClient,
   userId: string,
@@ -216,36 +233,51 @@ export async function loadAppointments(
 ): Promise<Appointment[]> {
   const { data } = await supabase
     .from("appointments")
-    .select("id, status, appointment_slots(starts_at), doctors(name), services(name)")
+    .select("id, status, fee_inr, hold_expires_at, appointment_slots(starts_at), doctors(name), services(name)")
     .eq("patient_id", userId)
-    .in("status", ["booked", "pending_payment"])
-  type Row = {
-    id: string
-    status: Appointment["status"]
-    appointment_slots: { starts_at: string } | { starts_at: string }[] | null
-    doctors: Named
-    services: Named
-  }
-  const upcoming = ((data ?? []) as Row[])
+    .in("status", ["booked", "pending_payment", "cancelled"])
+  const rows = ((data ?? []) as AppointmentRow[])
     .map((a) => {
       const slot = Array.isArray(a.appointment_slots) ? a.appointment_slots[0] : a.appointment_slots
       return { ...a, startsAt: slot?.starts_at ?? "" }
     })
     .filter((a) => a.startsAt && new Date(a.startsAt) > now)
+    .filter((a) => a.status !== "pending_payment" || !a.hold_expires_at || new Date(a.hold_expires_at) > now)
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
 
-  const withPaidStatus = await Promise.all(
-    upcoming.map(async (a) => ({
+  const payments = await Promise.all(
+    rows.map((a) =>
+      a.status === "pending_payment" ? null : loadPaidStatus(supabase, { appointmentId: a.id }),
+    ),
+  )
+
+  const out: Appointment[] = []
+  rows.forEach((a, i) => {
+    const pay = payments[i]
+    const state: Appointment["state"] | null =
+      a.status === "pending_payment"
+        ? "pending"
+        : a.status === "cancelled"
+          ? pay === "refunded"
+            ? "refunded"
+            : null
+          : pay === "refunded"
+            ? "refunded"
+            : pay === "captured"
+              ? "paid"
+              : "booked"
+    if (!state) return
+    out.push({
       id: a.id,
       when: slotLabel(a.startsAt, timeZone, now),
       doctor: nameOf(a.doctors),
       service: nameOf(a.services) ?? "",
-      status: a.status,
-      paidStatus:
-        a.status === "booked" ? paidStatusOverride(await loadPaidStatus(supabase, { appointmentId: a.id })) : null,
-    })),
-  )
-  return withPaidStatus
+      state,
+      holdExpiresAt: a.hold_expires_at,
+      feeInr: a.fee_inr,
+    })
+  })
+  return out
 }
 
 export type Visit = {

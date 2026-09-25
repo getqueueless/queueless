@@ -17,6 +17,7 @@ const FIRST_SLOTS = 6
 // start_paid_appointment's own codes (0057/0068) that errorInfo does not map.
 const HOLD_ERRORS: Record<string, string> = {
   too_many_holds: "You already have 2 unpaid bookings. Pay or cancel one first.",
+  rate_limited: "Too many tries, wait a bit.",
 }
 
 // "Today, 5:00 PM" -> ["Today", "5:00 PM"]; slots arrive soonest first, so
@@ -52,7 +53,12 @@ function DoctorCard({ doctor: d }: { doctor: DashboardDoctor }) {
     if (rpcError || !data?.id) {
       const code = rpcError?.code ?? ""
       const known = errorInfo(code)
-      setError(HOLD_ERRORS[code] ?? (known.http !== 500 ? known.message : rpcError?.message || known.message))
+      // time_clash's own message names the clashing time ("You already have a booking at 10:00").
+      setError(
+        code === "time_clash"
+          ? rpcError?.message || "You already have a booking at that time."
+          : (HOLD_ERRORS[code] ?? (known.http !== 500 ? known.message : rpcError?.message || known.message)),
+      )
       setPending(null)
       return
     }

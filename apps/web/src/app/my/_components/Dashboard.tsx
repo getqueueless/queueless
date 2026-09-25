@@ -114,7 +114,7 @@ export function Dashboard({ supabase, userId, fullName, org, now }: DashboardPro
           </div>
           <div className={h.panel}>
             <Suspense fallback={<RowsSkeleton label="Loading your appointments" />}>
-              <AppointmentsSlot appointments={appointments} />
+              <AppointmentsSlot appointments={appointments} userId={userId} timeZone={org.timeZone} />
             </Suspense>
           </div>
         </section>
@@ -157,8 +157,16 @@ async function DoctorsSlot({ doctors }: { doctors: Promise<DashboardDoctor[]> })
   return <DoctorActions doctors={await doctors} />
 }
 
-async function AppointmentsSlot({ appointments }: { appointments: Promise<Appointment[]> }) {
-  return <Appointments items={await appointments} />
+async function AppointmentsSlot({
+  appointments,
+  userId,
+  timeZone,
+}: {
+  appointments: Promise<Appointment[]>
+  userId: string | null
+  timeZone: string
+}) {
+  return <Appointments items={await appointments} userId={userId} timeZone={timeZone} />
 }
 
 async function VisitsSlot({ visits }: { visits: Promise<Visit[]> }) {
