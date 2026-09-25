@@ -110,27 +110,26 @@ jobs:
           fi
           echo "workspace=$WORKSPACE"
 
-          echo "--- xcodebuild -list raw output ---"
-          LIST_OUTPUT=$(xcodebuild -workspace "$WORKSPACE" -list 2>&1)
-          LIST_STATUS=$?
-          echo "$LIST_OUTPUT"
-          echo "--- end raw output (exit $LIST_STATUS) ---"
-          if [ "$LIST_STATUS" -ne 0 ]; then
-            echo "::error::'xcodebuild -workspace $WORKSPACE -list' failed with exit $LIST_STATUS" >&2
-            exit 1
-          fi
+          echo "--- xcodebuild -list raw output (for the log, not parsed) ---"
+          xcodebuild -workspace "$WORKSPACE" -list 2>&1 || true
+          echo "--- end raw output ---"
 
-          # First scheme xcodebuild reports for a fresh Expo prebuild is the app itself (Pods has
-          # no scheme of its own) -- don't hardcode "Queueless", the app.json `name` this is
-          # derived from could change without this workflow being touched.
-          SCHEME=$(echo "$LIST_OUTPUT" | awk '/Schemes:/{flag=1;next} flag && NF {print; exit}' | xargs)
-          if [ -z "$SCHEME" ]; then
-            echo "::error::Could not parse a scheme name out of the -list output above" >&2
+          # "First scheme in -list" is NOT reliable -- confirmed by a real failed run: CocoaPods
+          # can auto-share schemes for pod targets too, and one of those (EXApplication) sorted
+          # before the app's own scheme, so a build against it produced every pod's library
+          # output and no .app at all. The actual app target/scheme is named after the app's own
+          # top-level .xcodeproj (Pods.xcodeproj lives nested inside Pods/, so a maxdepth-1 search
+          # in this directory can only find the app's own project) -- Expo prebuild always names
+          # both the same, so this is exact, not a guess.
+          PROJECT=$(find . -maxdepth 1 -name "*.xcodeproj" | head -1 | sed 's#^\./##; s#\.xcodeproj$##')
+          if [ -z "$PROJECT" ]; then
+            echo "::error::No top-level .xcodeproj found in $(pwd)" >&2
             exit 1
           fi
+          SCHEME="$PROJECT"
           echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
-          echo "Workspace: $WORKSPACE / Scheme: $SCHEME"
+          echo "Workspace: $WORKSPACE / Scheme: $SCHEME (from .xcodeproj name, not parsed from -list)"
 
       - name: Build (unsigned)
         working-directory: apps/mobile/ios
