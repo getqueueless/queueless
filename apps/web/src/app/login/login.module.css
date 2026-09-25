@@ -31,15 +31,40 @@
 .card {
   position: relative;
   width: calc(100% - 2 * var(--space-md));
-  max-width: 460px;
+  max-width: 420px;
   margin-top: calc(-1 * var(--overlap));
-  padding: 40px;
+  padding: 32px;
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-raised);
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 6vw, 34px);
+  font-weight: 800;
+  color: var(--color-ink);
+}
+
+.heading .accent {
+  color: var(--color-accent);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
 }
 
 :global(:root[data-theme="dark"]) .card {
@@ -111,7 +136,7 @@
 
 .input {
   width: 100%;
-  min-height: 50px;
+  min-height: 48px;
   padding: 0 var(--space-md);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-hairline-strong);
@@ -193,10 +218,10 @@
 }
 
 .submit {
-  min-height: 50px;
+  min-height: 56px;
   margin-top: var(--space-xs);
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   background: var(--color-accent);
   color: var(--color-on-accent);
   font-family: var(--font-display);
@@ -236,6 +261,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  margin: 24px 0;
   color: var(--color-ink-muted);
   font-size: 12px;
   font-weight: 700;
@@ -257,11 +283,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  min-height: 50px;
-  padding: 0 var(--space-lg);
+  width: 100%;
+  gap: 12px;
+  min-height: 56px;
+  margin-bottom: 16px;
+  padding: 0 16px;
   border: 1px solid var(--color-hairline-strong);
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   background: var(--color-surface);
   color: var(--color-ink);
   font: inherit;
@@ -287,8 +315,9 @@
 .linkButton {
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
+  align-self: center;
   min-height: 48px;
+  margin-bottom: 16px;
   padding: 0;
   border: none;
   background: none;
@@ -305,6 +334,14 @@
   color: var(--color-primary-hover);
 }
 
+/* Inside the Password labelRow the link sits in a row, not a column -- no
+   bottom margin there, and centering it vertically against the label is the
+   whole point (was align-self: flex-start, which pinned it to the row's top
+   instead of lining up with "Password"). */
+.labelRow .linkButton {
+  margin-bottom: 0;
+}
+
 .prompt {
   margin: 0;
   text-align: center;
@@ -312,13 +349,22 @@
   color: var(--color-ink-secondary);
 }
 
+/* GitHub's own pattern: "New to X? Create an account" sits in its own
+   bordered box below the main sign-in card's content, set apart from it. */
+.signupBox {
+  margin-top: 8px;
+  padding: 16px;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-md);
+}
+
+.signupBox .prompt {
+  margin: 0;
+}
+
 @media (max-width: 767px) {
   .page {
     --overlap: 64px;
-  }
-
-  .card {
-    padding: var(--space-xl) var(--space-lg) var(--space-lg);
   }
 
   .band {

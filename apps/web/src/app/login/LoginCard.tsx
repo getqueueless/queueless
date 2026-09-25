@@ -62,7 +62,7 @@ function GoogleButton({ next }: { next: string }) {
 
   return (
     <button type="button" className={styles.google} disabled={pending} onClick={() => void signInWithGoogle()}>
-      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 18 18" aria-hidden="true">
         <path
           fill="#4285F4"
           d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.87 2.7-6.62Z"
@@ -168,12 +168,14 @@ function SignInView({ next, onSwitch }: { next: string; onSwitch: (view: View) =
         Email me a sign-in code instead
       </button>
 
-      <p className={styles.prompt}>
-        New to Queueless?{" "}
-        <button type="button" className={styles.linkButton} onClick={() => onSwitch("signup")}>
-          Create an account
-        </button>
-      </p>
+      <div className={styles.signupBox}>
+        <p className={styles.prompt}>
+          New to Queueless?{" "}
+          <button type="button" className={styles.linkButton} onClick={() => onSwitch("signup")}>
+            Create an account
+          </button>
+        </p>
+      </div>
     </>
   )
 }
@@ -549,7 +551,7 @@ export function LoginCard({ next }: { next: string }) {
   const [view, setView] = useState<View>("signin")
 
   return (
-    <div>
+    <div className={styles.body}>
       {view === "signin" && <SignInView next={next} onSwitch={setView} />}
       {view === "otp" && <OtpView next={next} onBack={() => setView("signin")} />}
       {view === "signup" && <SignUpView next={next} onBack={() => setView("signin")} />}

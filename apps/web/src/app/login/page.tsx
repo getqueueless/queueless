@@ -4,7 +4,6 @@ import Link from "next/link"
 import { LogoMark } from "@/components/brand/Logo"
 import { PublicFooter } from "@/components/site/PublicFooter"
 import { PublicHeader } from "@/components/site/PublicHeader"
-import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 
 import { LoginCard } from "./LoginCard"
 import styles from "./login.module.css"
@@ -42,9 +41,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </div>
 
         <div className={styles.card}>
-          <div>
+          <div className={styles.header}>
             <LogoMark size={32} />
-            <TwoToneHeading as="h1" lead="Sign in to" accent="Queueless" />
+            <h1 className={styles.heading}>
+              Sign in to <span className={styles.accent}>Queueless</span>
+            </h1>
           </div>
           <LoginCard next={next} />
         </div>
