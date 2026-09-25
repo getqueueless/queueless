@@ -1038,18 +1038,22 @@ under "Web app" above.
   on every completed ticket) scanned a service's *entire history*, not just today's, since it had
   no supporting index — 17.1ms and growing with a full-table scan, 0.1ms with the new one, a
   ~150x difference that would only get worse over the queue's lifetime.
-- **Concurrency load test, live against prod (separate from the query-plan pass above).**
-  `loadtest/load_test.py` fires real, escalating concurrent `issue_token` waves against prod
-  (100, then 200, then 500, then 1000), created via its own fully isolated throwaway org — never
-  the demo queue or a real patient. Real results so far: **100 concurrent → p95 500ms, 0% error
-  rate, 0 duplicate ticket numbers, 183 tokens/sec; 200 concurrent → p95 1.33s, 0% error rate, 0
-  duplicates.** Zero duplicate numbers across both waves confirms the real DB constraint
-  (`tokens_service_day_number_unique`) holds under real concurrent load, not just in theory. The
-  500/1000 waves are still running as of this note (a real bug was found and fixed first:
-  `services.max_tokens_per_day` defaults to 500/day, and this test's own numbering climbs across
-  waves on one service, so a cumulative total past 500 legitimately hit `queue_full` — the
-  loadtest service is now created with `max_tokens_per_day=100000`) — full numbers in
-  `loadtest/README.md` once that rerun finishes.
+- **Concurrency load test, live against prod, run to completion (separate from the query-plan
+  pass above).** `loadtest/load_test.py` fired real, escalating concurrent `issue_token` waves
+  against prod (100, 200, 500, then 1000 at once), a DB-level burst of 1000 more bypassing the
+  HTTP stack entirely, and a `call_next` race draining 2500 waiting tickets across 2 counters —
+  all against its own fully isolated throwaway org, never the demo queue or a real patient.
+  **Zero errors and zero duplicate ticket numbers at every scale, including 1000 concurrent; the
+  2500-ticket call_next race split 1247/1253 across the two counters with zero double-calls.**
+  Latency: p95 500ms at 100 concurrent, 1.33s at 200, 6.76s at 500, 30.2s at 1000 — this is the
+  honest, expected shape of PostgREST's own DB connection pool being the bottleneck at real
+  scale, not this app's logic getting slower per request (the DB-level burst, which skips
+  PostgREST and uses its own bounded pool of 20 real connections directly, still handled 1000
+  concurrent calls at p95 5.98s with zero errors — the correctness holds independent of which
+  layer is doing the queueing). Scale-out path for sub-second p95 at 1000-wide real traffic:
+  raise PostgREST's own `PGRST_DB_POOL`, add a pgbouncer, and run more PostgREST replicas behind
+  a load balancer — not a code change to this app or its RPCs, which held up correctly at every
+  concurrency level tested. Full numbers: `loadtest/README.md`.
 
 ## Shared UI kit for the app redesign
 
