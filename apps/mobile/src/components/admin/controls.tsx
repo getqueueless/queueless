@@ -1,53 +1,64 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { CardShadow, Rounded, Spacing } from '@/constants/theme';
+import { Button, Card as KitCard, MIN_TAP, Radius, UIText } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 
-// Same look as the Services/Counters screens' inline buttons and cards, shared by the Doctors,
-// Cash desk and Cash report screens so each of those doesn't restate the styles.
+// Thin wrappers over the UI kit, kept for the admin Doctors, Payments, Cash and Cash desk screens
+// so their call sites don't change. New code can use '@/components/ui' directly.
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  const theme = useTheme();
-  return (
-    <ThemedView type="surface" style={[styles.card, CardShadow, { borderColor: theme.hairline }, style]}>
-      {children}
-    </ThemedView>
-  );
+  return <KitCard style={style}>{children}</KitCard>;
 }
 
 export function PrimaryButton({ label, onPress, busy, disabled }: { label: string; onPress: () => void; busy?: boolean; disabled?: boolean }) {
-  const theme = useTheme();
-  const off = busy || disabled;
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={off}
-      accessibilityRole="button"
-      style={[styles.button, { backgroundColor: theme.primary, opacity: off ? 0.6 : 1 }]}>
-      {busy ? <ActivityIndicator color={theme.onPrimary} /> : <ThemedText type="button" themeColor="onPrimary">{label}</ThemedText>}
-    </Pressable>
-  );
+  return <Button label={label} onPress={onPress} loading={busy} disabled={disabled} size="md" block style={styles.grow} />;
 }
 
-export function OutlineButton({ label, onPress, danger, disabled }: { label: string; onPress: () => void; danger?: boolean; disabled?: boolean }) {
+export function OutlineButton({
+  label,
+  onPress,
+  danger,
+  disabled,
+  accessibilityHint,
+}: {
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+  accessibilityHint?: string;
+}) {
   const theme = useTheme();
+  // Danger stays an outline (red text, red border): a solid red fill on every Delete/Refund row
+  // shouted louder than the primary action next to it.
+  if (danger) {
+    return (
+      <Pressable
+        onPress={onPress}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityHint={accessibilityHint}
+        style={({ pressed }) => [styles.outline, { borderColor: theme.danger, opacity: disabled ? 0.5 : pressed ? 0.7 : 1 }]}>
+        <UIText variant="secondaryStrong" color="danger">
+          {label}
+        </UIText>
+      </Pressable>
+    );
+  }
   return (
-    <Pressable
+    <Button
+      label={label}
       onPress={onPress}
       disabled={disabled}
-      accessibilityRole="button"
-      style={[styles.outline, { borderColor: theme.hairline, opacity: disabled ? 0.6 : 1 }]}>
-      <ThemedText type="button" themeColor={danger ? 'danger' : 'ink'}>
-        {label}
-      </ThemedText>
-    </Pressable>
+      variant="secondary"
+      size="md"
+      block
+      accessibilityHint={accessibilityHint}
+    />
   );
 }
 
-/** Single-select chip row. */
+/** Single-select chip row, 48pt tall chips. */
 export function ChipRow<T extends string | number>({
   options,
   value,
@@ -68,13 +79,17 @@ export function ChipRow<T extends string | number>({
             onPress={() => onChange(o.value)}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            style={[
+            style={({ pressed }) => [
               styles.chip,
-              { backgroundColor: selected ? theme.primary : theme.surface, borderColor: selected ? theme.primary : theme.hairline },
+              {
+                backgroundColor: selected ? theme.primary : theme.surface,
+                borderColor: selected ? theme.primary : theme.hairlineStrong,
+                opacity: pressed ? 0.7 : 1,
+              },
             ]}>
-            <ThemedText type="bodySm" themeColor={selected ? 'onPrimary' : 'ink'}>
+            <UIText variant={selected ? 'secondaryStrong' : 'secondary'} color={selected ? 'onPrimary' : 'ink'}>
               {o.label}
-            </ThemedText>
+            </UIText>
           </Pressable>
         );
       })}
@@ -83,23 +98,24 @@ export function ChipRow<T extends string | number>({
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: Rounded.lg, padding: Spacing.md, gap: Spacing.sm },
-  button: {
-    flexGrow: 1,
-    minHeight: 44,
-    borderRadius: Rounded.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-  },
+  grow: { flexGrow: 1 },
   outline: {
-    minHeight: 44,
-    borderWidth: 1,
-    borderRadius: Rounded.md,
+    flexGrow: 1,
+    minHeight: MIN_TAP,
+    borderWidth: 1.5,
+    borderRadius: Radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 16,
   },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  chip: { minHeight: 36, borderWidth: 1, borderRadius: Rounded.md, paddingHorizontal: Spacing.sm, justifyContent: 'center' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    minHeight: MIN_TAP,
+    minWidth: MIN_TAP,
+    borderWidth: 1,
+    borderRadius: Radius.pill,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

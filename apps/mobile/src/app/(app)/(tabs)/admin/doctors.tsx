@@ -1,12 +1,11 @@
 import { type Href, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Card, PrimaryButton } from '@/components/admin/controls';
 import { StateCard } from '@/components/admin/state-card';
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Button, Card, StatusChip, UIText, type ChipStatus } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { DOCTOR_STATUS_LABELS } from '@/lib/admin-doctors';
@@ -18,6 +17,8 @@ import { useRole } from '@/lib/use-role';
 import { useSession } from '@/lib/use-session';
 
 type StatusRow = { doctor_id: string; status: DoctorStatusValue; late_minutes: number | null };
+
+const CHIP: Record<DoctorStatusValue, ChipStatus> = { available: 'available', running_late: 'late', on_break: 'late', off: 'leave' };
 
 export default function AdminDoctors() {
   const theme = useTheme();
@@ -81,32 +82,37 @@ export default function AdminDoctors() {
                   ? `Running ${st.late_minutes} min late`
                   : DOCTOR_STATUS_LABELS[st?.status ?? 'available'];
               return (
-                <Pressable
+                <Card
                   key={d.id}
-                  accessibilityRole="link"
+                  accessibilityLabel={`${d.name}, ${d.specialty}, ${d.active ? statusText : 'inactive'}`}
                   onPress={() => router.push(`/admin/doctor?id=${d.id}` as Href)}>
-                  <Card style={!d.active && styles.inactive}>
-                    <View style={styles.row}>
-                      <View style={styles.rowText}>
-                        <ThemedText type="headingSm">{d.name}</ThemedText>
-                        <ThemedText type="caption" themeColor="inkMuted">
-                          {d.specialty} · {serviceNames[d.service_id] ?? 'Unknown service'} · {formatFee(d.fee_inr)}
-                        </ThemedText>
-                      </View>
-                      <ThemedText type="bodyLg" themeColor="inkMuted">
-                        ›
-                      </ThemedText>
+                  <View style={styles.row}>
+                    <View style={styles.rowText}>
+                      <UIText variant="title3" numberOfLines={2}>
+                        {d.name}
+                      </UIText>
+                      <UIText variant="secondary" numberOfLines={1}>
+                        {d.specialty}
+                      </UIText>
+                      <UIText variant="secondary" numberOfLines={1}>
+                        {serviceNames[d.service_id] ?? 'Unknown service'} · {formatFee(d.fee_inr)}
+                      </UIText>
                     </View>
-                    <ThemedText type="bodySm" themeColor={d.active ? 'inkSecondary' : 'inkMuted'}>
-                      {d.active ? statusText : 'Inactive — hidden from patients'}
-                    </ThemedText>
-                  </Card>
-                </Pressable>
+                    <UIText variant="title3" color="inkMuted" accessibilityElementsHidden importantForAccessibility="no">
+                      ›
+                    </UIText>
+                  </View>
+                  {d.active ? (
+                    <StatusChip status={CHIP[st?.status ?? 'available']} label={statusText} />
+                  ) : (
+                    <StatusChip status="leave" label="Inactive · hidden from patients" />
+                  )}
+                </Card>
               );
             })
           )}
 
-          {orgId ? <PrimaryButton label="+ Add doctor" onPress={() => router.push('/admin/doctor?id=new' as Href)} /> : null}
+          {orgId ? <Button label="Add doctor" block onPress={() => router.push('/admin/doctor?id=new' as Href)} /> : null}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -120,5 +126,4 @@ const styles = StyleSheet.create({
   scroll: { paddingVertical: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xxl },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   rowText: { flex: 1, gap: 2 },
-  inactive: { opacity: 0.6 },
 });

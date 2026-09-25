@@ -6,8 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, ChipRow, OutlineButton, PrimaryButton } from '@/components/admin/controls';
 import { LabeledInput } from '@/components/admin/labeled-input';
 import { StateCard } from '@/components/admin/state-card';
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { UIText } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { DOCTOR_STATUS_LABELS, hhmm, isDate, timeRangeError, WEEKDAYS } from '@/lib/admin-doctors';
@@ -46,10 +46,36 @@ function toDraft(d: Doctor): Draft {
 
 function ErrorText({ message }: { message: string | null }) {
   return message ? (
-    <ThemedText type="bodySm" themeColor="danger">
+    <UIText variant="secondary" color="danger" accessibilityRole="alert">
       {message}
-    </ThemedText>
+    </UIText>
   ) : null;
+}
+
+function SectionTitle({ children }: { children: string }) {
+  return (
+    <UIText variant="title3" accessibilityRole="header">
+      {children}
+    </UIText>
+  );
+}
+
+/** One saved shift, break or leave: its text, then Edit and Delete side by side. */
+function ListRow({ text, onEdit, onDelete }: { text: string; onEdit: () => void; onDelete: () => void }) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.listRow, { borderTopColor: theme.hairline }]}>
+      <UIText>{text}</UIText>
+      <View style={styles.pair}>
+        <View style={styles.flex}>
+          <OutlineButton label="Edit" onPress={onEdit} accessibilityHint={`Edit ${text}`} />
+        </View>
+        <View style={styles.flex}>
+          <OutlineButton label="Delete" danger onPress={onDelete} accessibilityHint={`Delete ${text}`} />
+        </View>
+      </View>
+    </View>
+  );
 }
 
 export default function AdminDoctor() {
@@ -165,7 +191,7 @@ export default function AdminDoctor() {
           ) : (
             <>
               <Card>
-                <ThemedText type="headingSm">{isNew ? 'New doctor' : 'Details'}</ThemedText>
+                <SectionTitle>{isNew ? 'New doctor' : 'Details'}</SectionTitle>
                 <LabeledInput label="Name" value={draft.name} onChangeText={(v) => setDraft((d) => ({ ...d, name: v }))} />
                 <LabeledInput label="Specialty" value={draft.specialty} onChangeText={(v) => setDraft((d) => ({ ...d, specialty: v }))} />
                 <LabeledInput
@@ -180,28 +206,27 @@ export default function AdminDoctor() {
                   onChangeText={(v) => setDraft((d) => ({ ...d, fee: v }))}
                   keyboardType="number-pad"
                 />
-                <ThemedText type="caption" themeColor="inkMuted">
-                  Department
-                </ThemedText>
+                <UIText variant="secondary">Department</UIText>
                 <ChipRow
                   options={services.map((s) => ({ value: s.id, label: s.name }))}
                   value={draft.serviceId}
                   onChange={(v) => setDraft((d) => ({ ...d, serviceId: v }))}
                 />
                 <View style={styles.switchRow}>
-                  <ThemedText type="body">Active (visible to patients)</ThemedText>
+                  <UIText style={styles.flex}>Active (visible to patients)</UIText>
                   <Switch
                     value={draft.active}
                     onValueChange={(v) => setDraft((d) => ({ ...d, active: v }))}
+                    accessibilityLabel="Active (visible to patients)"
                     trackColor={{ false: theme.hairline, true: theme.primaryOutline }}
                     thumbColor={draft.active ? theme.primary : theme.surface}
                   />
                 </View>
                 <ErrorText message={saveError} />
                 {saved ? (
-                  <ThemedText type="bodySm" themeColor="success">
+                  <UIText variant="secondaryStrong" color="success">
                     Saved.
-                  </ThemedText>
+                  </UIText>
                 ) : null}
                 <PrimaryButton label={isNew ? 'Add doctor' : 'Save details'} onPress={saveDetails} busy={saving} />
               </Card>
@@ -248,10 +273,10 @@ function StatusCard({ doctorId, current, onChanged }: { doctorId: string; curren
 
   return (
     <Card>
-      <ThemedText type="headingSm">Today&apos;s status</ThemedText>
-      <ThemedText type="bodySm" themeColor="inkSecondary">
+      <SectionTitle>Today’s status</SectionTitle>
+      <UIText variant="secondary">
         Now: {current.status === 'running_late' && current.late_minutes ? `Running ${current.late_minutes} min late` : DOCTOR_STATUS_LABELS[current.status]}
-      </ThemedText>
+      </UIText>
       <ChipRow options={STATUS_OPTIONS} value={value} onChange={setPicked} />
       {value === 'running_late' ? (
         <LabeledInput label="Minutes late" value={minutes} onChangeText={setMinutes} keyboardType="number-pad" />
@@ -324,26 +349,22 @@ function WeeklyWindows({ doctorId, kind, rows, onChanged }: { doctorId: string; 
 
   return (
     <Card>
-      <ThemedText type="headingSm">{isShift ? 'Weekly shifts' : 'Breaks'}</ThemedText>
+      <SectionTitle>{isShift ? 'Weekly shifts' : 'Breaks'}</SectionTitle>
       {rows.length === 0 ? (
-        <ThemedText type="bodySm" themeColor="inkMuted">
-          {isShift ? 'No shifts yet — patients cannot book this doctor.' : 'No breaks.'}
-        </ThemedText>
+        <UIText variant="secondary">{isShift ? 'No shifts yet — patients cannot book this doctor.' : 'No breaks.'}</UIText>
       ) : (
         rows.map((r) => (
-          <View key={r.id} style={styles.listRow}>
-            <ThemedText type="body" style={styles.flex}>
-              {WEEKDAYS[r.weekday]} {hhmm(r.start_time)}–{hhmm(r.end_time)}
-              {isShift ? ` · ${r.max_patients} patients · ${r.slot_minutes} min` : ''}
-            </ThemedText>
-            <OutlineButton label="Edit" onPress={() => edit(r)} />
-            <OutlineButton label="Delete" danger onPress={() => remove(r.id)} />
-          </View>
+          <ListRow
+            key={r.id}
+            text={`${WEEKDAYS[r.weekday]} ${hhmm(r.start_time)}–${hhmm(r.end_time)}${isShift ? ` · ${r.max_patients} patients · ${r.slot_minutes} min` : ''}`}
+            onEdit={() => edit(r)}
+            onDelete={() => remove(r.id)}
+          />
         ))
       )}
-      <ThemedText type="caption" themeColor="inkMuted">
+      <UIText variant="secondaryStrong" style={styles.formHead}>
         {editId ? 'Edit' : 'Add'} {isShift ? 'shift' : 'break'}
-      </ThemedText>
+      </UIText>
       <ChipRow options={WEEKDAY_OPTIONS} value={weekday} onChange={setWeekday} />
       <View style={styles.pair}>
         <View style={styles.flex}>
@@ -424,26 +445,22 @@ function LeavesCard({ doctorId, rows, onChanged }: { doctorId: string; rows: Lea
 
   return (
     <Card>
-      <ThemedText type="headingSm">Leave</ThemedText>
+      <SectionTitle>Leave</SectionTitle>
       {rows.length === 0 ? (
-        <ThemedText type="bodySm" themeColor="inkMuted">
-          No leave booked.
-        </ThemedText>
+        <UIText variant="secondary">No leave booked.</UIText>
       ) : (
         rows.map((r) => (
-          <View key={r.id} style={styles.listRow}>
-            <ThemedText type="body" style={styles.flex}>
-              {r.from_date === r.to_date ? r.from_date : `${r.from_date} → ${r.to_date}`}
-              {r.reason ? ` · ${r.reason}` : ''}
-            </ThemedText>
-            <OutlineButton label="Edit" onPress={() => edit(r)} />
-            <OutlineButton label="Delete" danger onPress={() => remove(r.id)} />
-          </View>
+          <ListRow
+            key={r.id}
+            text={`${r.from_date === r.to_date ? r.from_date : `${r.from_date} → ${r.to_date}`}${r.reason ? ` · ${r.reason}` : ''}`}
+            onEdit={() => edit(r)}
+            onDelete={() => remove(r.id)}
+          />
         ))
       )}
-      <ThemedText type="caption" themeColor="inkMuted">
+      <UIText variant="secondaryStrong" style={styles.formHead}>
         {editId ? 'Edit leave' : 'Add leave'}
-      </ThemedText>
+      </UIText>
       <View style={styles.pair}>
         <View style={styles.flex}>
           <LabeledInput label="First day (YYYY-MM-DD)" value={from} onChangeText={setFrom} maxLength={10} />
@@ -467,8 +484,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   safeArea: { flex: 1, paddingHorizontal: Spacing.lg },
   scroll: { paddingVertical: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xxl },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  listRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  pair: { flexDirection: 'row', gap: Spacing.xs },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm, minHeight: 48 },
+  listRow: { gap: Spacing.xs, paddingTop: Spacing.sm, borderTopWidth: 1 },
+  // flex-end keeps the two fields level when one label wraps to a second line.
+  pair: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.xs },
+  formHead: { marginTop: Spacing.xs },
   flex: { flex: 1 },
 });
