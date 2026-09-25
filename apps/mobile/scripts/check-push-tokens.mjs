@@ -28,9 +28,10 @@ const b = clientFor(JWT_B);
 const userA = subOf(JWT_A);
 const userB = subOf(JWT_B);
 const token = 'ExponentPushToken[check-' + Date.now().toString(36) + ']';
+const spoof = token.replace(']', '-spoof]');
 
-async function rowsFor(client) {
-  const { data, error } = await client.from('push_tokens').select('user_id, platform').eq('expo_token', token);
+async function rowsFor(client, expoToken = token) {
+  const { data, error } = await client.from('push_tokens').select('user_id, platform').eq('expo_token', expoToken);
   assert.equal(error, null);
   return data;
 }
@@ -40,13 +41,19 @@ try {
   assert.deepEqual(await rowsFor(a), [{ user_id: userA, platform: 'android' }]);
   console.log('PASS 1: A saves the token');
 
+  // user_id is client-supplied, so WITH CHECK must stop B planting a row under A, and SELECT must
+  // hide A's token from B (an Expo token is enough to push to A's phone).
+  assert.equal(await savePushToken(b, userA, spoof, 'ios'), OWNED_BY_ANOTHER_ACCOUNT);
+  assert.deepEqual(await rowsFor(b), []);
+  console.log("PASS 1b: B can neither insert a row as A nor read A's row");
+
   assert.equal(await savePushToken(a, userA, token, 'android'), null);
   console.log('PASS 2: A re-saves the same token (no 23505)');
 
   assert.equal(await savePushToken(b, userB, token, 'ios'), OWNED_BY_ANOTHER_ACCOUNT);
   console.log('PASS 3: B saving the same token gets 42501');
 
-  assert.equal(await deletePushToken(b, token), true);
+  assert.equal(await deletePushToken(b, token), false);
   assert.equal((await rowsFor(a)).length, 1);
   console.log("PASS 4: B's delete leaves A's row intact");
 
@@ -59,5 +66,11 @@ try {
   console.error('FAIL:', err);
   process.exitCode = 1;
 } finally {
-  await deletePushToken(a, token).catch(() => {});
+  // If B ever did take the row over, only B can delete it, so clean up as both.
+  for (const client of [a, b]) for (const t of [token, spoof]) await deletePushToken(client, t);
+  const left = [...(await rowsFor(a)), ...(await rowsFor(b)), ...(await rowsFor(a, spoof)), ...(await rowsFor(b, spoof))];
+  if (left.length) {
+    console.error('FAIL: leftover push_tokens rows:', left);
+    process.exitCode = 1;
+  }
 }

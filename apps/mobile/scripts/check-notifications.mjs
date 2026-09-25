@@ -1,6 +1,7 @@
 // Runs src/lib/notifications.ts in plain Node with expo-notifications, react-native and the
 // Supabase modules stubbed, to check two things device testing can't reach yet (no EAS projectId):
-// the token-rotation listener must not re-trigger itself. Run from the repo root:
+// the token-rotation listener must not re-trigger itself, and sign-out must delete the token a
+// previous launch saved. Run from the repo root:
 //   node --experimental-strip-types apps/mobile/scripts/check-notifications.mjs
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
@@ -105,3 +106,15 @@ await turns(10);
 unwatch();
 assert.equal(state.expoCalls - before, 1, 'a rotated token should be exchanged exactly once');
 console.log('PASS: a rotated device token is re-registered once');
+
+// 3. Sign-out after a cold start whose registration failed still deletes the saved token.
+const cold = await launch(3);
+state.online = false;
+await cold.registerForPushNotificationsAsync('user-a');
+state.online = true;
+state.deleted.length = 0;
+await cold.unregisterPushTokenAsync();
+assert.deepEqual(state.deleted, [EXPO_TOKEN], "sign-out left this device's push_tokens row");
+await cold.unregisterPushTokenAsync();
+assert.deepEqual(state.deleted, [EXPO_TOKEN], 'a second sign-out should find nothing left to delete');
+console.log("PASS: sign-out deletes the previous launch's token, once");

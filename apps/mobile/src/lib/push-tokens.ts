@@ -22,8 +22,11 @@ export async function savePushToken(
   return error ? error.code || error.message : null;
 }
 
-/** Deletes one token's row. Needs a live session: RLS lets only the owner delete it. */
+/**
+ * Deletes one token's row; true only when a row was actually removed. Needs a live session: RLS
+ * lets only the owner delete it, so another account's row (or a missing one) returns false.
+ */
 export async function deletePushToken(client: SupabaseClient, token: string): Promise<boolean> {
-  const { error } = await client.from('push_tokens').delete().eq('expo_token', token);
-  return !error;
+  const { data, error } = await client.from('push_tokens').delete().eq('expo_token', token).select('id');
+  return !error && (data?.length ?? 0) > 0;
 }

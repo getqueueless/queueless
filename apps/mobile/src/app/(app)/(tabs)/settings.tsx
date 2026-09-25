@@ -28,7 +28,9 @@ export default function Settings() {
     setSigningOut(true);
     // Before signOut: once signed out, RLS can't see the row and the delete would match 0 rows.
     await unregisterPushTokenAsync();
-    const { error: signOutError } = await supabase.auth.signOut();
+    // Local scope: sign out this device only, matching the push cleanup above. The default
+    // ('global') would sign out the patient's other devices while their push rows lived on.
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
     // No manual redirect on success — (app)/_layout.tsx watches the session and redirects
     // to (auth) once it goes null. On failure, stop spinning and let the patient retry.
     if (signOutError) {

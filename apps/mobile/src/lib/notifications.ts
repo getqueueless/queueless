@@ -13,9 +13,15 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// The token this install last saved. Sign-out deletes exactly this row, so the patient's other
-// devices keep theirs.
-let registeredToken: string | null = null;
+// The token this install last saved, kept in storage so sign-out can delete exactly this row even
+// after an app restart or a failed registration. The patient's other devices keep theirs.
+const PUSH_TOKEN_KEY = 'queueless-push-token';
+
+// The save in flight, so sign-out can let its upsert land before deleting the row.
+let pendingSave: Promise<void> = Promise.resolve();
+
+// Sign-out never waits longer than this on the network for push cleanup.
+const SIGN_OUT_WAIT_MS = 3000;
 
 // The device token behind the last registration. Every native device-token fetch also fires the
 // push-token listener, so watchPushTokenRotation skips this echo instead of registering again.
@@ -45,7 +51,8 @@ export async function registerForPushNotificationsAsync(userId: string): Promise
     }
     if (status !== 'granted') return;
 
-    await saveDeviceToken(userId, await Notifications.getDevicePushTokenAsync());
+    pendingSave = saveDeviceToken(userId, await Notifications.getDevicePushTokenAsync());
+    await pendingSave;
   } catch (err) {
     console.log('[push] no push token available:', err);
   }
@@ -59,7 +66,7 @@ async function saveDeviceToken(userId: string, devicePushToken: Notifications.De
 
   const code = await savePushToken(supabase, userId, token, Platform.OS as PushPlatform);
   if (code === null) {
-    registeredToken = token;
+    localStorage.setItem(PUSH_TOKEN_KEY, token);
   } else if (code === OWNED_BY_ANOTHER_ACCOUNT) {
     console.log('[push] token belongs to a different account on this device');
   } else {
@@ -67,12 +74,30 @@ async function saveDeviceToken(userId: string, devicePushToken: Notifications.De
   }
 }
 
-/** Deletes this device's token row. Call before sign-out: RLS only lets the owner delete it. */
+/** Resolves with the promise's value, or with undefined once SIGN_OUT_WAIT_MS has passed. */
+function within<T>(promise: Promise<T>): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<undefined>((resolve) => {
+    timer = setTimeout(resolve, SIGN_OUT_WAIT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Deletes this device's token row. Call before sign-out: RLS only lets the owner delete it. Never
+ * throws, and never holds sign-out up for longer than SIGN_OUT_WAIT_MS per network step.
+ */
 export async function unregisterPushTokenAsync(): Promise<void> {
-  if (!registeredToken) return;
   try {
-    if (await deletePushToken(supabase, registeredToken)) registeredToken = null;
-    else console.log('[push] deleting push token failed (non-fatal)');
+    // Let an in-flight save land first, or its upsert could re-create the row after the delete.
+    await within(pendingSave.catch(() => {}));
+    const token = localStorage.getItem(PUSH_TOKEN_KEY);
+    if (!token) return;
+    // After this sign-out the stored token is no use: its row can only be deleted with this session.
+    localStorage.removeItem(PUSH_TOKEN_KEY);
+    if (!(await within(deletePushToken(supabase, token)))) {
+      console.log('[push] no push_tokens row deleted (offline, or not this account\'s row)');
+    }
   } catch (err) {
     console.log('[push] deleting push token failed (non-fatal):', err);
   }
@@ -89,9 +114,8 @@ export function watchPushTokenRotation(userId: string): () => void {
     // one in here would fire this event again, forever.
     const sub = Notifications.addPushTokenListener((devicePushToken) => {
       if (JSON.stringify(devicePushToken.data) === lastDeviceToken) return;
-      saveDeviceToken(userId, devicePushToken).catch((err) =>
-        console.log('[push] saving rotated push token failed (non-fatal):', err),
-      );
+      pendingSave = saveDeviceToken(userId, devicePushToken);
+      pendingSave.catch((err) => console.log('[push] saving rotated push token failed (non-fatal):', err));
     });
     return () => sub.remove();
   } catch {
