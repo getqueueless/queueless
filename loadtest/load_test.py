@@ -153,6 +153,33 @@ async def _chunked_delete(client: httpx.AsyncClient, table: str, column: str, va
             print(f"WARNING: {label} cleanup (chunk {i // CLEANUP_CHUNK_SIZE}) got {resp.status_code}: {resp.text[:200]}")
 
 
+PAGE_SIZE = 1000  # matches supabase/docker-compose.yml's PGRST_DB_MAX_ROWS
+
+
+async def _fetch_all(client: httpx.AsyncClient, table: str, select: str, filters: dict) -> list[dict]:
+    """PostgREST caps every response at PGRST_DB_MAX_ROWS=1000 (supabase/
+    docker-compose.yml) -- found live at real scale (2500 tokens): a plain
+    GET here silently returned only the first 1000, so cleanup only ever
+    saw/deleted a fraction of the real rows, leaving the rest (and every
+    profile/user still referenced by one) behind with no error at all.
+    Pages via the `Range` header until a page comes back short."""
+    rows: list[dict] = []
+    offset = 0
+    while True:
+        resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/{table}",
+            headers={**SERVICE_HEADERS, "Range-Unit": "items", "Range": f"{offset}-{offset + PAGE_SIZE - 1}"},
+            params={"select": select, **filters},
+        )
+        resp.raise_for_status()
+        page = resp.json()
+        rows.extend(page)
+        if len(page) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+    return rows
+
+
 async def delete_org_and_dependents(client: httpx.AsyncClient, org_id: str) -> None:
     """organizations -> tokens cascades (on delete cascade), but tokens ->
     notifications does NOT (no cascade on notifications_token_id_fkey) --
@@ -165,12 +192,7 @@ async def delete_org_and_dependents(client: httpx.AsyncClient, org_id: str) -> N
     cascade, not deleted -- explicit delete here means auth.users deletes
     below never hit a leftover profile->tokens block) -> the org itself
     (services/counters/counter_services/board_* all cascade from it)."""
-    resp = await client.get(
-        f"{SUPABASE_URL}/rest/v1/tokens", headers=SERVICE_HEADERS,
-        params={"select": "id,patient_id", "org_id": f"eq.{org_id}"},
-    )
-    resp.raise_for_status()
-    rows = resp.json()
+    rows = await _fetch_all(client, "tokens", "id,patient_id", {"org_id": f"eq.{org_id}"})
     token_ids = [row["id"] for row in rows]
     patient_ids = [row["patient_id"] for row in rows if row.get("patient_id")]
 
