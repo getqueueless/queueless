@@ -100,9 +100,20 @@
   gap: var(--space-xs);
 }
 
+/* Flex items default to min-width: auto, which for a text input is its
+   content-based intrinsic width -- wide enough to overflow this row on a
+   narrow phone even though the input is styled at width: 100%. Letting it
+   shrink (and keeping the prefix from shrinking) is what actually keeps the
+   row inside the viewport. */
+.phoneRow .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .phonePrefix {
   display: flex;
   align-items: center;
+  flex: none;
   padding: 0 var(--space-sm);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-hairline-strong);
