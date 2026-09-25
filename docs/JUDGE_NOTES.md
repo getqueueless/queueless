@@ -64,6 +64,12 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   grant themselves access. `audit_log` can't be edited or deleted by anyone, including the
   database owner — enforced by a trigger, not just a permission grant, because permission grants
   don't bind table owners.
+- **API isolation.** `apps/api` connects to Postgres as its own `queueless_api` role, never as
+  the database owner. That role can only read `tokens`/`board_services` (for wait predictions),
+  read and prune `push_tokens` (to send/clean up push notifications), and record which pushes it
+  already sent in `private.token_notifications` — it cannot write `tokens`, `profiles`, or
+  anything the RPC layer owns. Registering a push token is still the client's own job through
+  normal RLS (`push_tokens` is owner-only for `authenticated`), not the API's.
 
 ## Web app
 
