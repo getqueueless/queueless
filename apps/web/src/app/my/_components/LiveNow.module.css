@@ -11,7 +11,11 @@
   initial-value: 0;
 }
 
+/* position: relative makes the strip the containing block of the
+   visually hidden numbers inside it; without it they escape the phone
+   strip's scroll clip and widen the whole page. */
 .strip {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-md);
