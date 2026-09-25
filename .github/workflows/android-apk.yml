@@ -175,7 +175,8 @@ jobs:
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT/aapt2" dump badging "$NAME" | head -1
           "$BT/aapt2" dump badging "$NAME" | head -1 | grep -q "name='com.queueless.mobile' versionCode='${{ steps.ver.outputs.build }}' versionName='${{ steps.ver.outputs.version }}'"
-          APK_CERT=$("$BT/apksigner" verify --print-certs "$NAME" | awk -F': ' '/certificate SHA-256 digest/ {print tolower($2); exit}')
+          # Last field: the line's prefix varies ("Signer #1 ..." or "Signer (minSdkVersion=..): ...").
+          APK_CERT=$("$BT/apksigner" verify --print-certs "$NAME" | awk '/certificate SHA-256 digest/ {print tolower($NF); exit}')
           echo "APK cert SHA-256: $APK_CERT"
           if [ "$APK_CERT" != "$(cat "$RUNNER_TEMP/release-cert.sha256")" ]; then
             echo "::error::APK is not signed with the release key" >&2
