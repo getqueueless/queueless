@@ -10,9 +10,8 @@ import { createClient } from "@/lib/supabase/client"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import {
   countOpenCounters,
-  countTokensAhead,
   fetchCounter,
-  fetchToken,
+  fetchTokenStatus,
   type CounterRow,
   type ServiceRow,
   type TokenRow,
@@ -97,13 +96,16 @@ export function StatusView({
   // already-open anon tab (RLS/subscription gap), and the resilient channel's
   // own reconnect logic only fires on a transport-level drop, not a silent
   // stall. A 10s poll plus an immediate refetch on tab focus/visibility puts a
-  // hard ceiling on staleness regardless of why the push failed. Cheap: one
-  // row by primary key.
+  // hard ceiling on staleness regardless of why the push failed. get_token_status
+  // (migration 0048) also carries people_ahead, so this corrects queueAhead too
+  // instead of waiting up to REFRESH_MS for the separate ETA effect below.
   useEffect(() => {
     let cancelled = false
     const refetch = () => {
-      fetchToken(supabase, tokenId).then((row) => {
-        if (!cancelled && row) setToken(row)
+      fetchTokenStatus(supabase, tokenId).then((row) => {
+        if (cancelled || !row) return
+        setToken(row)
+        if (row.status === "waiting") setQueueAhead(row.people_ahead)
       })
     }
     const interval = setInterval(refetch, 10_000)
@@ -155,8 +157,9 @@ export function StatusView({
 
     async function refresh() {
       const current = tokenRef.current
-      const ahead = await countTokensAhead(supabase, current)
+      const statusRow = await fetchTokenStatus(supabase, tokenId)
       if (cancelled) return
+      const ahead = statusRow?.people_ahead ?? null
       setQueueAhead(ahead)
       if (ahead !== null && serviceId) {
         const countersOpen = await countOpenCounters(supabase, current.service_id)

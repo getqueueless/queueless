@@ -6,14 +6,7 @@ import { PublicFooter } from "@/components/site/PublicFooter"
 import { PublicHeader } from "@/components/site/PublicHeader"
 import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { createClient } from "@/lib/supabase/server"
-import {
-  countOpenCounters,
-  countTokensAhead,
-  fetchCounter,
-  fetchService,
-  fetchToken,
-  isUuid,
-} from "./data"
+import { countOpenCounters, fetchCounter, fetchService, fetchTokenStatus, isUuid } from "./data"
 import { fetchPrediction } from "./predict"
 import { StatusView } from "./status-view"
 import styles from "./status.module.css"
@@ -53,7 +46,7 @@ export default async function TokenStatusPage({ params }: { params: Promise<{ id
   }
 
   const supabase = await createClient()
-  const token = await fetchToken(supabase, id)
+  const token = await fetchTokenStatus(supabase, id)
   if (!token) {
     return <NotFoundCard />
   }
@@ -68,7 +61,7 @@ export default async function TokenStatusPage({ params }: { params: Promise<{ id
   let predictedIsFallback = false
 
   if (token.status === "waiting") {
-    queueAhead = await countTokensAhead(supabase, token)
+    queueAhead = token.people_ahead
     if (queueAhead !== null && service) {
       const countersOpen = await countOpenCounters(supabase, token.service_id)
       const prediction = await fetchPrediction(service.id, queueAhead, countersOpen)

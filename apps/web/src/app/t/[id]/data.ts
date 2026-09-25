@@ -57,6 +57,21 @@ export async function fetchToken(supabase: AnySupabase, id: string): Promise<Tok
   return data as TokenRow
 }
 
+export type TokenStatusRow = TokenRow & { people_ahead: number | null }
+
+// get_token_status(p_id) (migration 0048): the real anon-safe path -- replaces fetchToken()
+// AND countTokensAhead() with one RPC call (people_ahead is computed server-side, same
+// ordering countTokensAhead used). tokens now has real RLS (0047); anon only still gets a
+// row via a temporary blanket policy the DB agent will drop once every direct anon
+// `.from("tokens")` read on this page is gone -- fetchToken/countTokensAhead stay exported
+// as-is (apps/web/src/app/my/_components and apps/web/src/app/pay/[tokenId] still import
+// them directly), just no longer called from anywhere in this route.
+export async function fetchTokenStatus(supabase: AnySupabase, id: string): Promise<TokenStatusRow | null> {
+  const { data, error } = await supabase.rpc("get_token_status", { p_id: id })
+  if (error || !data) return null
+  return data as TokenStatusRow
+}
+
 export async function fetchService(supabase: AnySupabase, serviceId: string): Promise<ServiceRow | null> {
   const { data } = await supabase.from("services").select("id, name, code").eq("id", serviceId).maybeSingle()
   return (data as ServiceRow) ?? null
