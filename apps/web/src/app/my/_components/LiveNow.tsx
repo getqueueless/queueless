@@ -54,13 +54,15 @@ function DepartmentChip({ dept, day }: { dept: Department; day: string }) {
   useResilientChannel({ channelName: `service:${dept.id}`, broadcastEvent: "token_update", onEvent: load })
 
   useEffect(() => {
-    load()
+    // Deferred a tick so the first read is not a setState inside the effect body.
+    const first = setTimeout(load, 0)
     const timer = setInterval(load, POLL_MS)
     const onVisible = () => {
       if (document.visibilityState === "visible") load()
     }
     document.addEventListener("visibilitychange", onVisible)
     return () => {
+      clearTimeout(first)
       clearInterval(timer)
       document.removeEventListener("visibilitychange", onVisible)
     }
