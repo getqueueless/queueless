@@ -3,6 +3,7 @@ import { Slot } from 'expo-router';
 import { useEffect, useSyncExternalStore } from 'react';
 import { Appearance, Platform } from 'react-native';
 
+import { ThemeTransitionHost } from '@/components/ThemeTransition';
 import { ThemedView } from '@/components/themed-view';
 import { hideSplash } from '@/lib/splash';
 import { getThemePreference, subscribeThemePreference } from '@/lib/theme-preference';
@@ -37,5 +38,10 @@ export default function RootLayout() {
     return <ThemedView style={{ flex: 1 }} />;
   }
 
-  return <Slot />;
+  // Every theme change, from any screen, fades through the host's overlay.
+  return (
+    <ThemeTransitionHost>
+      <Slot />
+    </ThemeTransitionHost>
+  );
 }
