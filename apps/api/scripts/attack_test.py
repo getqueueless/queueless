@@ -5,26 +5,35 @@ Run with the server already up:
     uv run uvicorn app.main:app --port 8001
     uv run python scripts/attack_test.py
 
-/push-tokens is rate-limited to 5/minute, and that limit is enforced before
-auth/body validation even runs (see the comment in app/routes/push_tokens.py
-for why). That means every single request this script sends to /push-tokens
-counts against the same budget regardless of what's in it, so the cases
-below are split into windows of at most 5 requests each, with a wait for the
-window to reset in between -- otherwise later cases would spuriously see 429
-instead of the status they're actually trying to prove.
+apps/api has no authenticated endpoint any more: POST /push-tokens was
+removed (push_tokens is client-written under Supabase RLS, apps/api's own
+DB role only has SELECT/DELETE on it -- see app/notifications.py). /predict
+is deliberately public. So this script's surface is /predict's input
+validation, rate limiting, and the confirmed-gone registration endpoint,
+plus a CORS probe on /health. JWT verification and role authorization are
+still fully covered by pytest (tests/test_auth.py, tests/test_authorization.py)
+against the app's real dependency functions -- there just isn't a live
+production route left to black-box attack them through.
+
+/predict's 60/minute limit is roomy enough that every case below except the
+dedicated flood test fits in one window with room to spare.
 """
 
 import os
 import sys
-import time
-from uuid import uuid4
+import uuid
 
 import httpx
-import jwt
 
 BASE_URL = os.environ.get("API_URL", "http://localhost:8001")
-VALID_EXPO_TOKEN = "ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]"
-RATE_LIMIT_WINDOW_SECONDS = 61
+
+VALID_PREDICT_BODY = {
+    "service_id": "10000000-0000-0000-0000-000000000001",
+    "hour": 10,
+    "weekday": 2,
+    "queue_len_ahead": 5,
+    "counters_open": 2,
+}
 
 results: list[tuple[str, bool, str]] = []
 
@@ -35,132 +44,74 @@ def check(name: str, condition: bool, detail: str = "") -> None:
     print(f"[{status}] {name}" + (f" -- {detail}" if detail and not condition else ""))
 
 
-def wait_for_rate_limit_reset() -> None:
-    print(f"(waiting {RATE_LIMIT_WINDOW_SECONDS}s for the /push-tokens rate-limit window to reset)")
-    time.sleep(RATE_LIMIT_WINDOW_SECONDS)
-
-
-def make_random_secret_token(exp_offset_seconds: int) -> str:
-    payload = {
-        "sub": str(uuid4()),
-        "aud": "authenticated",
-        "exp": int(time.time()) + exp_offset_seconds,
-    }
-    return jwt.encode(payload, "attacker-does-not-know-the-real-secret", algorithm="HS256")
-
-
-def make_alg_none_token() -> str:
-    header = jwt.utils.base64url_encode(b'{"alg":"none","typ":"JWT"}').decode()
-    payload = jwt.utils.base64url_encode(
-        f'{{"sub":"{uuid4()}","aud":"authenticated","exp":{int(time.time()) + 3600}}}'.encode()
-    ).decode()
-    return f"{header}.{payload}."
-
-
-def push_token_request(client: httpx.Client, **kwargs) -> httpx.Response:
-    kwargs.setdefault("json", {"token": VALID_EXPO_TOKEN, "device_id": "d1"})
-    return client.post("/push-tokens", **kwargs)
+def predict(client: httpx.Client, **overrides) -> httpx.Response:
+    body = {**VALID_PREDICT_BODY, **overrides}
+    return client.post("/predict", json=body)
 
 
 def run() -> int:
     client = httpx.Client(base_url=BASE_URL, timeout=10.0)
 
-    # --- Window 1 (5 requests): JWT signature/claim checks. ---
-    resp = push_token_request(client)
-    check("no_auth_header_rejected", resp.status_code == 401, f"got {resp.status_code}")
-
-    resp = push_token_request(client, headers={"Authorization": "Bearer not.a.jwt"})
-    check("malformed_bearer_rejected", resp.status_code == 401, f"got {resp.status_code}")
-
-    expired = make_random_secret_token(exp_offset_seconds=-3600)
-    resp = push_token_request(client, headers={"Authorization": f"Bearer {expired}"})
-    check(
-        "expired_and_wrong_secret_token_rejected",
-        resp.status_code == 401,
-        f"got {resp.status_code}",
+    # 1. The old push-token registration endpoint must actually be gone, not
+    #    just undocumented -- it used to accept an INSERT the DB role can't
+    #    even perform against the real schema.
+    resp = client.post(
+        "/push-tokens", json={"token": "ExponentPushToken[x]", "device_id": "d1"}
     )
+    check("removed_registration_endpoint_returns_404", resp.status_code == 404, f"got {resp.status_code}")
 
-    wrong_sig = make_random_secret_token(exp_offset_seconds=3600)
-    resp = push_token_request(client, headers={"Authorization": f"Bearer {wrong_sig}"})
-    check("wrong_signature_token_rejected", resp.status_code == 401, f"got {resp.status_code}")
+    # 2. Malformed service_id -- not a UUID at all.
+    resp = predict(client, service_id="not-a-uuid")
+    check("malformed_service_id_rejected", resp.status_code == 422, f"got {resp.status_code}")
 
-    none_token = make_alg_none_token()
-    resp = push_token_request(client, headers={"Authorization": f"Bearer {none_token}"})
-    check("alg_none_token_rejected", resp.status_code == 401, f"got {resp.status_code}")
-
-    wait_for_rate_limit_reset()
-
-    # --- Window 2 (5 requests): mass-assignment + first injection payloads. ---
-    # No Authorization header here (the script doesn't have the real signing
-    # secret to build one that would pass auth) -- get_current_user rejects
-    # before body validation even runs, so 401 is the expected block, same
-    # as extra="forbid" would give a 422 if auth had passed. Either way the
-    # extra field grants nothing.
-    resp = push_token_request(
-        client, json={"token": VALID_EXPO_TOKEN, "device_id": "d1", "role": "admin"}
-    )
-    check(
-        "extra_role_field_rejected",
-        resp.status_code in (401, 422),
-        f"got {resp.status_code}",
-    )
-
-    resp = push_token_request(
-        client,
-        json={"token": VALID_EXPO_TOKEN, "device_id": "d1", "is_staff": True},
-        headers={"X-User-Role": "admin"},
-    )
-    check(
-        "spoofed_role_header_ignored",
-        resp.status_code in (401, 422),
-        f"got {resp.status_code}",
-    )
-
+    # 3. Injection-shaped strings in service_id -- must 422 (invalid UUID
+    #    shape), never 500. The UUID type itself is what blocks these; there
+    #    is no free-text field left in this API for a string-injection test.
     injection_payloads = [
         "' OR '1'='1",
         '"; DROP TABLE tokens;--',
         '{"$ne": null}',
         "../../etc/passwd",
-        "x" * 200,
     ]
-    for payload in injection_payloads[:3]:
-        resp = push_token_request(client, json={"token": VALID_EXPO_TOKEN, "device_id": payload})
+    for payload in injection_payloads:
+        resp = predict(client, service_id=payload)
         check(
             f"injection_payload_never_500[{payload[:20]!r}]",
-            resp.status_code in (401, 422) and resp.status_code != 500,
+            resp.status_code == 422 and resp.status_code != 500,
             f"got {resp.status_code}",
         )
 
-    wait_for_rate_limit_reset()
+    # 4. Syntactically valid but nonexistent service_id -- 404, not a leak of
+    #    "which ids are real" via a different error shape, and never 500.
+    resp = predict(client, service_id=str(uuid.uuid4()))
+    check("unknown_service_id_rejected", resp.status_code == 404, f"got {resp.status_code}")
 
-    # --- Window 3 (2 requests): remaining injection payloads. ---
-    for payload in injection_payloads[3:]:
-        resp = push_token_request(client, json={"token": VALID_EXPO_TOKEN, "device_id": payload})
-        check(
-            f"injection_payload_never_500[{payload[:20]!r}]",
-            resp.status_code in (401, 422) and resp.status_code != 500,
-            f"got {resp.status_code}",
-        )
+    # 5. Out-of-range and wrong-type values on the numeric fields.
+    resp = predict(client, hour=24)
+    check("out_of_range_hour_rejected", resp.status_code == 422, f"got {resp.status_code}")
 
-    wait_for_rate_limit_reset()
+    resp = predict(client, hour="ten")
+    check("wrong_type_hour_rejected", resp.status_code == 422, f"got {resp.status_code}")
 
-    # --- Window 4 (6 requests): flood / rate-limit proof, in a clean window. ---
+    # 6. Mass-assignment: an extra field the client had no business sending.
+    resp = client.post("/predict", json={**VALID_PREDICT_BODY, "admin": True})
+    check("extra_field_rejected", resp.status_code == 422, f"got {resp.status_code}")
+
+    # 7. Flood / rate-limit proof (60/minute). A handful of prior requests
+    #    above already used a little budget, so 61 more is a safe margin to
+    #    guarantee at least one 429 with Retry-After in this same window.
     last = None
-    for _ in range(6):
-        last = push_token_request(client)
-    check(
-        "rate_limit_429_on_6th_request",
-        last is not None and last.status_code == 429,
-        f"got {last.status_code if last else 'no response'}",
-    )
+    for _ in range(61):
+        last = predict(client)
+    check("rate_limit_429_eventually", last is not None and last.status_code == 429, f"got {last.status_code if last else 'no response'}")
     check(
         "rate_limit_retry_after_header_present",
         last is not None and "retry-after" in {k.lower() for k in last.headers},
         f"headers={dict(last.headers) if last else {}}",
     )
 
-    # CORS probe hits /health, which is exempt from rate limiting entirely,
-    # so it doesn't need its own window.
+    # 8. CORS probe -- evil origin must never be echoed back. /health is
+    #    exempt from rate limiting so this needs no window of its own.
     resp = client.get("/health", headers={"Origin": "https://evil.example"})
     acao = resp.headers.get("access-control-allow-origin")
     check("cors_origin_never_echoed", acao != "https://evil.example", f"got ACAO={acao!r}")

@@ -28,8 +28,12 @@ def predict_with_fallback(
 
     if bucket_count < meta["min_bucket_samples"]:
         avg_service_time = meta["avg_service_time_by_service"][service]
+        # Same formula scripts/train.py validates against as the "fair
+        # baseline" (and that docs/JUDGE_NOTES.md documents as the mobile
+        # app's own client-side fallback) -- the live fallback shown to real
+        # users must match the number actually measured, not a different one.
         return {
-            "predicted_wait_minutes": queue_len_ahead * avg_service_time,
+            "predicted_wait_minutes": queue_len_ahead * avg_service_time / counters_open,
             "fallback": True,
             "reason": "sparse_training_data",
         }
