@@ -6,13 +6,16 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { roleLandingPath } from "@/lib/auth/redirect";
 import { getMyProfile } from "@/lib/supabase/get-role";
 import { createClient } from "@/lib/supabase/server";
+import { HeaderMenu } from "./HeaderMenu";
 import styles from "./PublicHeader.module.css";
 
-// "/#how" and "/#status" are landing-page sections: they must carry id="how"
-// and id="status". /kiosk is not linked: it is a staff-signed-in device. The skip link needs the page's <main id="main">.
+// "/#status" is a landing-page section: it must carry id="status". "Get a
+// token" matches the hero: patients take one from /my, via /login when
+// signed out. /kiosk is not linked: it is a staff-signed-in device. The skip
+// link needs the page's <main id="main">.
 const NAV = [
   { key: "home", href: "/", label: "Home" },
-  { key: "how", href: "/#how", label: "Get a token" },
+  { key: "how", href: "/login?next=/my", label: "Get a token" },
   { key: "status", href: "/#status", label: "Check status" },
 ] as const;
 
@@ -42,9 +45,14 @@ export async function PublicHeader({ current, tone = "surface" }: PublicHeaderPr
         <Link href="/" className={styles.brand}>
           <Logo size={26} />
         </Link>
-        <nav aria-label="Main" className={styles.nav}>
+        <HeaderMenu>
           {NAV.map((item) => (
-            <Link key={item.key} href={item.href} aria-current={page(item.key)} className={styles.link}>
+            <Link
+              key={item.key}
+              href={item.key === "how" && user ? "/my" : item.href}
+              aria-current={page(item.key)}
+              className={styles.link}
+            >
               {item.label}
             </Link>
           ))}
@@ -61,7 +69,7 @@ export async function PublicHeader({ current, tone = "surface" }: PublicHeaderPr
               Log in
             </Link>
           )}
-        </nav>
+        </HeaderMenu>
         <ThemeToggle className={styles.toggle} />
       </div>
     </header>

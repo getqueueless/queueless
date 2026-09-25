@@ -29,7 +29,7 @@
   grid-area: brand;
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 48px;
   border-radius: var(--radius-sm);
 }
 
@@ -45,11 +45,16 @@
   grid-area: toggle;
 }
 
+/* Below 1024px only. */
+.menuButton {
+  display: none;
+}
+
 .link,
 .login {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 48px;
   font-size: 14px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -102,7 +107,7 @@
 .signOut {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 48px;
   padding: 0 var(--space-xs);
   background: none;
   border: none;
@@ -163,7 +168,9 @@
 /* currentColor ring: contrasts on both the white bar and the slate hero. */
 .brand:focus-visible,
 .link:focus-visible,
-.login:focus-visible {
+.login:focus-visible,
+.signOut:focus-visible,
+.menuButton:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
@@ -191,70 +198,164 @@
   white-space: nowrap;
 }
 
-/* Mobile: the nav drops to its own full-width row instead of hiding behind a
-   menu button, so "Get a token" and "Check status" are one tap away. */
-@media (max-width: 767px) {
+/* Below 1024px the nav folds into a menu button: logo, theme switch and a
+   48px button on one row, the links in a panel that drops under the bar.
+   The panel is always a surface card, so on the slate hero its text goes
+   back to ink. */
+@media (max-width: 1023px) {
   .inner {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "brand toggle"
-      "nav nav";
-    gap: var(--space-xxs) var(--space-md);
-    padding: var(--space-xs) var(--space-md) 0;
+    position: relative;
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas: "brand toggle menu";
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-md);
+  }
+
+  .menuButton {
+    grid-area: menu;
+    display: inline-grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .menuBars {
+    position: relative;
+    width: 20px;
+    height: 14px;
+  }
+
+  .menuBars > span {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+  }
+
+  .menuBars > span:nth-child(1) {
+    top: 0;
+  }
+
+  .menuBars > span:nth-child(2) {
+    top: 6px;
+  }
+
+  .menuBars > span:nth-child(3) {
+    top: 12px;
+  }
+
+  /* Open: the outer bars cross into an X, the middle one fades. */
+  .menuButton[aria-expanded="true"] .menuBars > span:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+  }
+
+  .menuButton[aria-expanded="true"] .menuBars > span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .menuButton[aria-expanded="true"] .menuBars > span:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
   }
 
   .nav {
-    justify-content: space-between;
-    gap: 0;
-    margin: 0 calc(-1 * var(--space-xs));
-    overflow-x: auto;
-    scrollbar-width: none;
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: var(--space-xs) var(--space-md) var(--space-md);
+    border-bottom: 1px solid var(--color-hairline);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .nav[data-open] {
+    display: flex;
   }
 
   .link,
-  .login,
   .signOut {
-    font-size: 12px;
-    letter-spacing: 0.02em;
-  }
-
-  /* The logo already links home; dropping Home keeps STAFF LOGIN unclipped at 320. */
-  .link[href="/"] {
-    display: none;
-  }
-
-  /* The full name doesn't fit next to Dashboard + Sign out at this width;
-     both links already imply who's signed in. */
-  .userName {
-    display: none;
-  }
-
-  .link {
-    padding: 0 var(--space-xs);
+    justify-content: flex-start;
+    padding: 0 var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: 15px;
   }
 
   .link::after {
-    left: var(--space-xs);
-    right: var(--space-xs);
+    display: none;
+  }
+
+  .link[aria-current="page"] {
+    background: var(--color-primary-soft);
+  }
+
+  .userName {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 var(--space-sm);
+    border-top: 1px solid var(--color-hairline);
+    margin-top: var(--space-xs);
   }
 
   .login {
-    margin-left: 0;
-    padding: 0 var(--space-xs);
-    border-color: transparent;
-    font-weight: 700;
+    justify-content: center;
+    margin: var(--space-xs) 0 0;
   }
 
-  /* Same specificity as the base .slate .login rule, so it has to be restated. */
-  .slate .login {
-    border-color: transparent;
+  .slate .nav .link,
+  .slate .nav .signOut,
+  .slate .nav .userName {
+    color: var(--color-ink-secondary);
+  }
+
+  .slate .nav .link:hover,
+  .slate .nav .link[aria-current="page"],
+  .slate .nav .signOut:hover {
+    color: var(--color-primary);
+  }
+
+  .slate .nav .login {
+    border-color: var(--color-hairline-strong);
+    color: var(--color-ink);
+  }
+
+  .slate .nav .login:hover,
+  .slate .nav .login[aria-current="page"] {
+    border-color: var(--color-accent);
+    color: var(--color-primary);
   }
 }
 
-@media (max-width: 359px) {
-  .link,
-  .login {
-    letter-spacing: 0;
+@media (max-width: 1023px) and (prefers-reduced-motion: no-preference) {
+  .menuBars > span {
+    transition:
+      transform 200ms var(--ease-out),
+      opacity 150ms ease;
+  }
+
+  .nav[data-open] {
+    animation: menu-in 200ms var(--ease-out);
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
   }
 }
 
