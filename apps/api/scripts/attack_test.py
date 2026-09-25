@@ -25,6 +25,13 @@ uses.
 dedicated flood test fits in one window with room to spare. /admin/retrain's
 1-per-10-minutes limit is NOT proven live here -- see the note near the
 bottom of run() for why and where it IS proven.
+
+Against a shared VPS (SKIP_DB_WRITE_CHECKS=1), the flood loop sleeps
+ATTACK_REQUEST_DELAY_SECONDS between requests (default 50ms -- 61 requests
+still land inside the 60/minute window the check is proving, just not as a
+zero-delay burst), and check 12 (which needs a direct write into
+`profiles`, not something a script should do against a real production
+database) is skipped in favor of the note already covering it.
 """
 
 import asyncio
@@ -43,6 +50,8 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql://postgres:postgres@localhost:55432/postgres"
 )
 ROLE_CACHE_TTL_SECONDS = float(os.environ.get("ROLE_CACHE_TTL_SECONDS", "5.0"))
+REQUEST_DELAY_SECONDS = float(os.environ.get("ATTACK_REQUEST_DELAY_SECONDS", "0.05"))
+SKIP_DB_WRITE_CHECKS = os.environ.get("SKIP_DB_WRITE_CHECKS", "0") == "1"
 
 
 def make_jwt(sub: str | None = None) -> str:
@@ -130,6 +139,7 @@ def run() -> int:
     last = None
     for _ in range(61):
         last = predict(client)
+        time.sleep(REQUEST_DELAY_SECONDS)
     check("rate_limit_429_eventually", last is not None and last.status_code == 429, f"got {last.status_code if last else 'no response'}")
     check(
         "rate_limit_retry_after_header_present",
@@ -273,7 +283,18 @@ def run() -> int:
         finally:
             await conn.close()
 
-    asyncio.run(_replay_check())
+    if SKIP_DB_WRITE_CHECKS:
+        check(
+            "role_revocation_ttl_skipped_no_db_write",
+            True,
+            "SKIP_DB_WRITE_CHECKS=1 -- a script has no business INSERT/UPDATE-ing "
+            "profiles directly against a real production database; the same TTL "
+            "revocation logic is proven with a mocked clock in "
+            "tests/test_authorization.py, and live wall-clock-verified once already "
+            "against the local stack",
+        )
+    else:
+        asyncio.run(_replay_check())
 
     # 13. /admin/retrain's 1-per-10-minutes limit is proven fast and
     #     deterministically in pytest instead of live here
