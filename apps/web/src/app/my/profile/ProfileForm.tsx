@@ -31,6 +31,20 @@ export function ProfileForm({
   const errorRef = useRef<HTMLDivElement>(null)
   const v = state.values
 
+  // QA P1: maxLength=10 truncated a country-code-prefixed number (919876543210,
+  // +919876543210 -- both forms 0060_phone_normalization.sql's normalize_in_phone
+  // accepts server-side) before the user could even finish typing it. Controlled now
+  // so a 12/13-char entry that turns out to carry a 91/+91 prefix collapses to the
+  // bare 10 digits live, matching what the fixed "+91" span beside it already implies
+  // -- the same digit-count-based disambiguation profileSchema's stripCountryCode
+  // uses server-side (10 digits starting with 91 is a real number, not a prefix).
+  const [phoneValue, setPhoneValue] = useState(v?.phone ?? "")
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value
+    const digits = raw.replace(/\D/g, "")
+    setPhoneValue(digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : raw)
+  }
+
   // QA P2: React resets an uncontrolled <form action={fn}> back to each field's
   // defaultValue once the action settles -- on ANY submit, not just a successful one,
   // since React has no way to know "error" from a plain returned state object. That
@@ -104,8 +118,9 @@ export function ProfileForm({
             inputMode="numeric"
             autoComplete="tel-national"
             placeholder="9876543210"
-            defaultValue={v?.phone}
-            maxLength={10}
+            value={phoneValue}
+            onChange={handlePhoneChange}
+            maxLength={13}
             required
             aria-invalid={state.fieldErrors.phone ? "true" : undefined}
             aria-describedby={state.fieldErrors.phone ? "phone-error" : undefined}
