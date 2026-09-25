@@ -8,14 +8,20 @@ on conflict (slug) do nothing;
 
 select id as org_id from public.organizations where slug = 'city-hospital' \gset
 
--- accounts: promote the ones created by seed.sh's admin-API calls
-update public.profiles set role = 'admin', org_id = :'org_id'
+-- accounts: promote the ones created by seed.sh's admin-API calls. full_name is set here too --
+-- handle_new_user() (0002) only fills it from signup metadata, which these admin-API-created
+-- accounts never carry, so without this every staff/admin list shows "Unnamed staff"/"No name
+-- set" for the whole demo.
+update public.profiles set role = 'admin', org_id = :'org_id', full_name = coalesce(full_name, 'Anjali Verma')
   where id = (select id from auth.users where email = 'admin@lpu.lol') and role <> 'admin';
 
-update public.profiles set role = 'staff', org_id = :'org_id'
-  where id in (
-    select id from auth.users where email in ('counter1@lpu.lol', 'counter2@lpu.lol', 'counter3@lpu.lol')
-  ) and role <> 'staff';
+update public.profiles set role = 'staff', org_id = :'org_id', full_name = coalesce(profiles.full_name, v.name)
+  from (values
+    ('counter1@lpu.lol', 'Priya Sharma'),
+    ('counter2@lpu.lol', 'Ramesh Gupta'),
+    ('counter3@lpu.lol', 'Sunita Rao')
+  ) as v(email, name)
+  where profiles.id = (select id from auth.users where email = v.email) and profiles.role <> 'staff';
 
 -- services
 insert into public.services (org_id, code, name, is_open, default_service_secs, no_show_minutes, max_tokens_per_day)
