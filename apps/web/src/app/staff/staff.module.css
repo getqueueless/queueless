@@ -1,8 +1,8 @@
-/* Public screen: Poppins body, a short slate band with the card pulled up
-   over it (the landing hero's overlap, at login scale). */
+/* Same public-screen shell as the old /login (band + overlapping card,
+   Poppins). Adds a tab bar for the three sign-in methods. */
 .page {
   --overlap: 88px;
-  flex: 1; /* fill the body column so canvas-soft reaches the footer */
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -11,7 +11,6 @@
   font-family: var(--font-display);
 }
 
-/* A plain slate strip for the card to overlap; the h1 in the card names the page. */
 .band {
   position: relative;
   overflow: hidden;
@@ -20,12 +19,9 @@
   background: var(--color-slate);
 }
 
-/* The mark as a one-colour pattern (BRAND.md). Only the top of the ring is
-   cropped: the lower ring, the tear and the slip, which carry the meaning,
-   sit inside the band. */
 .bandMark {
   position: absolute;
-  right: max(var(--space-lg), calc(50% - 546px)); /* the header's content edge */
+  right: max(var(--space-lg), calc(50% - 546px));
   bottom: var(--space-md);
   color: rgba(255, 255, 255, 0.05);
   --brand-accent: currentColor;
@@ -43,7 +39,6 @@
   box-shadow: var(--shadow-raised);
 }
 
-/* --shadow-raised is black on near-black in dark, so the card gets an edge. */
 :global(:root[data-theme="dark"]) .card {
   border: 1px solid var(--color-hairline-strong);
 }
@@ -75,7 +70,43 @@
   color: var(--color-primary-hover);
 }
 
-/* ---------- Form (markup and behaviour unchanged, see login-form.tsx) ---------- */
+/* ---------- Tabs ---------- */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--space-lg);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas-soft);
+}
+
+.tab {
+  flex: 1;
+  min-height: 38px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-ink-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-card);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ---------- Form (shared by password + OTP panels) ---------- */
 
 .form {
   display: flex;
@@ -94,6 +125,12 @@
   color: var(--color-ink-secondary);
 }
 
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+
 .input {
   width: 100%;
   min-height: 50px;
@@ -103,7 +140,7 @@
   background: var(--color-canvas);
   color: var(--color-ink);
   font: inherit;
-  font-size: 16px; /* 16px stops iOS zooming the page on focus */
+  font-size: 16px;
   transition: border-color 150ms ease;
 }
 
@@ -121,14 +158,18 @@
   border-color: var(--color-danger);
 }
 
+.otpInput {
+  letter-spacing: 0.5em;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 .fieldError {
   margin: 0;
   color: var(--color-danger);
   font-size: 13px;
 }
 
-/* Full 1px danger border and an alert icon, not a side stripe. Danger on
-   danger-soft is 4.51:1 light, 5.68:1 dark. */
 .errorSummary {
   display: flex;
   align-items: flex-start;
@@ -138,6 +179,19 @@
   border-radius: var(--radius-sm);
   background: var(--color-danger-soft);
   color: var(--color-danger);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.statusSummary {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-ink);
   font-size: 14px;
   line-height: 1.45;
 }
@@ -154,12 +208,12 @@
   fill: currentColor;
 }
 
-.errorSummary:focus-visible {
+.errorSummary:focus-visible,
+.statusSummary:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
-/* button-accent: ink on cyan (6.39:1), never white on cyan. */
 .submit {
   min-height: 50px;
   margin-top: var(--space-xs);
@@ -196,6 +250,56 @@
 .submit:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
+}
+
+/* Google button: outlined, not filled -- it's a third-party identity, not
+   this app's own primary action. */
+.google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: 50px;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.google:hover:not(:disabled) {
+  border-color: var(--color-ink-muted);
+}
+
+.google:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.google:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.linkButton {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  color: var(--color-primary-hover);
 }
 
 @media (max-width: 767px) {

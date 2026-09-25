@@ -93,7 +93,7 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
             This terminal issues walk-in tokens once a staff member signs in.
             Ask a supervisor to sign in on this device.
           </p>
-          <Link href="/login?next=/kiosk" className={styles.signInCta}>
+          <Link href="/staff?tab=password&next=/kiosk" className={styles.signInCta}>
             Sign in
           </Link>
           {/* The landing's "Get a token" lands patients here too. */}

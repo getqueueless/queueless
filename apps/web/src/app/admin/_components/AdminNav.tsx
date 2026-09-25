@@ -46,7 +46,7 @@ export function AdminNav({ orgName }: { orgName: string | null }) {
   async function signOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push("/login")
+    router.push("/staff?tab=password")
   }
 
   return (

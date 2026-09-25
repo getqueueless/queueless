@@ -36,7 +36,7 @@ export function PublicHeader({ current, tone = "surface" }: PublicHeaderProps) {
               {item.label}
             </Link>
           ))}
-          <Link href="/login" aria-current={page("login")} className={styles.login}>
+          <Link href="/staff?tab=password" aria-current={page("login")} className={styles.login}>
             Staff login
           </Link>
         </nav>
