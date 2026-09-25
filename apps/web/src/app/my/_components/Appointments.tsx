@@ -50,16 +50,22 @@ function holdEnds(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 }
 
-// What happens to the money, said before the patient confirms. Refunds follow
-// docs/PAYMENTS.md: automatic only when the doctor goes on leave, otherwise
-// approved by the hospital.
+// What happens to the money, said before the patient confirms. Matches
+// cancel_appointment (0059): a paid slot cancelled 2+ hours ahead is refunded
+// automatically; closer than that, only the hospital can approve one. A
+// doctor's leave refunds automatically either way.
+const REFUND_WINDOW_MS = 2 * 60 * 60 * 1000
+
 function outcome(appt: Appointment) {
   if (appt.state === "paid") {
+    const paid = `You paid${appt.feeInr ? ` ₹${appt.feeInr}` : ""} online.`
+    const early = new Date(appt.startsAt).getTime() - Date.now() >= REFUND_WINDOW_MS
     return (
       <>
         <p>
-          You paid{appt.feeInr ? ` ₹${appt.feeInr}` : ""} online. Cancelling frees the slot but does not refund you
-          automatically: refunds are approved by the hospital, so ask at reception.
+          {early
+            ? `${paid} Cancelling now refunds you automatically. It will land back on your card in a few days.`
+            : `${paid} Cancelling this close to your slot does not refund you automatically: refunds are approved by the hospital, so ask at reception.`}
         </p>
         <p>If the doctor goes on leave that day, you are refunded automatically.</p>
       </>

@@ -207,6 +207,8 @@ export type Appointment = {
   state: "paid" | "booked" | "pending" | "refunded"
   holdExpiresAt: string | null
   feeInr: number | null
+  /** Slot start, ISO: decides whether a paid cancel still refunds itself (0059, 2 hours). */
+  startsAt: string
 }
 
 type AppointmentRow = {
@@ -275,6 +277,7 @@ export async function loadAppointments(
       state,
       holdExpiresAt: a.hold_expires_at,
       feeInr: a.fee_inr,
+      startsAt: a.startsAt,
     })
   })
   return out
