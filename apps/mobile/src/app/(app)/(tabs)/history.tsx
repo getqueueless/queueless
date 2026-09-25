@@ -48,17 +48,14 @@ function formatDate(ts: string | null): string {
   }
 }
 
-/** Fetch a table's past rows; degrade (never throw) if the status list or the table itself isn't live yet. */
-async function fetchPastRows(table: 'tokens' | 'appointments', statuses: string[]): Promise<Row[]> {
-  const filtered = await supabase.from(table).select('*').in('status', statuses);
-  if (!filtered.error) return (filtered.data as Row[]) ?? [];
-
-  // Status enum probably doesn't match what we guessed — retry unfiltered rather than crash.
-  const unfiltered = await supabase.from(table).select('*');
-  if (!unfiltered.error) return (unfiltered.data as Row[]) ?? [];
-
-  // Table may not exist yet (migrations not landed) — treat as empty history.
-  return [];
+/**
+ * The patient's own past rows; degrades to empty (never throws). Filters on patient_id itself:
+ * tokens/appointments have no RLS on prod yet (docs/DECISIONS.md), so relying on RLS returned
+ * every patient's history.
+ */
+async function fetchPastRows(table: 'tokens' | 'appointments', statuses: string[], patientId: string): Promise<Row[]> {
+  const { data, error } = await supabase.from(table).select('*').eq('patient_id', patientId).in('status', statuses);
+  return error ? [] : ((data as Row[]) ?? []);
 }
 
 const STATUS_BADGE: Record<string, { bg: ThemeColor; text: ThemeColor; label: string }> = {
@@ -91,9 +88,13 @@ export default function History() {
 
     async function load() {
       try {
+        const { data: auth } = await supabase.auth.getSession();
+        const patientId = auth.session?.user.id;
+        if (!patientId) return;
+
         const [tokens, appointments, servicesRes] = await Promise.all([
-          fetchPastRows('tokens', TOKEN_STATUSES),
-          fetchPastRows('appointments', APPOINTMENT_STATUSES),
+          fetchPastRows('tokens', TOKEN_STATUSES, patientId),
+          fetchPastRows('appointments', APPOINTMENT_STATUSES, patientId),
           supabase.from('services').select('id, name'),
         ]);
 

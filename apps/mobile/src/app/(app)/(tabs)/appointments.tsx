@@ -57,6 +57,8 @@ export default function AppointmentsScreen() {
   async function loadSlots(serviceId: string) {
     setSlotsLoading(true);
     setSlotsError(null);
+    const { data: auth } = await supabase.auth.getSession();
+    const patientId = auth.session?.user.id ?? '';
     const [slotsRes, apptRes] = await Promise.all([
       supabase
         .from('appointment_slots')
@@ -64,8 +66,9 @@ export default function AppointmentsScreen() {
         .eq('service_id', serviceId)
         .gt('starts_at', new Date().toISOString())
         .order('starts_at', { ascending: true }),
-      // RLS already scopes this to the caller's own rows.
-      supabase.from('appointments').select('*'),
+      // Filter on patient_id here: appointments has no RLS on prod yet (docs/DECISIONS.md), so an
+      // unfiltered select returned every patient's bookings as "mine".
+      supabase.from('appointments').select('*').eq('patient_id', patientId),
     ]);
     setSlotsLoading(false);
 
