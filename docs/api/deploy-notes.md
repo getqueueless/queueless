@@ -31,12 +31,16 @@ wherever this image ends up composed in:
   api:
     image: queueless-api:latest
     ports:
-      - "8001:8001"
+      - "8000:8000"
     env_file: .env  # secrets-managed, never committed
     stop_grace_period: 30s
 ```
 
 ## Port
 
-The service listens on `8001`, not `8000` — Kong (the self-hosted Supabase API gateway)
-already owns `8000` on this box.
+Configurable via the `PORT` env var, default `8000`. The Dockerfile's `CMD` and
+`HEALTHCHECK` both read it (`uvicorn ... --port "${PORT:-8000}"`), so a given deployment
+sets `PORT` at container runtime rather than needing an image rebuild or a CMD override —
+`deploy/api/deploy.sh` (root-owned, out of this scope) already ran the VPS's `ql-api`
+container on `8000` behind Caddy by overriding the old hardcoded `8001` CMD; now that the
+image's own default matches, that override is no longer necessary but still harmless.

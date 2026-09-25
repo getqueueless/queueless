@@ -13,9 +13,11 @@ COPY --from=builder /app/.venv /app/.venv
 COPY app ./app
 COPY ml ./ml
 ENV PATH="/app/.venv/bin:$PATH"
+# Default only -- prod routing decides the real value at container runtime.
+ENV PORT=8000
 USER appuser
 
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"
+    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", \"8000\")}/health')"
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--timeout-graceful-shutdown", "30"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --timeout-graceful-shutdown 30
