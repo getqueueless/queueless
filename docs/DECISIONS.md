@@ -31,3 +31,13 @@ One line per deviation from the plan/spec, with why.
 - 2026-09-25 (mobile): `notifications` schema beyond `patient_id` isn't documented — assumed
   `id`, `kind`, `read_at`, `token_id`, no title/body columns; banner copy is derived from
   `kind` via a substring match (`called`/`almost`) instead of reading text off the row.
+- 2026-09-25 (mobile, reconciled): `supabase/migrations/0001-0006` landed — the three
+  assumptions above were checked against them and two were wrong, both fixed: `board_services`
+  is `(service_id, day)`-keyed with no `open_counters` column (Home now filters by today and
+  derives open counters from `counter_services` joined to `counters.state`); `notifications`
+  does have `title`/`body` (banner now uses them directly, not a `kind` guess). Also caught:
+  `appointment_status` has no `'done'` value, so History's filter was silently falling back to
+  showing active bookings — fixed to `cancelled`/`no_show`. RPC functions themselves
+  (`issue_token`, `my_queue_status`, etc.) still aren't implemented on `origin/main` as of this
+  reconciliation, so the *_call_ contracts in `supabase/README.md` remain unverified against
+  running code — table-level reads are now schema-accurate, RPC calls are not yet testable.
