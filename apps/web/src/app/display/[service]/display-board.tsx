@@ -32,6 +32,7 @@ type BoardCounter = {
   state: CounterState
   token_code: string | null
   token_status: string | null
+  updated_at: string
 }
 
 const supabase = createClient()
@@ -87,8 +88,13 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   const [language, setLanguage] = useState<Language>("en")
   const [doctors, setDoctors] = useState<Doctor[]>([])
   const chimeRef = useRef<HTMLAudioElement | null>(null)
-  // counter_id -> token_code already voiced, so a reconnect/unrelated update never repeats
-  // (or, before sound is unlocked, never queues up) an announcement for an old call.
+  // counter_id -> `${token_code}:${board_counters.updated_at}` already voiced, so a
+  // reconnect/unrelated update never repeats (or, before sound is unlocked, never
+  // queues up) an announcement for an old call. Keying on token_code alone would miss
+  // a recall (recall_token, 0021_token_lifecycle.sql, keeps the same code AND
+  // counter_id, only bumping recall_count/called_at) -- private.tokens_after_write
+  // still re-stamps board_counters.updated_at on that write even though token_code/
+  // token_status don't change, so including it here is what lets a recall re-announce.
   const announcedRef = useRef<Map<string, string>>(new Map())
   // Counters this service's counter_services rows point at (QA #9: this board's "Now
   // serving" grid was showing every counter hospital-wide, not just this department's).
@@ -143,7 +149,7 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
   const loadCounters = useCallback(async () => {
     let query = supabase
       .from("board_counters")
-      .select("counter_id, counter_name, state, token_code, token_status")
+      .select("counter_id, counter_name, state, token_code, token_status, updated_at")
       .order("counter_name", { ascending: true })
     if (counterIdsRef.current && counterIdsRef.current.length > 0) {
       query = query.in("counter_id", counterIdsRef.current)
@@ -153,8 +159,9 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
     setCounters(rows)
     for (const row of rows) {
       if (!row.token_code || row.token_status !== "called") continue
-      if (announcedRef.current.get(row.counter_id) === row.token_code) continue
-      announcedRef.current.set(row.counter_id, row.token_code)
+      const voiceKey = `${row.token_code}:${row.updated_at}`
+      if (announcedRef.current.get(row.counter_id) === voiceKey) continue
+      announcedRef.current.set(row.counter_id, voiceKey)
       if (!soundEnabled || !serviceCode || !row.token_code.startsWith(`${serviceCode}-`)) continue
       playThenAnnounce(announcementText(row.token_code, row.counter_name), language)
     }
@@ -209,7 +216,7 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
         supabase.from("counter_services").select("counter_id").eq("service_id", serviceId),
         supabase
           .from("board_counters")
-          .select("counter_id, counter_name, state, token_code, token_status")
+          .select("counter_id, counter_name, state, token_code, token_status, updated_at")
           .order("counter_name", { ascending: true }),
       ])
       if (cancelled) return
@@ -222,7 +229,7 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
         : allRows
       setCounters(rows)
       for (const row of rows) {
-        if (row.token_code) announcedRef.current.set(row.counter_id, row.token_code)
+        if (row.token_code) announcedRef.current.set(row.counter_id, `${row.token_code}:${row.updated_at}`)
       }
     }
     init()
