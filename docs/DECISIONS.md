@@ -408,3 +408,22 @@ One line per deviation from the plan/spec, with why.
   `/counter` and `/admin/**`, whose dense tables and 12-13px labels read faster in it. MedWin itself
   is Poppins-only. Mono (JetBrains Mono) is kept for token codes so OPD-014 always has the same
   shape.
+- 2026-09-26 (apps/api): **the three DeepSeek gaps above are resolved** -- a `git pull --rebase`
+  mid-task surfaced that the DB agent read this file, `app/analytics.py`, `app/summary.py`, and
+  `apps/api/scripts/dev_db.py`'s fixture directly and shipped `supabase/migrations/0033_
+  analytics_schema.sql` (all 8 functions, exact param order/types, `org_id` first and
+  server-checked via `private.check_analytics_org`), `0034_ops_summaries.sql` (exact column
+  match, `queueless_api` granted select/insert/update), and `0035_profiles_language.sql` --
+  matching this session's own assumed contract, not the original task wording, specifically
+  *because* it was already landed and already tested. Also resolved in the same pass: the
+  `board_services` RLS gap from the earlier entry above (`0031_queueless_api_least_privilege.sql`
+  adds exactly the `board_services_api_read` policy this file asked for), and the `audit_log`
+  grant gap -- not a direct `INSERT` grant (stays locked down on purpose) but a narrow
+  `private.write_audit()` function (`0036_write_audit_for_api.sql`) that `queueless_api` can
+  call. `app/routes/admin.py::retrain_once` now calls that RPC instead of the raw `INSERT` that
+  could never have worked; `scripts/dev_db.py`'s fixture gained a matching `private.write_audit`
+  so this is tested against the real calling convention, not assumed. `app/analytics.py` and
+  `app/summary.py` needed no code changes at all -- their calling convention was already the
+  real one by construction. Genuinely nice to see the cross-session workflow (write real code
+  against a documented, honest assumption; the other side reads the code as the spec) work
+  exactly as intended here.

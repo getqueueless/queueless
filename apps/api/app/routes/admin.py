@@ -159,17 +159,26 @@ async def retrain_once(app, pool: asyncpg.Pool, lock_key: int, min_real_rows: in
             app.state.ml_model, app.state.ml_meta = model, meta
 
             try:
+                # queueless_api still has no direct INSERT grant on
+                # audit_log (by design, stays fully locked down) -- real
+                # migration 0036 added private.write_audit() as the one
+                # narrow, safe door for apps/api to log through instead.
+                # actor is left implicit/unset here (write_audit's own
+                # signature has no actor param -- housekeeping's own
+                # cron-originated rows work the same way, queueless_api
+                # isn't a signed-in user); admin_user_id is folded into
+                # `new` instead so it's still recorded.
                 await conn.execute(
-                    "INSERT INTO audit_log (org_id, actor, entity, entity_id, action, new) "
-                    "VALUES (NULL, $1, 'ml_model', NULL, 'retrain', $2::jsonb)",
-                    admin_user_id,
-                    json.dumps(meta),
+                    "SELECT private.write_audit($1, $2, $3, $4, $5, $6::jsonb)",
+                    None, "ml_model", None, "retrain", None,
+                    json.dumps({**meta, "triggered_by": str(admin_user_id)}),
                 )
-            except asyncpg.InsufficientPrivilegeError as exc:
-                # queueless_api has no grant on audit_log as of 0018 -- the
-                # retrain itself already succeeded (model swapped above);
-                # don't fail the request over an audit trail it can't write.
-                log.warning("retrain_audit_insert_denied", error=str(exc))
+            except (asyncpg.exceptions.UndefinedFunctionError, asyncpg.InsufficientPrivilegeError) as exc:
+                # Graceful fallback if this runs against an environment that
+                # hasn't picked up migration 0036 yet -- the retrain itself
+                # already succeeded (model swapped above); don't fail the
+                # request over an audit trail it can't write yet.
+                log.warning("retrain_audit_write_failed", error=str(exc))
 
             return {"status": "retrained", **meta}
 

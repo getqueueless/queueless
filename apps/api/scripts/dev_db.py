@@ -85,6 +85,24 @@ CREATE TABLE IF NOT EXISTS audit_log (
 -- enough (real GROUP BY over the real tokens shape) that apps/api's calling
 -- code (app/analytics.py) is genuinely exercised against real Postgres, not
 -- mocked. Only DeepSeek itself is mocked in pytest.
+-- Real function landed: supabase/migrations/0036_write_audit_for_api.sql --
+-- queueless_api has EXECUTE on this, never a direct INSERT grant on
+-- audit_log itself (stays fully locked down). Fixture mirrors that shape
+-- exactly so app/routes/admin.py::retrain_once is tested against the real
+-- calling convention, not a raw INSERT it can no longer use.
+CREATE SCHEMA IF NOT EXISTS private;
+
+CREATE OR REPLACE FUNCTION private.write_audit(
+    p_org uuid, p_entity text, p_entity_id uuid, p_action text,
+    p_old jsonb DEFAULT NULL, p_new jsonb DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO audit_log (org_id, entity, entity_id, action, old, new)
+    VALUES (p_org, p_entity, p_entity_id, p_action, p_old, p_new);
+END;
+$$;
+
 CREATE SCHEMA IF NOT EXISTS analytics;
 
 CREATE OR REPLACE FUNCTION analytics.no_shows_by_service(p_org_id uuid, p_day date)

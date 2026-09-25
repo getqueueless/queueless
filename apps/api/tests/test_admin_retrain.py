@@ -107,3 +107,33 @@ async def test_retrain_concurrent_calls_only_one_retrains(db_pool, tmp_path, mon
     )
     statuses = sorted(r["status"] for r in results)
     assert statuses == ["already_running", "retrained"]
+
+
+async def test_retrain_writes_audit_via_write_audit_rpc(db_pool, tmp_path, monkeypatch):
+    """Real migration 0036 added private.write_audit() as the one narrow
+    door queueless_api can log through (no direct INSERT grant on
+    audit_log). retrain_once must use it, not a raw INSERT that can no
+    longer work in prod."""
+    from app.routes import admin as admin_module
+
+    monkeypatch.setattr(admin_module, "ML_DIR", tmp_path)
+    (tmp_path / "model_meta.json").write_text('{"version": 1}')
+
+    await _seed_called_tokens(db_pool, n=520)
+    admin_id = uuid.uuid4()
+
+    class _FakeApp:
+        class state:
+            ml_model = None
+            ml_meta = None
+
+    result = await admin_module.retrain_once(
+        _FakeApp(), db_pool, lock_key=555_000_004, min_real_rows=500, admin_user_id=admin_id
+    )
+    assert result["status"] == "retrained"
+
+    row = await db_pool.fetchrow(
+        "SELECT entity, action, new FROM audit_log WHERE entity = 'ml_model' AND action = 'retrain'"
+    )
+    assert row is not None
+    assert json.loads(row["new"])["triggered_by"] == str(admin_id)
