@@ -660,3 +660,25 @@ One line per deviation from the plan/spec, with why.
   `POST /admin/retrain` path, since that trains on real completed prod tokens (a different,
   unrelated dataset) -- there is currently no real production history large enough to make
   that retrain meaningful, and this recalibration is about the synthetic generator specifically.
+- 2026-09-26 (payments): full Zomato-style checkout for both walk-in tokens and paid appointments
+  (migrations 0055-0058) -- `start_paid_appointment` mirrors `start_paid_booking` for a slot hold,
+  `record_order`/`confirm_payment`/`record_refund` all branch on token vs appointment,
+  `doctor_leave_refund_candidates`/`housekeeping` cover both. `my_payment_status` (0058) is a
+  narrow SECURITY DEFINER owner-read door onto the otherwise admin-only `payments` table (status/
+  refunded_at/refund_reason only, ownership-checked) so patient-facing screens can show Paid/
+  Refunded without a real RLS policy on `payments` itself. `/pay/[tokenId]` renamed to
+  `/pay/[holdId]` and rebuilt as a proper billing review screen (doctor card, patient
+  details+Edit, price breakdown, hold countdown, cancellation policy, sticky Proceed bar), same
+  on mobile's new `checkout/[holdId].tsx`. Two real bugs found and fixed via live verification
+  against a real RPC-minted local hold, not just reasoning: `appointments_state_machine` (0014)
+  never allowed `pending_payment -> booked`/`cancelled` (fixed in 0057, was tested for tokens'
+  equivalent transition, missed on the appointment side); `start_paid_appointment`'s doctor-leave
+  check compared against `service_day(now())` ("today") instead of the slot's own date, so a
+  same-day leave for an unrelated doctor wrongly blocked every later booking that day regardless
+  of which date the appointment was actually for.
+  **Not verified live on prod this pass**: email OTP sign-in on `lpu.lol` is currently blocked
+  (every send attempt across 3 fresh addresses failed with "Couldn't send the code", consistent
+  with QA-2026-09-26-0332.md's independent same-day finding) -- couldn't complete a real
+  Razorpay-test-card click-through. DB (47 pgTAP), API (161 pytest), and the checkout UI itself
+  (live against real local data, real hold, real login) are all verified; only the final prod
+  click-through is outstanding, blocked on mail delivery, not on this code.

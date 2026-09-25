@@ -127,6 +127,20 @@ check passed → the token read back `status: "waiting"` from a fresh, independe
 **Found, not fixed here (Razorpay dashboard config, not code):** UPI does not appear as a payment
 method in the live checkout widget for this merchant account — only Cards, Netbanking and Wallet
 are enabled, confirmed by inspecting the actual rendered payment-method list, not just the API
-response. The page's own banner tells patients to pay with `success@razorpay` (UPI), which is not
-actually selectable right now. Whoever has the Razorpay dashboard needs to enable UPI as a payment
-method there; no `apps/web`/`apps/api` change is needed once that's on.
+response. Whoever has the Razorpay dashboard needs to enable UPI as a payment method there; no
+`apps/web`/`apps/api` change is needed once that's on. The `/pay` banner leads with the test card
+(`4111 1111 1111 1111`, any future expiry, any CVV) for this reason.
+
+**2026-09-26, paid appointments + checkout redesign — DB/API/local UI verified, prod
+click-through not completed.** `start_paid_appointment`/the widened `record_order`/
+`confirm_payment`/`record_refund`/`doctor_leave_refund_candidates`/`housekeeping` are covered by
+47 pgTAP assertions (`supabase/tests/180_payments.test.sql`); apps/api's order/verify routes by
+161 pytest tests including the appointment path. The new `/pay/[holdId]` checkout screen (and its
+mobile equivalent) was verified live against a real local Postgres: signed in as a real seeded
+patient, minted a real `pending_payment` appointment hold via `start_paid_appointment`, and
+confirmed the doctor card / patient details / price breakdown / countdown / sticky bar all render
+correctly from real data — this caught a real hydration-mismatch bug (locale-dependent date
+formatting) that's now fixed. Could not complete the actual Razorpay-checkout click-through on
+prod this pass: `lpu.lol`'s email OTP sign-in is currently failing to send on every attempt
+(3 fresh addresses tried), matching QA-2026-09-26-0332.md's independent same-day finding — an
+infra/mail-delivery issue, not something in this feature's own code.

@@ -814,6 +814,25 @@ under "Web app" above.
 - Full technical detail (schema, API contract, the exact idempotency/amount-check behavior,
   webhook event handling): `docs/PAYMENTS.md`.
 
+## Checkout: paid appointments and a real billing screen (2026-09-26)
+
+- **What changed.** Booking is now a proper checkout, the same shape as a food-delivery app:
+  pick a doctor (or a doctor's slot) → a billing/review screen → "Proceed to payment" → Razorpay
+  → a success receipt. Two additions on top of the original payments feature above: (1) picking a
+  doctor's *appointment slot*, not just a walk-in token, now goes through the same online-prepaid
+  hold-and-pay flow; (2) the payment page itself is no longer just a fee summary with a pay
+  button — it's a real review screen (doctor, date/time, patient details with an edit link, price
+  breakdown, hold countdown, refund policy) with the actual payment step behind a deliberate
+  "Proceed to payment" tap, on both the web and in the app.
+- **Same trust boundary as before, extended.** `start_paid_appointment` reads the doctor's fee off
+  the slot the same server-side way `start_paid_booking` already did — never from the client — and
+  the same amount-recheck at capture time now applies to an appointment-linked payment too.
+- **Patients can see Paid/Refunded without opening admin data.** `payments` stays admin-only
+  (deliberately, no patient can read someone else's cash flow); a narrow function
+  (`my_payment_status`) hands back just the status for a hold the calling patient actually owns,
+  which is what backs the Paid/Refunded chips on the patient dashboard.
+- Full technical detail: `docs/PAYMENTS.md`, `docs/DECISIONS.md` (2026-09-26, payments entry).
+
 ## QA pass, 2026-09-25: kiosk slip design review
 
 - `apps/web/src/app/kiosk/kiosk.module.css:483` (`.issued::before`, a 6px cyan strip along the
