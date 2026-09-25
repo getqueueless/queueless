@@ -75,6 +75,82 @@ CREATE TABLE IF NOT EXISTS audit_log (
     at timestamptz NOT NULL DEFAULT now()
 );
 
+-- FAKE fixture implementations, not the DB team's real analytics.* schema
+-- (which doesn't exist on origin/main yet -- see docs/DECISIONS.md). Real
+-- enough (real GROUP BY over the real tokens shape) that apps/api's calling
+-- code (app/analytics.py) is genuinely exercised against real Postgres, not
+-- mocked. Only DeepSeek itself is mocked in pytest.
+CREATE SCHEMA IF NOT EXISTS analytics;
+
+CREATE OR REPLACE FUNCTION analytics.no_shows_by_service(p_org_id uuid, p_day date)
+RETURNS TABLE(service_id uuid, no_show_count bigint, total_count bigint)
+LANGUAGE sql STABLE AS $$
+  SELECT service_id, count(*) FILTER (WHERE status = 'no_show'), count(*)
+  FROM tokens WHERE org_id = p_org_id AND service_day = p_day
+  GROUP BY service_id;
+$$;
+
+CREATE OR REPLACE FUNCTION analytics.avg_wait_by_hour(p_org_id uuid, p_day date)
+RETURNS TABLE(hour int, avg_wait_minutes numeric)
+LANGUAGE sql STABLE AS $$
+  SELECT extract(hour from created_at)::int, avg(extract(epoch from (called_at - created_at)) / 60)
+  FROM tokens WHERE org_id = p_org_id AND service_day = p_day AND called_at IS NOT NULL
+  GROUP BY 1;
+$$;
+
+CREATE OR REPLACE FUNCTION analytics.busiest_counters(p_org_id uuid, p_day date)
+RETURNS TABLE(counter_id uuid, served_count bigint)
+LANGUAGE sql STABLE AS $$
+  SELECT counter_id, count(*) FROM tokens
+  WHERE org_id = p_org_id AND service_day = p_day AND status = 'done' AND counter_id IS NOT NULL
+  GROUP BY counter_id;
+$$;
+
+CREATE OR REPLACE FUNCTION analytics.tokens_per_day(p_org_id uuid, p_start_day date, p_end_day date)
+RETURNS TABLE(day date, token_count bigint)
+LANGUAGE sql STABLE AS $$
+  SELECT service_day, count(*) FROM tokens
+  WHERE org_id = p_org_id AND service_day BETWEEN p_start_day AND p_end_day
+  GROUP BY service_day ORDER BY service_day;
+$$;
+
+CREATE OR REPLACE FUNCTION analytics.service_time_trend(p_org_id uuid, p_service_id uuid, p_days int)
+RETURNS TABLE(day date, avg_service_minutes numeric)
+LANGUAGE sql STABLE AS $$
+  SELECT service_day, avg(extract(epoch from (finished_at - serving_at)) / 60)
+  FROM tokens
+  WHERE org_id = p_org_id AND service_id = p_service_id AND status = 'done'
+    AND finished_at IS NOT NULL AND serving_at IS NOT NULL
+    AND service_day >= current_date - p_days
+  GROUP BY service_day ORDER BY service_day;
+$$;
+
+-- "vs predicted" is DB-side actual-wait only in this fixture -- the
+-- predicted half needs either a stored prediction log or an app-side join
+-- against /predict, neither of which exists yet. Flagged in DECISIONS.md.
+CREATE OR REPLACE FUNCTION analytics.wait_vs_predicted(p_org_id uuid, p_day date)
+RETURNS TABLE(token_id uuid, actual_wait_minutes numeric)
+LANGUAGE sql STABLE AS $$
+  SELECT id, extract(epoch from (called_at - created_at)) / 60
+  FROM tokens WHERE org_id = p_org_id AND service_day = p_day AND called_at IS NOT NULL;
+$$;
+
+CREATE OR REPLACE FUNCTION analytics.peak_hours(p_org_id uuid, p_day date)
+RETURNS TABLE(hour int, token_count bigint)
+LANGUAGE sql STABLE AS $$
+  SELECT extract(hour from created_at)::int, count(*)
+  FROM tokens WHERE org_id = p_org_id AND service_day = p_day
+  GROUP BY 1 ORDER BY 1;
+$$;
+
+CREATE OR REPLACE FUNCTION analytics.lane_mix(p_org_id uuid, p_day date)
+RETURNS TABLE(lane_rank smallint, token_count bigint)
+LANGUAGE sql STABLE AS $$
+  SELECT lane_rank, count(*) FROM tokens
+  WHERE org_id = p_org_id AND service_day = p_day
+  GROUP BY lane_rank ORDER BY lane_rank;
+$$;
+
 CREATE TABLE IF NOT EXISTS notifications (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id uuid NOT NULL,
