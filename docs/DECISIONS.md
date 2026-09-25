@@ -74,3 +74,48 @@ One line per deviation from the plan/spec, with why.
   which asserted absolute table-wide `count(*)` and broke against that unrelated data; every
   count-based assertion must scope by the specific `entity_id`/`token_id`/etc. the test itself
   created, never a bare table-wide count. Applies to any future test too.
+- 2026-09-25 (mobile, email OTP): switched patient auth from email+password to
+  `signInWithOtp`/`verifyOtp` per `supabase/README.md`'s "Patient auth: email OTP" section
+  (landed mid-session). `sign-in.tsx` renamed to `password-fallback.tsx` (kept reachable, not
+  the default screen) and `sign-up.tsx` deleted — OTP's `shouldCreateUser: true` covers both.
+  `lib/errors.ts`'s `AUTH_MESSAGES` swapped from password codes to `otp_expired`,
+  `over_email_send_rate_limit`, `over_request_rate_limit`.
+- 2026-09-25 (mobile, OTP verification status): **not verified end-to-end against a live SMTP
+  relay** — this machine has no path to one. Two of the three GoTrue error codes ARE verified
+  for real against the running local stack (`curl` directly against `supabase-auth`, not just
+  docs): a second `signInWithOtp` to the same address inside ~59s returns
+  `{"code":429,"error_code":"over_email_send_rate_limit","msg":"...after 59 seconds"}` — this is
+  GoTrue's built-in per-address send cooldown, unrelated to the 30/hour
+  `GOTRUE_RATE_LIMIT_EMAIL_SENT` abuse cap; the client's resend cooldown is set to 65s (not the
+  spec's suggested 60s) specifically because 60s doesn't comfortably clear a measured ~59s
+  window. `verifyOtp` with a bogus 6-digit code returns
+  `{"code":403,"error_code":"otp_expired","msg":"Token has expired or is invalid"}` — confirmed.
+  `over_request_rate_limit` could NOT be tested: `GOTRUE_RATE_LIMIT_HEADER` is empty locally
+  ("IP limits off (local)" per `docker-compose.yml`), so per-IP limiting is disabled in this
+  environment entirely; it only activates on the VPS behind Cloudflare.
+  The full round trip (real code emailed, received, entered, session issued) is **not**
+  verified: local `MAILER_AUTOCONFIRM=true` confirms the email at signup time and — confirmed by
+  querying `auth.users.confirmation_token` directly, which came back blank — GoTrue never
+  generates a code to verify at all in that mode, so there's structurally nothing to test against
+  locally without flipping that setting. Deliberately did not restart the shared local
+  `supabase-auth` container to flip it, since three other sessions may depend on its current
+  config mid-build. Also tried the deployed instance directly: `sb.lpu.lol` resolves and answers
+  real Supabase/Kong responses (confirmed via `curl`), but the only `ANON_KEY` available on this
+  machine (the local dev one, from this worktree's own `supabase/.env`) gets a `401 Unauthorized`
+  from it — it's a different deployment's key, as expected, and no prod key is available here.
+  Net effect: keeping `password-fallback.tsx` reachable per the task's own contingency plan
+  until a real round trip is confirmed by whoever has SMTP/prod credentials.
+- 2026-09-25 (mobile): `api.lpu.lol` DOES resolve and answer now (`GET /health` → `200
+  {"status":"ok"}`, `GET /predict` → `405` as expected for a POST-only route) — this contradicts
+  the OTP task prompt's claim that it "does not resolve yet," which was accurate when written
+  but is now stale; time passed between that check and this session picking up the task.
+- 2026-09-25 (mobile): `profiles` has no RLS/grant migration yet for owner-column updates
+  (`full_name`/`phone`) — checked every migration file through `0027_housekeeping.sql`, none
+  touch `profiles` policies or grants. `name-entry.tsx` calls
+  `supabase.from('profiles').update({ full_name })` anyway (correct against the documented
+  design) but the write is wrapped in try/catch — on failure the name is stashed in
+  `localStorage` (`PENDING_NAME_KEY`, exported from `name-entry.tsx`) and the screen still
+  proceeds into the app regardless, per the task's own instruction that a missing display name
+  is cosmetic and must never gate taking a token. `(app)/_layout.tsx` retries that one pending
+  write once on every future boot until it succeeds, then clears the stash. Once RLS lands,
+  this starts succeeding with no code change needed.

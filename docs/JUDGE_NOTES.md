@@ -4,11 +4,18 @@ Plain-English notes per feature: what was built, how it actually works, and why.
 
 ## Mobile
 
-- **Auth.** Email + password against Supabase Auth (`signUp`/`signInWithPassword`), autoconfirmed
-  server-side so sign-up drops straight into a session — no phone OTP, no guest flow, every
-  screen past sign-in requires a real session. Root routing is split into `(auth)`/`(app)` route
-  groups, each gated by its own `onAuthStateChange`-driven redirect, so the app can never show an
-  authenticated screen without a session or vice versa.
+- **Auth.** Patients sign in with a 6-digit code emailed to them (`signInWithOtp` /
+  `verifyOtp`), not a password — nothing to forget at a hospital kiosk, and no phone number
+  required either, matching this system's own no-SMS decision. `shouldCreateUser: true` means
+  sign-up and sign-in are the same action; there's no separate account-creation screen. First
+  login (before a display name exists) drops into a one-field name screen, then the app. Root
+  routing is split into `(auth)`/`(app)` route groups, each gated by its own
+  `onAuthStateChange`-driven redirect, so the app can never show an authenticated screen without
+  a session or vice versa. A password sign-in screen is still reachable as a labeled fallback
+  path — kept only because OTP delivery couldn't be verified end-to-end against a live SMTP
+  relay from this machine (see `docs/DECISIONS.md`); every real error code (`otp_expired`,
+  `over_email_send_rate_limit`) is confirmed against the actual running GoTrue instance, not
+  just docs.
 - **Home.** Lists open services (`services where is_open = true`) with a live waiting count from
   `board_services`, kept current over Supabase Realtime (`postgres_changes` on `board_services`,
   no polling) and refetched on every reconnect since Realtime never replays missed events. Each
