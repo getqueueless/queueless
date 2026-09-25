@@ -10,7 +10,7 @@ whole Queueless queue/appointment/notification system. Every write goes through 
 cd supabase && cp .env.example .env && sh generate-keys.sh --update-env >/dev/null && rm -f .env.old
 pnpm db:up       # docker compose up -d --wait
 pnpm db:reset    # full wipe + up, use between demo runs
-pnpm db:migrate  # apply pending migrations, idempotent
+pnpm db:migrate  # apply pending migrations, idempotent (needs QUEUELESS_API_DB_PASSWORD in .env)
 pnpm db:seed     # demo users + demo data
 pnpm db:test     # pgTAP suite
 pnpm loadtest --n 200
@@ -57,25 +57,47 @@ are seeded with `email_confirm: true` via the admin API, which never touches the
 ## apps/api's database access
 
 `apps/api` connects directly to Postgres (`127.0.0.1:54322`) as its own least-privilege role,
-**never** as `postgres` or `service_role`. Set a real value for `QUEUELESS_API_PASSWORD` in
-`supabase/.env` (not touched by `generate-keys.sh`) before the first `db:reset`, then connect
-apps/api with:
+**never** as `postgres` or `service_role`. Two variables in `supabase/.env` (neither touched by
+`generate-keys.sh`) set its password: `0018` creates the role with `QUEUELESS_API_PASSWORD`, then
+`0031` resets it to `QUEUELESS_API_DB_PASSWORD`, which `migrate.sh` passes in. The second one
+wins, so connect apps/api with:
 
 ```
-postgresql://queueless_api:<QUEUELESS_API_PASSWORD>@127.0.0.1:54322/postgres
+postgresql://queueless_api:<QUEUELESS_API_DB_PASSWORD>@127.0.0.1:54322/postgres
 ```
 
-`queueless_api` can (only): `select` on `tokens` and `board_services` (queue state for the
-`/predict` endpoint), `select`/`delete` on `push_tokens` (find a patient's device tokens to
-push to, prune dead ones), and `select`/`insert` on `private.token_notifications` (idempotent
-send tracking — this table has no RLS and is never exposed through PostgREST; it exists purely
-for this role). It cannot write `tokens`, `profiles`, or anything else. Registering/removing a
-push token is the **client's own job** through the normal anon+JWT path (`push_tokens` has
-owner-only RLS for `authenticated`), not the API's.
+`migrate.sh` stops before doing anything if `QUEUELESS_API_DB_PASSWORD` is empty. Each migration
+runs once, so changing the value later takes its own `alter role`.
 
-`token_notifications(token_id, kind, sent_at)` — `kind` is `3_ahead` or `called`; the primary
-key on `(token_id, kind)` is what makes a send idempotent: `insert ... on conflict do nothing`
-before pushing, and only push if the insert actually landed a new row.
+`queueless_api` can do exactly this and nothing else (`tests/105` asserts the list):
+
+| Table | Access | Used for |
+|---|---|---|
+| `profiles` | `select (id, org_id, role)` | the caller's role and org; `full_name`/`phone` stay unreadable |
+| `tokens`, `services` | `select` | queue-depth metrics |
+| `board_services` | `select` | `/predict`'s service check |
+| `notifications` | `select`, `update (pushed_at)` | push delivery |
+| `push_tokens` | `select`, `delete` | a patient's devices; pruning dead ones |
+| `private.token_notifications` | `select`, `insert` | nothing since apps/api went delivery-only; left over from `0018` |
+
+**A grant is not access once RLS is on.** `services`, `board_services` and `push_tokens` have
+RLS, so each also has a policy naming `queueless_api` (`services_api_read`,
+`board_services_api_read`, `push_tokens_api_read`, `push_tokens_api_delete`). Without one, a
+select returns zero rows and a delete removes nothing, with no error. Any migration that turns
+RLS on for a table this role uses needs the same policy; `tests/105` counts real rows so it
+fails if one is missing.
+
+Push delivery: apps/api claims a row with
+`update notifications set pushed_at = now() where id = $1 and pushed_at is null returning id` and
+pushes only if a row came back, so two copies never send the same push. An insert trigger also
+sends `pg_notify('notifications_events', {"id", "patient_id", "body"})` for apps/api to LISTEN on
+instead of waiting for its 5-second poll (`body` capped at 1,000 characters, under NOTIFY's
+8,000-byte limit). Rows that existed before `0031` were marked pushed, so the old backlog is never
+sent. Clients can't insert notifications or update any column but `read_at` (`0032`); reads and
+deletes stay open until `notifications` gets RLS.
+
+Registering/removing a push token is the **client's own job** through the normal anon+JWT path
+(`push_tokens` has owner-only RLS for `authenticated`), not the API's.
 
 ## RPCs
 
