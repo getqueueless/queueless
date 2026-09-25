@@ -172,16 +172,25 @@ export default function TokenScreen() {
     refetch().finally(() => setLoading(false));
   }, [id, refetch]);
 
-  // Realtime: refetch on any change to our own tokens row, and — when we know which service
-  // this ticket belongs to — on any change to that service's board too, since other people's
-  // tickets advancing ahead of us changes our position/eta without touching our own row.
-  // `board_services.service_id` is a best-effort assumed column name (see DECISIONS.md).
+  // Realtime: refetch on any change to our own ticket, and — when we know which service this
+  // ticket belongs to — on any change to that service's board too, since other people's tickets
+  // advancing ahead of us changes our position/eta without touching our own row.
+  //
+  // The own-ticket half is the DB broadcast topic from docs/API_CONTRACT.md's "Realtime topics"
+  // (migration 0044), not `postgres_changes`: on this self-hosted stack the `supabase_realtime`
+  // publication has zero member tables, so a `postgres_changes` listener on `tokens` silently
+  // receives nothing — confirmed in that doc, not a guess. `token:<id>` is a public broadcast
+  // topic (no RLS needed) carrying a stripped-down payload; this screen already refetches the
+  // real row via `my_queue_status` on any ping, so the payload's own fields are unused here.
+  // `board_services` isn't part of that fix yet (still `postgres_changes`, still a no-op today —
+  // same doc), which is why `useLiveRefresh`'s 10s poll above is load-bearing, not just belts-
+  // and-suspenders.
   useEffect(() => {
     if (!id) return;
 
     const tokenChannel = supabase
       .channel(`token:${id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tokens', filter: `id=eq.${id}` }, () => {
+      .on('broadcast', { event: 'token_update' }, () => {
         refetch();
       })
       .subscribe((subStatus) => {

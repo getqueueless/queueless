@@ -1,6 +1,5 @@
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,6 +11,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { estimateWaitSeconds } from '@/lib/predict';
 import { todayDateString } from '@/lib/service-day';
 import { supabase } from '@/lib/supabase';
+import { useLiveRefresh } from '@/lib/use-live-refresh';
 
 // Confirmed against supabase/migrations/0003_services_counters.sql and
 // 0006_boards_notifications_audit.sql (landed after this screen's first draft): `services` has
@@ -130,88 +130,58 @@ export default function TakeToken() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
+  // No realtime here: docs/API_CONTRACT.md's "Realtime topics" section confirms the self-hosted
+  // `supabase_realtime` publication has zero member tables, so a `postgres_changes` listener on
+  // `board_services` would silently receive nothing (a prior version of this screen carried one
+  // — it never fired). `board_services`/`board_counters` aren't covered by that migration's
+  // broadcast fix either (tokens only), so `useLiveRefresh`'s refetch-on-focus + 10s poll below
+  // is the actual live-update mechanism here, not a fallback on top of one.
+  const load = useCallback(async () => {
     const today = todayDateString();
+    try {
+      const [servicesRes, boardRes, counterRes] = await Promise.all([
+        supabase.from('services').select('*').eq('is_open', true),
+        supabase.from('board_services').select('service_id, waiting_count, avg_service_secs').eq('day', today),
+        // No `open_counters` column exists anywhere — derive it from which counters serving
+        // each service are currently open. Refreshed on load/reconnect, not on every
+        // waiting_count tick (counters opening/closing is rare by comparison).
+        supabase.from('counter_services').select('service_id, counters(state)'),
+      ]);
+      if (servicesRes.error) throw servicesRes.error;
+      if (boardRes.error) throw boardRes.error;
+      if (counterRes.error) throw counterRes.error;
 
-    async function load() {
-      try {
-        const [servicesRes, boardRes, counterRes] = await Promise.all([
-          supabase.from('services').select('*').eq('is_open', true),
-          supabase.from('board_services').select('service_id, waiting_count, avg_service_secs').eq('day', today),
-          // No `open_counters` column exists anywhere — derive it from which counters serving
-          // each service are currently open. Refreshed on load/reconnect, not on every
-          // waiting_count tick (counters opening/closing is rare by comparison).
-          supabase.from('counter_services').select('service_id, counters(state)'),
-        ]);
-        if (servicesRes.error) throw servicesRes.error;
-        if (boardRes.error) throw boardRes.error;
-        if (counterRes.error) throw counterRes.error;
-        if (cancelled) return;
-
-        const nextBoardRows: Record<string, BoardServiceRow> = {};
-        for (const row of (boardRes.data ?? []) as BoardServiceRow[]) {
-          nextBoardRows[row.service_id] = row;
-        }
-
-        // Without generated Database types, supabase-js can't tell this embed is many-to-one
-        // (counter_services.counter_id -> counters.id) — it infers `counters` as an array even
-        // though PostgREST returns a single object at runtime. Handle both shapes defensively.
-        const nextOpenCounters: Record<string, number> = {};
-        for (const row of (counterRes.data ?? []) as unknown as {
-          service_id: string;
-          counters: { state: string } | { state: string }[] | null;
-        }[]) {
-          const counter = Array.isArray(row.counters) ? row.counters[0] : row.counters;
-          if (counter?.state === 'open') {
-            nextOpenCounters[row.service_id] = (nextOpenCounters[row.service_id] ?? 0) + 1;
-          }
-        }
-
-        setServices((servicesRes.data ?? []) as Service[]);
-        setBoardRows(nextBoardRows);
-        setOpenCounters(nextOpenCounters);
-        setLoadError(null);
-      } catch {
-        if (!cancelled) setLoadError("Couldn't load services right now — check your connection and try again.");
-      } finally {
-        if (!cancelled) setLoading(false);
+      const nextBoardRows: Record<string, BoardServiceRow> = {};
+      for (const row of (boardRes.data ?? []) as BoardServiceRow[]) {
+        nextBoardRows[row.service_id] = row;
       }
+
+      // Without generated Database types, supabase-js can't tell this embed is many-to-one
+      // (counter_services.counter_id -> counters.id) — it infers `counters` as an array even
+      // though PostgREST returns a single object at runtime. Handle both shapes defensively.
+      const nextOpenCounters: Record<string, number> = {};
+      for (const row of (counterRes.data ?? []) as unknown as {
+        service_id: string;
+        counters: { state: string } | { state: string }[] | null;
+      }[]) {
+        const counter = Array.isArray(row.counters) ? row.counters[0] : row.counters;
+        if (counter?.state === 'open') {
+          nextOpenCounters[row.service_id] = (nextOpenCounters[row.service_id] ?? 0) + 1;
+        }
+      }
+
+      setServices((servicesRes.data ?? []) as Service[]);
+      setBoardRows(nextBoardRows);
+      setOpenCounters(nextOpenCounters);
+      setLoadError(null);
+    } catch {
+      setLoadError("Couldn't load services right now — check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-
-    load();
-
-    // Realtime never replays missed events — refetch the full snapshot on first connect and
-    // every reconnect (status === 'SUBSCRIBED'), not just once on mount.
-    const channel = supabase
-      .channel('take-token-board-services')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'board_services', filter: `day=eq.${today}` },
-        (payload: RealtimePostgresChangesPayload<BoardServiceRow>) => {
-          setBoardRows((prev) => {
-            const next = { ...prev };
-            if (payload.eventType === 'DELETE') {
-              const oldRow = payload.old as Partial<BoardServiceRow>;
-              if (oldRow.service_id) delete next[oldRow.service_id];
-            } else {
-              const row = payload.new as BoardServiceRow;
-              next[row.service_id] = row;
-            }
-            return next;
-          });
-        },
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') load();
-      });
-
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
-    };
   }, []);
+
+  useLiveRefresh(load, 10_000);
 
   return (
     <ThemedView type="canvas" style={styles.container}>
