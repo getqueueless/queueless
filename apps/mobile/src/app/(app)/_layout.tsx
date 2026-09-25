@@ -4,7 +4,6 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { NotificationBanner } from '@/components/NotificationBanner';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { PENDING_NAME_KEY } from '@/app/(app)/name-entry';
 import { useTheme } from '@/hooks/use-theme';
 import {
   registerForPushNotificationsAsync,
@@ -67,22 +66,6 @@ export default function AppLayout() {
     if (!userId) return;
     registerForPushNotificationsAsync(userId);
     return watchPushTokenRotation(userId);
-  }, [userId]);
-
-  // One-time retry for a display-name write that failed on a previous boot (see
-  // name-entry.tsx and docs/DECISIONS.md — profiles RLS for owner-column updates hadn't landed
-  // when this was written).
-  useEffect(() => {
-    if (!userId) return;
-    const pendingName = localStorage.getItem(PENDING_NAME_KEY);
-    if (!pendingName) return;
-    supabase
-      .from('profiles')
-      .update({ full_name: pendingName })
-      .eq('id', userId)
-      .then(({ error }) => {
-        if (!error) localStorage.removeItem(PENDING_NAME_KEY);
-      });
   }, [userId]);
 
   useEffect(() => {

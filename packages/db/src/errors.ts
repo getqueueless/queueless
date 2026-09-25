@@ -23,6 +23,8 @@ export type ErrorCode =
   | "phone_in_use"
   | "invalid_status"
   | "invalid_language"
+  | "too_many_attempts"
+  | "claim_failed"
   | "PGRST003"
   | "PGRST202"
   | "network_error";
@@ -58,6 +60,8 @@ export const ERRORS: Record<ErrorCode, ErrorInfo> = {
   phone_in_use: { http: 409, message: "That phone number is already registered", retryable: false },
   invalid_status: { http: 400, message: "That's not a valid status", retryable: false },
   invalid_language: { http: 400, message: "That language isn't supported", retryable: false },
+  too_many_attempts: { http: 429, message: "Too many failed attempts, try again in an hour", retryable: true },
+  claim_failed: { http: 404, message: "We couldn't match that ticket to your phone number", retryable: false },
   PGRST003: { http: 504, message: "Busy, try again", retryable: true },
   PGRST202: { http: 404, message: "Server updating, retry shortly", retryable: true },
   network_error: { http: 0, message: "Couldn't reach the server", retryable: true },
