@@ -427,3 +427,11 @@ One line per deviation from the plan/spec, with why.
   real one by construction. Genuinely nice to see the cross-session workflow (write real code
   against a documented, honest assumption; the other side reads the code as the spec) work
   exactly as intended here.
+- 2026-09-26 (mobile): `.github/workflows/ios-sidestore.yml` was asked to publish
+  `sidestore-source.json` with download URLs at `https://lpu.lol/ios/...` -- that path doesn't
+  exist on the VPS edge (checked: no `/ios` block in `/opt/mcbots/edge/Caddyfile`, no
+  `IOS_PUBLIC_BASE_URL`-style repo variable set). Rather than publish a source file pointing at
+  a URL that 404s, the workflow defaults to the GitHub Release's own asset URLs (works
+  immediately, no extra infrastructure) and reads an `IOS_PUBLIC_BASE_URL` repo variable when
+  one is set, so switching to `lpu.lol/ios/` later needs only that variable plus a Caddy route
+  serving `/srv/<wherever>/ios/*` (or proxying the GitHub Release) -- no workflow change.
