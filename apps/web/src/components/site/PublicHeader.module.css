@@ -50,6 +50,11 @@
   display: none;
 }
 
+/* In the phone/tablet menu only; the inline desktop nav is full already. */
+.link.menuOnly {
+  display: none;
+}
+
 .link,
 .login {
   display: inline-flex;
@@ -288,6 +293,10 @@
 
   .nav[data-open] {
     display: flex;
+  }
+
+  .link.menuOnly {
+    display: inline-flex;
   }
 
   .link,

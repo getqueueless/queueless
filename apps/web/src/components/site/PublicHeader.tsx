@@ -21,6 +21,7 @@ const NAV = [
   { key: "how", href: "/login?next=/my", label: "Get a token" },
   { key: "status", href: "/#status", label: "Check status" },
   { key: "app", href: "/#get-app", label: "Get app" },
+  { key: "faq", href: "/faq", label: "FAQ" },
 ] as const;
 
 type PublicHeaderProps = {
@@ -66,7 +67,7 @@ export async function PublicHeader({ current, tone = "surface", liveToken = true
                 key={item.key}
                 href={item.key === "how" && user ? "/my" : item.href}
                 aria-current={page(item.key)}
-                className={styles.link}
+                className={item.key === "faq" ? `${styles.link} ${styles.menuOnly}` : styles.link}
               >
                 {item.label}
               </Link>
