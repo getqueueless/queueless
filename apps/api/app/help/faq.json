@@ -129,7 +129,7 @@
     "id": "privacy-data-stored",
     "category": "Privacy & security",
     "question": "What data do you store about me?",
-    "answer": "Your name, phone number, and your own queue activity (tickets, appointments, notifications) for the hospital you use Queueless with. Nothing more."
+    "answer": "Your name, phone number, and your own queue activity (tickets, appointments, notifications) for the hospital you use WaitWise with. Nothing more."
   },
   {
     "id": "privacy-other-patients",
@@ -146,13 +146,13 @@
   {
     "id": "install-iphone",
     "category": "App install",
-    "question": "How do I install Queueless on iPhone?",
-    "answer": "Queueless isn't on the App Store yet -- install it through SideStore, following the three steps shown on the website's \"Get the app\" section. Once installed, it can update itself like a normal app."
+    "question": "How do I install WaitWise on iPhone?",
+    "answer": "WaitWise isn't on the App Store yet -- install it through SideStore, following the three steps shown on the website's \"Get the app\" section. Once installed, it can update itself like a normal app."
   },
   {
     "id": "install-android",
     "category": "App install",
-    "question": "How do I install or update Queueless on Android?",
+    "question": "How do I install or update WaitWise on Android?",
     "answer": "Download the APK directly from the website's \"Get the app\" section, or scan the QR code shown there from your phone."
   }
 ]
