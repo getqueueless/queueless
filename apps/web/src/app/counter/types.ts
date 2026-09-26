@@ -54,10 +54,10 @@ export type TokenRow = {
   // already at booking time, 'pregnant'/'emergency' stay pending until
   // verify_priority elevates them.
   requested_lane: Lane | null
-  requested_note: string | null
+  requested_lane_note: string | null
 }
 
 export const ACTIVE_TOKEN_STATUSES: TokenStatus[] = ["called", "serving"]
 
 export const TOKEN_COLUMNS =
-  "id, org_id, service_id, service_day, number, code, lane, status, patient_id, walk_in_label, counter_id, recall_count, called_at, serving_at, requested_lane, requested_note"
+  "id, org_id, service_id, service_day, number, code, lane, status, patient_id, walk_in_label, counter_id, recall_count, called_at, serving_at, requested_lane, requested_lane_note"

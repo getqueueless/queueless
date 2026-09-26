@@ -14,18 +14,15 @@ const REQUESTED_LANE_LABELS: Partial<Record<Lane, string>> = {
   emergency: "Emergency",
 }
 
-// verify_priority (0072_patient_requested_priority.sql) accepts p_status in
-// ('senior', 'pregnant', 'emergency', 'normal') -- the last one is the real
-// reject path (clears requested_lane/requested_note, touches nothing else),
-// not a direct table update, which authenticated has no UPDATE grant for
-// anyway. All three requestable lanes get both buttons.
+// verify_priority (senior/pregnant/emergency) and reject_priority (0074)
+// cover every requestable lane -- both buttons always show.
 function RequestedLaneRow({
   row,
   busy,
   onVerify,
   onReject,
 }: {
-  row: Pick<TokenRow, "requested_lane" | "requested_note">
+  row: Pick<TokenRow, "requested_lane" | "requested_lane_note">
   busy: boolean
   onVerify: () => void
   onReject: () => void
@@ -36,7 +33,7 @@ function RequestedLaneRow({
       <span className={styles.laneBadge} data-lane={row.requested_lane}>
         {REQUESTED_LANE_LABELS[row.requested_lane] ?? row.requested_lane}
       </span>
-      {row.requested_note && <p className={styles.requestedLaneNote}>{row.requested_note}</p>}
+      {row.requested_lane_note && <p className={styles.requestedLaneNote}>{row.requested_lane_note}</p>}
       <div className={styles.requestedLaneActions}>
         <button type="button" className={styles.actionPrimary} onClick={onVerify} disabled={busy}>
           {busy ? "Verifying…" : "Verify"}
@@ -269,10 +266,11 @@ export function CounterConsole({
     })
   }, [current, run, supabase])
 
-  // verify_priority (supabase/migrations/0072_patient_requested_priority.sql,
-  // redefining 0015's version) accepts p_status in ('senior', 'pregnant',
-  // 'emergency', 'normal') -- the last is the reject path, clearing
-  // requested_lane/requested_note without touching lane/priority_at.
+  // verify_priority (supabase/migrations/0072_patient_requested_priority.sql)
+  // accepts p_status in ('senior', 'pregnant', 'emergency') here -- 'normal'
+  // is also technically accepted (it's reject_priority's own implementation
+  // underneath, per 0074), but reject_priority(p_token) is the real, named
+  // entry point for that, not this function with a special-case argument.
   const verifyPriority = useCallback(
     async (row: TokenRow) => {
       if (!row.requested_lane) return
@@ -288,10 +286,14 @@ export function CounterConsole({
     [supabase, refreshWaiting],
   )
 
+  // reject_priority (0074_requested_lane_note_rename_and_reject_priority.sql)
+  // -- clears requested_lane/requested_lane_note, staff-only, anon blocked.
+  // Replaces an earlier direct `.from("tokens").update(...)`, which 403'd:
+  // authenticated has no UPDATE grant on tokens at all.
   const rejectPriority = useCallback(
     async (row: TokenRow) => {
       setVerifyBusyId(row.id)
-      const { error } = await supabase.rpc("verify_priority", { p_token: row.id, p_status: "normal" })
+      const { error } = await supabase.rpc("reject_priority", { p_token: row.id })
       setVerifyBusyId(null)
       if (error) {
         setBanner({ kind: "error", text: mapSupabaseError(error) })
