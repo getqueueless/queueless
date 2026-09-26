@@ -14,40 +14,63 @@ import { supabase } from './supabase';
 
 const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_URL ?? 'https://lpu.lol';
 
-export type StartHoldResult = { ok: true; tokenId: string } | { ok: false; error: string };
+export type StartHoldResult =
+  | { ok: true; tokenId: string; priorityDropped: boolean }
+  | { ok: false; error: string };
 
-// p_requested_lane/p_note (Hackathon database, confirmed signature): only 'normal' (default),
-// 'pregnant', 'emergency' are valid to pass -- 'senior' is server-detected from
-// profiles.date_of_birth and ignored/overridden if sent. Both params default server-side, so
-// every existing call site with just an id keeps working unchanged.
+// p_requested_lane/p_note (Hackathon database, confirmed signature): only 'pregnant', 'emergency'
+// are valid to pass ('normal' is the server default -- never sent, so a 'None' pick is the exact
+// old payload). 'senior' is server-detected from profiles.date_of_birth and ignored/overridden if
+// sent. The migration adding these params is NOT on prod yet (latest live is 0071) -- calling with
+// them 404s (PGRST202, function not found) and would break every booking, so they're only sent
+// when actually requested, and a PGRST202 on that call retries once with the exact old payload so
+// the booking still goes through (priorityDropped tells the caller to say so).
+function isFunctionNotFound(error: { code?: string } | null): boolean {
+  return error?.code === 'PGRST202';
+}
+
 export async function startPaidBooking(
   doctorId: string,
   requestedLane?: 'normal' | 'pregnant' | 'emergency',
   note?: string | null,
 ): Promise<StartHoldResult> {
-  const { data, error } = await supabase.rpc('start_paid_booking', {
-    p_doctor_id: doctorId,
-    ...(requestedLane ? { p_requested_lane: requestedLane } : {}),
-    ...(note ? { p_note: note } : {}),
-  });
+  const wantsPriority = requestedLane === 'pregnant' || requestedLane === 'emergency';
+  if (wantsPriority) {
+    const withPriority = await supabase.rpc('start_paid_booking', {
+      p_doctor_id: doctorId,
+      p_requested_lane: requestedLane,
+      ...(note ? { p_note: note } : {}),
+    });
+    if (!withPriority.error) return { ok: true, tokenId: withPriority.data.id, priorityDropped: false };
+    if (!isFunctionNotFound(withPriority.error)) return { ok: false, error: withPriority.error.message };
+  }
+  const { data, error } = await supabase.rpc('start_paid_booking', { p_doctor_id: doctorId });
   if (error) return { ok: false, error: error.message };
-  return { ok: true, tokenId: data.id };
+  return { ok: true, tokenId: data.id, priorityDropped: wantsPriority };
 }
 
-export type StartAppointmentHoldResult = { ok: true; holdId: string } | { ok: false; error: string };
+export type StartAppointmentHoldResult =
+  | { ok: true; holdId: string; priorityDropped: boolean }
+  | { ok: false; error: string };
 
 export async function startPaidAppointment(
   slotId: string,
   requestedLane?: 'normal' | 'pregnant' | 'emergency',
   note?: string | null,
 ): Promise<StartAppointmentHoldResult> {
-  const { data, error } = await supabase.rpc('start_paid_appointment', {
-    p_slot: slotId,
-    ...(requestedLane ? { p_requested_lane: requestedLane } : {}),
-    ...(note ? { p_note: note } : {}),
-  });
+  const wantsPriority = requestedLane === 'pregnant' || requestedLane === 'emergency';
+  if (wantsPriority) {
+    const withPriority = await supabase.rpc('start_paid_appointment', {
+      p_slot: slotId,
+      p_requested_lane: requestedLane,
+      ...(note ? { p_note: note } : {}),
+    });
+    if (!withPriority.error) return { ok: true, holdId: withPriority.data.id, priorityDropped: false };
+    if (!isFunctionNotFound(withPriority.error)) return { ok: false, error: withPriority.error.message };
+  }
+  const { data, error } = await supabase.rpc('start_paid_appointment', { p_slot: slotId });
   if (error) return { ok: false, error: error.message };
-  return { ok: true, holdId: data.id };
+  return { ok: true, holdId: data.id, priorityDropped: wantsPriority };
 }
 
 const PAID_DEEP_LINK_PREFIX = 'queueless://paid/';

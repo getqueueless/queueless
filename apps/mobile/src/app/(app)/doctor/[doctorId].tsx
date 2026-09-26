@@ -13,7 +13,10 @@ import { doctorStatusLabel, fetchDoctor, formatFee, type DoctorWithStatus } from
 import { mapSupabaseError } from '@/lib/errors';
 import { startPaidAppointment, startPaidBooking } from '@/lib/paid-booking';
 import { supabase } from '@/lib/supabase';
+import { showToast } from '@/lib/toast-store';
 import { useRequireCompleteProfile } from '@/lib/use-require-complete-profile';
+
+const PRIORITY_UNAVAILABLE_MESSAGE = 'Priority request not available yet — tell the desk.';
 
 type Slot = { id: string; doctor_id: string; service_id: string; starts_at: string };
 type Appointment = { id: string; slot_id: string; status: string };
@@ -117,6 +120,7 @@ export default function DoctorDetail() {
         setActionError(result.error);
         return;
       }
+      if (result.priorityDropped) showToast(PRIORITY_UNAVAILABLE_MESSAGE, 'error');
       router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: result.tokenId } });
       return;
     }
@@ -128,6 +132,7 @@ export default function DoctorDetail() {
       setActionError(result.error);
       return;
     }
+    if (result.priorityDropped) showToast(PRIORITY_UNAVAILABLE_MESSAGE, 'error');
     router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: result.holdId } });
   }
 

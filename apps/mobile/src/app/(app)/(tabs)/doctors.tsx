@@ -191,6 +191,7 @@ function DoctorDetailSheet({ doctorId, onClose }: { doctorId: string | null; onC
       showToast(mapSupabaseError({ code: undefined, message: result.error }), 'error');
       return;
     }
+    if (result.priorityDropped) showToast('Priority request not available yet — tell the desk.', 'error');
     goToCheckout('tokenId' in result ? result.tokenId : result.holdId);
   }
 
