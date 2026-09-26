@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { LogoMark } from "@/components/brand/Logo"
@@ -209,6 +210,10 @@ export function StatusView({
           nowServingNumber={nowServing}
           serviceName={service?.name ?? null}
         />
+
+        <Link href={`/slip/${tokenId}`} className={styles.slipLink} target="_blank">
+          Print OPD slip
+        </Link>
 
         <p className={styles.footer}>Updates automatically. No need to refresh.</p>
       </div>

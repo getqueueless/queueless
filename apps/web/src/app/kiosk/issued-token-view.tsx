@@ -26,10 +26,12 @@ const PRINT_SIZES: { value: PrintSize; name: string; spec: string }[] = [
 export function IssuedTokenView({
   code,
   serviceName,
+  tokenId,
   children,
 }: {
   code: string
   serviceName: string
+  tokenId: string
   children: ReactNode
 }) {
   const [printSize, setPrintSize] = useState<PrintSize>("thermal")
@@ -68,6 +70,9 @@ export function IssuedTokenView({
         <button type="button" className={styles.submit} onClick={() => window.print()}>
           Print slip
         </button>
+        <Link href={`/slip/${tokenId}`} className={styles.secondaryLink} target="_blank">
+          Print OPD slip
+        </Link>
         <Link href="/kiosk" className={styles.secondaryLink}>
           New token
         </Link>

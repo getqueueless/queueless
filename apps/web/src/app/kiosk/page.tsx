@@ -168,7 +168,7 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
 
       return (
         <KioskShell lead="Token" accent="issued">
-          <IssuedTokenView code={code} serviceName={serviceName}>
+          <IssuedTokenView code={code} serviceName={serviceName} tokenId={issuedId}>
             <TokenSlip
               statusUrl={statusUrl}
               serviceName={serviceName}
