@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import { LogoMark } from "@/components/brand/Logo"
@@ -20,6 +21,15 @@ declare global {
   interface Window {
     Razorpay?: new (options: Record<string, unknown>) => { open: () => void }
   }
+}
+
+// A shared edge rate-limit (10s/IP on several paths) can 429 a request that's otherwise fine --
+// one retry after the shortest safe wait clears it without the patient having to do anything.
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init)
+  if (res.status !== 429) return res
+  await new Promise((r) => setTimeout(r, 1500))
+  return fetch(url, init)
 }
 
 let razorpayScriptPromise: Promise<void> | null = null
@@ -108,6 +118,7 @@ export function PayView({
   initialHold: PayableHold
   doctor: DoctorRow | null
 }) {
+  const router = useRouter()
   const [supabase] = useState(() => createClient())
   const [hold, setHold] = useState(initialHold)
   const [profile, setProfile] = useState<PatientProfile | null>(null)
@@ -121,6 +132,7 @@ export function PayView({
   const [receipt, setReceipt] = useState<PaidReceipt | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [cancelBusy, setCancelBusy] = useState(false)
+  const [newLinkBusy, setNewLinkBusy] = useState(false)
   // Date.now() can't be called during render (React's purity rule) -- it's
   // read once as useState's lazy initializer (exempt, runs a single time)
   // and refreshed once a second from inside the interval callback below
@@ -195,7 +207,7 @@ export function PayView({
 
     try {
       const [orderRes] = await Promise.all([
-        fetch(`${apiBase}/payments/order`, {
+        fetchWithRetry(`${apiBase}/payments/order`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` },
           body: JSON.stringify(idField),
@@ -233,7 +245,7 @@ export function PayView({
         }) => {
           setPhase("verifying")
           try {
-            const verifyRes = await fetch(`${apiBase}/payments/verify`, {
+            const verifyRes = await fetchWithRetry(`${apiBase}/payments/verify`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` },
               body: JSON.stringify({
@@ -280,6 +292,27 @@ export function PayView({
       return
     }
     setPhase("cancelled")
+  }
+
+  // A lapsed hold is gone (its slot/number already went back to other patients), so this can't
+  // resume the SAME hold -- for a walk-in token it can still get the patient a fresh one with
+  // one tap, same doctor, no re-navigating; an appointment hold needs a slot re-picked, so that
+  // one goes back to the dashboard instead of a dead end.
+  async function handleGetNewLink() {
+    setNewLinkBusy(true)
+    setError(null)
+    if (hold.kind === "token" && hold.doctor_id) {
+      const { data, error: rpcError } = await supabase.rpc("start_paid_booking", { p_doctor_id: hold.doctor_id })
+      setNewLinkBusy(false)
+      if (rpcError || !data?.id) {
+        setError("Could not get a new payment link. Please try again.")
+        return
+      }
+      router.push(`/pay/${data.id}`)
+      return
+    }
+    setNewLinkBusy(false)
+    router.push("/my")
   }
 
   const feeInr = hold.fee_inr ?? 0
@@ -437,9 +470,12 @@ export function PayView({
         )}
 
         {effectivePhase === "expired" && (
-          <p className={styles.line}>
-            This hold has expired and the spot was released. Go back and book again.
-          </p>
+          <div className={styles.successBox}>
+            <p className={styles.line}>This hold has expired and the spot was released.</p>
+            <button type="button" className={styles.cta} disabled={newLinkBusy} onClick={handleGetNewLink}>
+              {newLinkBusy ? "One moment…" : "Get a new payment link"}
+            </button>
+          </div>
         )}
       </div>
     </main>
