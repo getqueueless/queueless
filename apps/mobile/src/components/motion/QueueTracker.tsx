@@ -1,6 +1,6 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import medium from 'expo-symbols/androidWeights/medium';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Component, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
@@ -65,7 +65,7 @@ const ICON_ENDED: SymbolName = { ios: 'xmark', android: 'close', web: 'close' };
  * what it is given: every number is real data from the screen, and nothing here advances on its
  * own clock. Reduce Motion shows the same states, still.
  */
-export function QueueTracker({
+function QueueTrackerView({
   status,
   ahead,
   etaMinutes,
@@ -165,6 +165,8 @@ export function QueueTracker({
           )}
         </EtaRing>
       ) : null}
+
+      {live ? <Summary line={summaryLine(status, ahead, etaMinutes, counter)} progress={progress} /> : null}
 
       {live && laneAhead !== null ? (
         <View style={styles.laneWrap}>
@@ -429,7 +431,78 @@ function Pulse({ color }: { color: string }) {
   return <Animated.View pointerEvents="none" style={[styles.pulse, { backgroundColor: color }, style]} />;
 }
 
+/** "3 ahead · ~12 min" (or where to go), plain text that renders on every engine. */
+function summaryLine(status: TrackerStatus, ahead: number | null, etaMinutes: number | null, counter: string) {
+  if (status === 'called') return `Go to ${counter}`;
+  if (status === 'serving') return 'With the doctor now';
+  const place = ahead === null ? null : ahead === 0 ? 'You’re next' : ahead === 1 ? '1 person ahead' : `${ahead} people ahead`;
+  const wait = etaMinutes === null ? null : `~${Math.round(etaMinutes)} min`;
+  return [place, wait].filter(Boolean).join(' · ') || 'Waiting in line';
+}
+
+/**
+ * The primary progress readout: a text line and a plain View bar (a width percentage, no
+ * transforms or clipping), so it shows on every platform even if the decorative ring can't draw.
+ */
+function Summary({ line, progress }: { line: string; progress: number }) {
+  const theme = useTheme();
+  const pct = Math.round(Math.min(1, Math.max(0, progress)) * 100);
+  return (
+    <View style={styles.summary} accessible accessibilityLabel={`${line}. ${pct}% of the wait done.`}>
+      <Text style={[styles.summaryLine, { color: theme.ink }]}>{line}</Text>
+      <View style={[styles.barTrack, { backgroundColor: theme.hairline }]}>
+        <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: theme.primary }]} />
+      </View>
+    </View>
+  );
+}
+
+/** If anything in the full tracker throws on a device, the screen still shows the essentials. */
+function TrackerFallback(props: QueueTrackerProps) {
+  const theme = useTheme();
+  const counter = !props.counterCode ? 'the counter' : /^counter\b/i.test(props.counterCode) ? props.counterCode : `Counter ${props.counterCode}`;
+  const progress =
+    props.status === 'called' || props.status === 'serving'
+      ? 1
+      : props.etaMinutes !== null && props.etaAtJoin
+        ? 1 - props.etaMinutes / props.etaAtJoin
+        : 0;
+  return (
+    <View style={styles.tracker}>
+      <Summary line={summaryLine(props.status, props.ahead, props.etaMinutes, counter)} progress={progress} />
+      {props.nowServingNumber ? (
+        <Text style={[styles.nowLabel, { color: theme.inkSecondary, textAlign: 'center' }]}>Now serving {props.nowServingNumber}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+class TrackerBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.log('[QueueTracker] full tracker failed, showing the simple one:', error);
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+export function QueueTracker(props: QueueTrackerProps) {
+  return (
+    <TrackerBoundary fallback={<TrackerFallback {...props} />}>
+      <QueueTrackerView {...props} />
+    </TrackerBoundary>
+  );
+}
+
 const styles = StyleSheet.create({
+  summary: { gap: 10 },
+  summaryLine: { fontFamily: Fonts?.poppinsBold, fontSize: 22, lineHeight: 28, textAlign: 'center' },
+  barTrack: { height: 10, borderRadius: 5, overflow: 'hidden' },
+  barFill: { height: 10, borderRadius: 5 },
   tracker: { alignSelf: 'stretch', gap: 24 },
 
   ring: { alignSelf: 'center' },
