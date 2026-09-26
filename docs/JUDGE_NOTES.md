@@ -1198,3 +1198,15 @@ under "Web app" above.
   "Add to SideStore". The QR codes are drawn on our own server, not by a third-party QR service.
 - The landing's numbers and service list now count only the demo hospital, so a load test
   running on the same database never inflates what visitors see.
+
+## FAQ and "Ask Queueless"
+
+- A public /faq page: questions grouped by who is asking (patients, payments and refunds, staff,
+  admin, privacy and security, installing the app), with category buttons and a search box. The
+  landing page shows the four most common ones with a link to the rest.
+- "Ask Queueless" takes a question in your own words and answers only from those FAQ entries,
+  listing the ones it used as links that open them on the page. It labels whether the answer was
+  written by AI or simply matched from the FAQ (the backend falls back to plain keyword matching
+  when the AI is unavailable), and says so plainly when it is asked too often (5 a minute per
+  person, 60 a minute overall). If the help service is down, the page says so instead of showing
+  a blank list.
