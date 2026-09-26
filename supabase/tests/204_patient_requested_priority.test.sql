@@ -2,7 +2,7 @@
 -- stay pending until staff verifies; a patient can't spam more than 1 pending request/day;
 -- rejecting clears the request; check_in carries an appointment's request onto its token.
 begin;
-select plan(12);
+select plan(14);
 
 insert into public.organizations (id, slug, name, timezone)
 values ('a0000000-0000-0000-0000-000000000204', 't-204', 'Priority Org', 'Asia/Kolkata');
@@ -55,7 +55,7 @@ select is(
   'pregnant'::public.lane, 'the request itself is recorded, pending'
 );
 select is(
-  (select requested_note from public.tokens where id = :'preg_tok'::uuid),
+  (select requested_lane_note from public.tokens where id = :'preg_tok'::uuid),
   'Due next month', 'the note is recorded'
 );
 
@@ -123,11 +123,25 @@ update public.tokens set status = 'cancelled' where id = :'preg_tok2'::uuid;
 -- and now that it's cleared, a fresh request the same day is allowed again
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', 'c0000000-0000-0000-0000-000000000207', 'role', 'authenticated')::text, true);
-select isnt_empty(
-  format($$ select 1 from public.start_paid_booking('d0000000-0000-0000-0000-000000000206', 'emergency'::public.lane) $$),
-  'a rejected request frees up the daily slot for a new one'
-);
+select id as preg_tok3 from public.start_paid_booking('d0000000-0000-0000-0000-000000000206'::uuid, 'emergency'::public.lane) \gset
 reset role;
+select is(:'preg_tok3'::uuid is not null, true, 'a rejected request frees up the daily slot for a new one');
+
+-- reject_priority(p_token): the real, named door -- same effect as verify_priority(id,'normal'),
+-- what counter-console.tsx's Reject button actually needs (its own raw UPDATE attempt fails,
+-- authenticated has no direct write on tokens)
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', 'c0000000-0000-0000-0000-000000000208', 'role', 'authenticated')::text, true);
+select public.reject_priority(:'preg_tok3'::uuid);
+reset role;
+select is(
+  (select requested_lane from public.tokens where id = :'preg_tok3'::uuid) is null,
+  true, 'reject_priority clears the request under its own name'
+);
+select is(
+  has_function_privilege('anon', 'public.reject_priority(uuid)', 'EXECUTE'),
+  false, 'anon cannot call reject_priority'
+);
 
 select * from finish(true);
 rollback;
