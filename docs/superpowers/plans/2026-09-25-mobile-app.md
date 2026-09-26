@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Machine: CachyOS laptop, Node 22.14.0, pnpm 12.6.0. LAN IP confirmed this session: `10.33.5.219` (via `ip -4 addr`, not `hostname -I` — not supported on this box). Never hardcode it into committed source; only into gitignored `apps/mobile/.env`.
-- Repo: `getqueueless/queueless`, worktree at `~/code/queueless-mobile` on branch `mobile`. Touch only `apps/mobile/` and this plan's own section of `docs/`. Root config (`pnpm-workspace.yaml`, `package.json`, `turbo.json`) is the DB session's — only the smallest possible addition if a root file is missing something `apps/mobile` strictly needs, as its own commit, called out explicitly.
+- Repo: `getqueueless/waitwise`, worktree at `~/code/queueless-mobile` on branch `mobile`. Touch only `apps/mobile/` and this plan's own section of `docs/`. Root config (`pnpm-workspace.yaml`, `package.json`, `turbo.json`) is the DB session's — only the smallest possible addition if a root file is missing something `apps/mobile` strictly needs, as its own commit, called out explicitly.
 - Git identity already set (`Yash Dhanda <260124161+yash-dhanda@users.noreply.github.com>`) — never touch `git config user.*`.
 - No AI attribution in any commit. Every commit message ends with, exactly:
   ```
