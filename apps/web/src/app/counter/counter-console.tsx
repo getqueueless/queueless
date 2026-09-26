@@ -14,19 +14,20 @@ const REQUESTED_LANE_LABELS: Partial<Record<Lane, string>> = {
   emergency: "Emergency",
 }
 
-// Verify/Reject only make sense for a lane verify_priority can actually set
+// Verify only makes sense for a lane verify_priority can actually set
 // (senior/pregnant) -- an emergency request shows the same red badge and
-// note but has nothing to confirm, so it gets no buttons.
+// note but has nothing to confirm, so it gets no button. No Reject here:
+// authenticated has no UPDATE grant on tokens, so clearing requested_lane
+// directly 403s -- it comes back once Hackathon database's reject_priority
+// RPC ships.
 function RequestedLaneRow({
   row,
   busy,
   onVerify,
-  onReject,
 }: {
   row: Pick<TokenRow, "requested_lane" | "requested_lane_note">
   busy: boolean
   onVerify: () => void
-  onReject: () => void
 }) {
   if (!row.requested_lane) return null
   const verifiable = row.requested_lane === "senior" || row.requested_lane === "pregnant"
@@ -40,9 +41,6 @@ function RequestedLaneRow({
         <div className={styles.requestedLaneActions}>
           <button type="button" className={styles.actionPrimary} onClick={onVerify} disabled={busy}>
             {busy ? "Verifying…" : "Verify"}
-          </button>
-          <button type="button" className={styles.actionSecondary} onClick={onReject} disabled={busy}>
-            Reject
           </button>
         </div>
       )}
@@ -272,31 +270,17 @@ export function CounterConsole({
 
   // verify_priority (supabase/migrations/0015_staff_issue_verify_priority.sql)
   // only accepts p_status in ('senior', 'pregnant') -- it 403s
-  // ('lane_not_allowed') on anything else, including 'normal'. So "Verify"
-  // calls it with the requested lane, but "Reject" can't call it with
-  // 'normal' the way a first pass at this spec assumed; it clears the
-  // request directly instead. Both need requested_lane on tokens, which
-  // isn't live yet -- these are no-ops (row never has requested_lane set)
-  // until that column and its read path ship.
+  // ('lane_not_allowed') on anything else. Needs requested_lane on tokens,
+  // which isn't live yet -- a no-op (row never has requested_lane set)
+  // until that column and its read path ship. There's no Reject here on
+  // purpose: authenticated has no UPDATE grant on tokens, so clearing
+  // requested_lane directly would 403 -- that's reject_priority's job, a
+  // separate RPC from Hackathon database not shipped yet either.
   const verifyPriority = useCallback(
     async (row: TokenRow) => {
       if (!row.requested_lane || (row.requested_lane !== "senior" && row.requested_lane !== "pregnant")) return
       setVerifyBusyId(row.id)
       const { error } = await supabase.rpc("verify_priority", { p_token: row.id, p_status: row.requested_lane })
-      setVerifyBusyId(null)
-      if (error) {
-        setBanner({ kind: "error", text: mapSupabaseError(error) })
-        return
-      }
-      await refreshWaiting()
-    },
-    [supabase, refreshWaiting],
-  )
-
-  const rejectPriority = useCallback(
-    async (row: TokenRow) => {
-      setVerifyBusyId(row.id)
-      const { error } = await supabase.from("tokens").update({ requested_lane: null }).eq("id", row.id)
       setVerifyBusyId(null)
       if (error) {
         setBanner({ kind: "error", text: mapSupabaseError(error) })
@@ -427,12 +411,7 @@ export function CounterConsole({
             {current.recall_count > 0 ? ` · recalled ${current.recall_count}×` : ""}
           </p>
           {current.requested_lane && (
-            <RequestedLaneRow
-              row={current}
-              busy={verifyBusyId === current.id}
-              onVerify={() => void verifyPriority(current)}
-              onReject={() => void rejectPriority(current)}
-            />
+            <RequestedLaneRow row={current} busy={verifyBusyId === current.id} onVerify={() => void verifyPriority(current)} />
           )}
           <p className={styles.timer}>
             Called <span className={styles.timerValue}>{elapsedLabel}</span> ago
@@ -492,12 +471,7 @@ export function CounterConsole({
                   <span className={styles.waitingListMeta}>{row.walk_in_label ?? "Registered patient"}</span>
                 </div>
                 {row.requested_lane && (
-                  <RequestedLaneRow
-                    row={row}
-                    busy={verifyBusyId === row.id}
-                    onVerify={() => void verifyPriority(row)}
-                    onReject={() => void rejectPriority(row)}
-                  />
+                  <RequestedLaneRow row={row} busy={verifyBusyId === row.id} onVerify={() => void verifyPriority(row)} />
                 )}
               </li>
             ))}

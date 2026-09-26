@@ -54,7 +54,11 @@ function generateTempPassword(): string {
 const createSchema = z.object({
   email: z.email(),
   full_name: z.string().trim().min(1).max(80),
-  role: z.enum(["staff", "admin"]),
+  // Optional: a doctor login (admin/doctors/DoctorLoginPanel.tsx) creates
+  // the user here without a role at all -- handle_new_user() leaves it
+  // 'patient' until set_doctor_user (Hackathon database) promotes it to
+  // 'doctor' and links it, which this route has no part in.
+  role: z.enum(["staff", "admin"]).optional(),
   counter_id: z.uuid().optional(),
 })
 
@@ -110,11 +114,13 @@ export async function POST(request: Request) {
   }
 
   // handle_new_user() (supabase/migrations/0002) already inserted a
-  // 'patient' profile row for this id -- promote it to the requested role
-  // and attach it to the admin's own org.
+  // 'patient' profile row for this id -- attach it to the admin's own org,
+  // and promote it to the requested role only when one was actually given
+  // (a doctor login has none; it stays 'patient' until set_doctor_user
+  // promotes it separately).
   const { error: updateError } = await db
     .from("profiles")
-    .update({ role, org_id: admin.orgId, full_name })
+    .update({ ...(role ? { role } : {}), org_id: admin.orgId, full_name })
     .eq("id", created.user.id)
 
   if (updateError) {

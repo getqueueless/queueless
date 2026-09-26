@@ -5,10 +5,13 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import styles from "../admin.module.css"
 
-// "Login" section on a doctor row: create a staff account for them (via the
+// "Login" section on a doctor row: create a login for them (via the
 // existing service-role /api/admin/staff route, which now also generates
-// and returns a one-time temp password), then link it to this doctor row
-// via set_doctor_user -- a new RPC from Hackathon database, not shipped yet.
+// and returns a one-time temp password, and leaves role untouched -- no
+// role is sent here at all), then link it to this doctor row via
+// set_doctor_user -- a new RPC from Hackathon database, not shipped yet,
+// which sets the profile's role to 'doctor' itself. Until that RPC runs, the
+// created user just sits at handle_new_user()'s default 'patient' role.
 // There's no doctors.user_id column live either, so this screen has no way
 // to know a doctor is already linked; it always shows "Create login" for
 // now. Reset/Unlink for an already-linked doctor land once that column and
@@ -34,7 +37,7 @@ export function DoctorLoginPanel({ doctorId, doctorName }: { doctorId: string; d
     const res = await fetch("/api/admin/staff", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim(), full_name: doctorName, role: "staff" }),
+      body: JSON.stringify({ email: email.trim(), full_name: doctorName }),
     })
     const body = await res.json()
     if (!res.ok) {

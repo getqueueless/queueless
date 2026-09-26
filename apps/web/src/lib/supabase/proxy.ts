@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { roleLandingPath } from "@/lib/auth/redirect";
+
 import { getMyProfile } from "./get-role";
 
 // Routes anyone can reach without a session: the landing page, the staff/
@@ -22,8 +24,10 @@ const PUBLIC_PATH_PATTERNS = [
   /^\/faq$/,
 ];
 
-// Staff-only device screens -- a signed-in patient must never land here.
-const STAFF_ONLY_PATH_PATTERNS = [/^\/counter$/, /^\/kiosk$/, /^\/doctor$/];
+// Staff's own device screens -- doctor and patient must never land here.
+const STAFF_PATH_PATTERNS = [/^\/counter$/, /^\/kiosk$/];
+// The doctor's own desk -- staff and patient must never land here either.
+const DOCTOR_PATH_PATTERNS = [/^\/doctor$/];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
@@ -33,8 +37,12 @@ function isAdminPath(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
 }
 
-function isStaffOnlyPath(pathname: string): boolean {
-  return STAFF_ONLY_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
+function isStaffPath(pathname: string): boolean {
+  return STAFF_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
+}
+
+function isDoctorPath(pathname: string): boolean {
+  return DOCTOR_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
 }
 
 function isPatientPath(pathname: string): boolean {
@@ -82,7 +90,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAdminPath(pathname) || isStaffOnlyPath(pathname) || isPatientPath(pathname)) {
+  if (isAdminPath(pathname) || isStaffPath(pathname) || isDoctorPath(pathname) || isPatientPath(pathname)) {
     // `profile` is null only if the read genuinely errors (network, no row).
     // The `profiles` table itself has no RLS and Postgres's default grants
     // to `anon`/`authenticated` were never revoked (docs/DECISIONS.md,
@@ -95,24 +103,27 @@ export async function updateSession(request: NextRequest) {
     // require_complete_profile) regardless of whether this redirect fires.
     const profile = await getMyProfile(supabase, userId);
 
-    // Doctors (their own role) only use /doctor: the staff, kiosk and admin
-    // screens send them to their desk.
-    if (profile?.role === "doctor" && (isAdminPath(pathname) || (isStaffOnlyPath(pathname) && pathname !== "/doctor"))) {
-      return NextResponse.redirect(new URL("/doctor", request.url));
-    }
-
+    // Each staff-facing area allow-lists its own roles (admin always
+    // included) -- anyone else gets bounced to their own real landing page
+    // via roleLandingPath, not a hardcoded target, so a patient hitting
+    // /doctor lands on /my and a staff member hitting /doctor lands on
+    // /counter, in one place rather than one redirect target per area.
     if (isAdminPath(pathname) && profile?.role !== "admin") {
-      return NextResponse.redirect(new URL("/counter", request.url));
+      return NextResponse.redirect(new URL(roleLandingPath(profile), request.url));
     }
 
-    if (isStaffOnlyPath(pathname) && profile?.role === "patient") {
-      return NextResponse.redirect(new URL("/my", request.url));
+    if (isDoctorPath(pathname) && profile?.role !== "doctor" && profile?.role !== "admin") {
+      return NextResponse.redirect(new URL(roleLandingPath(profile), request.url));
+    }
+
+    if (isStaffPath(pathname) && profile?.role !== "staff" && profile?.role !== "admin") {
+      return NextResponse.redirect(new URL(roleLandingPath(profile), request.url));
     }
 
     // Only a patient is ever forced through the profile-completion form --
-    // staff/admin have no reason to fill in a mobile number/DOB/gender to do
-    // their job, and their own profiles may never have profile_completed_at
-    // set at all.
+    // staff/admin/doctor have no reason to fill in a mobile number/DOB/
+    // gender to do their job, and their own profiles may never have
+    // profile_completed_at set at all.
     if (isPatientPath(pathname) && pathname !== "/my/profile" && profile?.role === "patient" && !profile.profileCompletedAt) {
       return NextResponse.redirect(new URL("/my/profile", request.url));
     }
