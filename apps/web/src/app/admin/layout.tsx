@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { BackButton } from "@/components/site/BackButton"
 import { AdminNav } from "./_components/AdminNav"
 import styles from "./admin.module.css"
 
@@ -35,6 +36,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className={styles.shell}>
         <AdminNav orgName={orgName} />
         <main id="admin-main" className={styles.content}>
+          <BackButton className={styles.adminBack} />
           {children}
         </main>
       </div>

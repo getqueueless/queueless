@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { BackButton } from "@/components/site/BackButton"
 import { redirect } from "next/navigation"
 
 import { Logo, LogoMark } from "@/components/brand/Logo"
@@ -23,6 +24,7 @@ function CounterTopBar() {
         Skip to console
       </a>
       <div className={styles.topbarInner}>
+        <BackButton />
         <Logo size={22} />
         <span className={styles.topbarDivider} aria-hidden="true" />
         <span className={styles.topbarLabel}>Counter console</span>

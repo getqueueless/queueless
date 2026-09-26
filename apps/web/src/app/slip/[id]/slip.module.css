@@ -20,7 +20,7 @@
   width: 100%;
   max-width: 480px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   margin-bottom: var(--space-md);
 }
 

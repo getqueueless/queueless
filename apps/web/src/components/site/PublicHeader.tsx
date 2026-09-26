@@ -11,6 +11,7 @@ import { getMyProfile } from "@/lib/supabase/get-role";
 import { createClient } from "@/lib/supabase/server";
 import { HeaderMenu } from "./HeaderMenu";
 import styles from "./PublicHeader.module.css";
+import { BackButton } from "./BackButton";
 
 // "/#status" is a landing-page section: it must carry id="status". "Get a
 // token" matches the hero: patients take one from /my, via /login when
@@ -58,9 +59,12 @@ export async function PublicHeader({ current, tone = "surface", liveToken = true
         </a>
         <div className={styles.inner}>
           {/* Signed in, the logo is the way back to your own dashboard; "Home" stays "/". */}
-          <Link href={user ? roleLandingPath(profile) : "/"} aria-label="WaitWise" className={styles.brand}>
-            <Logo size={26} />
-          </Link>
+          <div className={styles.brandWrap}>
+            <BackButton />
+            <Link href={user ? roleLandingPath(profile) : "/"} aria-label="WaitWise" className={styles.brand}>
+              <Logo size={26} />
+            </Link>
+          </div>
           <HeaderMenu>
             {NAV.map((item) => (
               <Link

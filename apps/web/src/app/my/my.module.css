@@ -36,6 +36,7 @@
 .brand {
   display: flex;
   align-items: center;
+  margin-right: auto; /* keeps Back + logo together on the left */
   gap: var(--space-sm);
   font-family: var(--font-display);
   font-weight: 700;

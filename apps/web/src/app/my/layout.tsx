@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { BackButton } from "@/components/site/BackButton"
 import { Suspense } from "react"
 
 import { Logo } from "@/components/brand/Logo"
@@ -18,6 +19,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
   return (
     <div className={styles.content}>
       <header className={styles.header}>
+        <BackButton />
         <Link href="/my" className={styles.brand}>
           <Logo size={22} />
         </Link>

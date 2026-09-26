@@ -1,31 +1,27 @@
-/* Floating, bottom-left: clear of every page's own header (logos, the admin
-   hamburger) and of the centred toasts. */
+/* Sits in each page's header, left of the logo, and takes the header's own
+   text colour, so it reads on the white bars and the slate ones alike. */
 .back {
-  position: fixed;
-  left: max(16px, env(safe-area-inset-left));
-  bottom: max(16px, env(safe-area-inset-bottom));
-  z-index: 60;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 16px 0 12px;
-  border: 1px solid var(--color-hairline-strong);
+  gap: 4px;
+  flex: none;
+  min-height: 40px;
+  padding: 0 12px 0 8px;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
   border-radius: var(--radius-pill, 999px);
-  background: var(--color-surface);
-  color: var(--color-ink);
+  background: transparent;
+  color: inherit;
   font: inherit;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  box-shadow: var(--shadow-raised);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 150ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 150ms;
+  transition: border-color 150ms, transform 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .back:hover {
-  border-color: var(--color-accent, currentColor);
+  border-color: currentColor;
 }
 
 .back:active {
@@ -33,13 +29,21 @@
 }
 
 .back:focus-visible {
-  outline: 2px solid var(--color-focus-ring, currentColor);
-  outline-offset: 3px;
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
-/* /pay has its own sticky pay bar at the bottom on phones. */
-.back[data-lift] {
-  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 88px);
+/* Phones: arrow only, the header is tight. */
+@media (max-width: 479px) {
+  .back {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .label {
+    display: none;
+  }
 }
 
 @media print {

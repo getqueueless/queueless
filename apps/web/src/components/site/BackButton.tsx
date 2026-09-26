@@ -1,12 +1,12 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useEffect } from "react"
 
 import styles from "./BackButton.module.css"
 
-// Pages where a floating Back would be wrong: home is the top, the TV board
-// and kiosk are full-screen public terminals nobody should navigate away from.
+// Pages where Back would be wrong: home is the top, the TV board and kiosk are
+// full-screen public terminals nobody should navigate away from.
 function hiddenOn(path: string) {
   return path === "/" || path.startsWith("/display") || path.startsWith("/kiosk") || path.startsWith("/auth")
 }
@@ -20,16 +20,18 @@ function parentOf(path: string) {
   return "/" + parts.slice(0, -1).join("/")
 }
 
-export function BackButton() {
+// Module scope, not state: each page's header mounts its own button, so the
+// "has this tab navigated inside the site yet" fact has to outlive them.
+let firstPath: string | null = null
+let navigated = false
+
+export function BackButton({ className }: { className?: string }) {
   const pathname = usePathname()
   const router = useRouter()
-  const firstPath = useRef(pathname)
-  // Lives in the root layout, so it survives client navigations: once the path
-  // has changed in this tab, router.back() stays inside the site.
-  const [hasHistory, setHasHistory] = useState(false)
 
   useEffect(() => {
-    if (pathname !== firstPath.current) setHasHistory(true)
+    if (firstPath === null) firstPath = pathname
+    else if (pathname !== firstPath) navigated = true
   }, [pathname])
 
   if (hiddenOn(pathname)) return null
@@ -37,15 +39,14 @@ export function BackButton() {
   return (
     <button
       type="button"
-      className={styles.back}
-      data-lift={pathname.startsWith("/pay") || undefined}
-      onClick={() => (hasHistory ? router.back() : router.push(parentOf(pathname) as "/"))}
+      className={className ? `${styles.back} ${className}` : styles.back}
+      onClick={() => (navigated ? router.back() : router.push(parentOf(pathname) as "/"))}
       aria-label="Go back"
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M15 18l-6-6 6-6" />
       </svg>
-      Back
+      <span className={styles.label}>Back</span>
     </button>
   )
 }

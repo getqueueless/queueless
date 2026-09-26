@@ -1053,3 +1053,16 @@ fieldset.field {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 3px;
 }
+
+/* ---------- Back ---------- */
+
+.adminBack {
+  margin-bottom: var(--space-md);
+}
+
+/* Clear of the fixed hamburger in the top-left corner. */
+@media (max-width: 639px) {
+  .adminBack {
+    margin-left: 52px;
+  }
+}

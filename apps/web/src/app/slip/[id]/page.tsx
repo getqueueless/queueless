@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { BackButton } from "@/components/site/BackButton"
 import { notFound } from "next/navigation"
 
 import { tokenQrSvg } from "@/lib/qr"
@@ -150,6 +151,7 @@ export default async function SlipPage({ params }: { params: Promise<{ id: strin
   return (
     <main id="main" className={styles.page}>
       <div className={`${styles.toolbar} ${styles.noPrint}`}>
+        <BackButton />
         <PrintButton />
       </div>
 

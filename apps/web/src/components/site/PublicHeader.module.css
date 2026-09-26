@@ -25,6 +25,13 @@
   padding: var(--space-xs) var(--space-lg);
 }
 
+.brandWrap {
+  grid-area: brand;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .brand {
   grid-area: brand;
   display: inline-flex;

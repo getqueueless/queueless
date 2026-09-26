@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { BackButton } from "@/components/site/BackButton"
 import { redirect } from "next/navigation"
 
 import { SignOutButton } from "@/components/auth/SignOutButton"
@@ -22,6 +23,7 @@ function TopBar({ admin }: { admin: boolean }) {
         Skip to desk
       </a>
       <div className={styles.topbarInner}>
+        <BackButton />
         <Logo size={22} />
         <span className={styles.topbarDivider} aria-hidden="true" />
         <span className={styles.topbarLabel}>Doctor desk</span>
