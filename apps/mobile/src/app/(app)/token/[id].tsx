@@ -4,7 +4,7 @@ import { Alert, AppState, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QueueTracker } from '@/components/motion/QueueTracker';
-import { useEtaAtJoin, useNowServing } from '@/components/motion/use-queue-extras';
+import { useEtaAtJoin, useNowServing, useShiftPause } from '@/components/motion/use-queue-extras';
 import { PriorityInfoCard } from '@/components/PriorityInfoCard';
 import { Button, EmptyState, Skeleton, Tones, UIText, gradient, toneFor } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
@@ -214,6 +214,7 @@ export default function TokenScreen() {
   const etaMinutes = status?.eta_seconds == null ? null : Math.ceil(status.eta_seconds / 60);
   const etaAtJoin = useEtaAtJoin(id, etaMinutes);
   const nowServing = useNowServing(id, status);
+  const paused = useShiftPause(id);
 
   if (loading) {
     return (
@@ -270,6 +271,7 @@ export default function TokenScreen() {
             counterCode={status.counter_name}
             nowServingNumber={nowServing}
             serviceName={status.service_name}
+            paused={paused}
           />
 
           {holdSecondsLeft > 0 ? (

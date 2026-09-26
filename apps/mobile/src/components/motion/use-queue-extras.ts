@@ -84,3 +84,64 @@ export function useEtaAtJoin(tokenId: string | undefined, etaMinutes: number | n
 
   return stored ?? etaMinutes;
 }
+
+export type ShiftPause = { kind: 'before' | 'between'; doctorName: string; at: string };
+
+const minutesOf = (t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+const clock12 = (min: number) => {
+  const h = Math.floor(min / 60);
+  return `${((h + 11) % 12) + 1}:${String(min % 60).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+};
+// IST is a fixed UTC+05:30, so no Intl is needed for "now" or today's weekday.
+const istNow = () => new Date(Date.now() + 330 * 60_000);
+const istMinutes = () => istNow().getUTCHours() * 60 + istNow().getUTCMinutes();
+
+/**
+ * For a token with a doctor: whether that doctor's queue hasn't started yet today ('before' the
+ * first shift) or is paused between shifts, and when it (re)starts. null while a shift is on, after
+ * the last one, or when the token has no doctor. Re-evaluated on every render, and the token
+ * screen re-renders on each of its refetches, so it flips back to the live view by itself.
+ */
+export function useShiftPause(tokenId: string | undefined): ShiftPause | null {
+  const [doc, setDoc] = useState<{ name: string; shifts: [number, number][] } | null>(null);
+
+  useEffect(() => {
+    if (!tokenId) return;
+    let cancelled = false;
+    (async () => {
+      const { data: token } = await supabase.from('tokens').select('doctor_id').eq('id', tokenId).maybeSingle();
+      const doctorId = (token as { doctor_id: string | null } | null)?.doctor_id;
+      if (!doctorId) return;
+      const [doctor, schedule] = await Promise.all([
+        supabase.from('doctors').select('name').eq('id', doctorId).maybeSingle(),
+        supabase
+          .from('doctor_schedules')
+          .select('start_time, end_time')
+          .eq('doctor_id', doctorId)
+          .eq('weekday', istNow().getUTCDay())
+          .order('start_time'),
+      ]);
+      const name = (doctor.data as { name: string } | null)?.name;
+      if (cancelled || !name) return;
+      const rows = (schedule.data ?? []) as { start_time: string; end_time: string }[];
+      setDoc({ name, shifts: rows.map((r) => [minutesOf(r.start_time), minutesOf(r.end_time)]) });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tokenId]);
+
+  if (!doc || doc.shifts.length === 0) return null;
+  const now = istMinutes();
+  const [first] = doc.shifts;
+  if (now < first[0]) return { kind: 'before', doctorName: doc.name, at: clock12(first[0]) };
+  for (let i = 0; i + 1 < doc.shifts.length; i++) {
+    if (now >= doc.shifts[i][1] && now < doc.shifts[i + 1][0]) {
+      return { kind: 'between', doctorName: doc.name, at: clock12(doc.shifts[i + 1][0]) };
+    }
+  }
+  return null;
+}

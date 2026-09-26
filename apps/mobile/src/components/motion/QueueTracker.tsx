@@ -17,6 +17,7 @@ import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 import { MAX_DOTS, freshLane, moveLane, stageOf, type TrackerStatus } from './queue-lane';
+import type { ShiftPause } from './use-queue-extras';
 
 export type { TrackerStatus };
 
@@ -33,6 +34,8 @@ export type QueueTrackerProps = {
   /** The service's most recently called token code. */
   nowServingNumber: string | null;
   serviceName: string | null;
+  /** The doctor's queue hasn't started / is between shifts: show place + start time, no countdown. */
+  paused?: ShiftPause | null;
 };
 
 // Same copy, timings and curves as apps/web's QueueTracker.
@@ -73,6 +76,7 @@ function QueueTrackerView({
   counterCode,
   nowServingNumber,
   serviceName,
+  paused,
 }: QueueTrackerProps) {
   const theme = useTheme();
   const { width } = useWindowDimensions();
@@ -143,7 +147,17 @@ function QueueTrackerView({
 
   return (
     <View style={styles.tracker}>
-      {live ? (
+      {status === 'waiting' && paused ? (
+        <View
+          style={[styles.paused, { backgroundColor: theme.primarySoft }]}
+          accessible
+          accessibilityLabel={`${ahead === null ? 'You are in line' : `You are number ${ahead + 1} in line`}. ${pausedText(paused)}`}>
+          <Text style={[styles.pausedPlace, { color: theme.ink }]}>
+            {ahead === null ? 'You’re in line' : `You’re #${ahead + 1} in line`}
+          </Text>
+          <Text style={[styles.detail, { color: theme.inkSecondary }]}>{pausedText(paused)}</Text>
+        </View>
+      ) : live ? (
         <EtaRing
           progress={progress}
           size={ringSize}
@@ -166,7 +180,7 @@ function QueueTrackerView({
         </EtaRing>
       ) : null}
 
-      {live ? <Summary line={summaryLine(status, ahead, etaMinutes, counter)} progress={progress} /> : null}
+      {live && !(status === 'waiting' && paused) ? <Summary line={summaryLine(status, ahead, etaMinutes, counter)} progress={progress} /> : null}
 
       {live && laneAhead !== null ? (
         <View style={styles.laneWrap}>
@@ -431,6 +445,12 @@ function Pulse({ color }: { color: string }) {
   return <Animated.View pointerEvents="none" style={[styles.pulse, { backgroundColor: color }, style]} />;
 }
 
+function pausedText(p: ShiftPause) {
+  return p.kind === 'before'
+    ? `Queue starts when ${p.doctorName} arrives at ${p.at}. We’ll update live.`
+    : `Queue resumes at ${p.at}. We’ll update live.`;
+}
+
 /** "3 ahead · ~12 min" (or where to go), plain text that renders on every engine. */
 function summaryLine(status: TrackerStatus, ahead: number | null, etaMinutes: number | null, counter: string) {
   if (status === 'called') return `Go to ${counter}`;
@@ -500,6 +520,8 @@ export function QueueTracker(props: QueueTrackerProps) {
 
 const styles = StyleSheet.create({
   summary: { gap: 10 },
+  paused: { borderRadius: 20, padding: 20, gap: 8, alignItems: 'center' },
+  pausedPlace: { fontFamily: Fonts?.poppinsBold, fontSize: 28, lineHeight: 34, textAlign: 'center' },
   summaryLine: { fontFamily: Fonts?.poppinsBold, fontSize: 22, lineHeight: 28, textAlign: 'center' },
   barTrack: { height: 10, borderRadius: 5, overflow: 'hidden' },
   barFill: { height: 10, borderRadius: 5 },
