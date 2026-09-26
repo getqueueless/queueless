@@ -21,34 +21,30 @@ export type PayableHold = {
 export type DoctorRow = { id: string; name: string; specialty: string }
 export type PatientProfile = { full_name: string | null; phone: string | null }
 
-const TOKEN_COLUMNS = "id, code, status, fee_inr, hold_expires_at, doctor_id"
-const APPOINTMENT_COLUMNS = "id, status, fee_inr, hold_expires_at, doctor_id, appointment_slots(starts_at)"
-
-// A hold is either a walk-in token or a booked appointment (0056's payments_exactly_one_target
-// mirrors this at the DB layer) -- id spaces don't overlap, so trying the token table first and
-// falling back to appointments is enough to tell which one a bare id refers to.
-export async function fetchPayableHold(supabase: SupabaseClient, id: string): Promise<PayableHold | null> {
-  const { data: token } = await supabase.from("tokens").select(TOKEN_COLUMNS).eq("id", id).maybeSingle()
-  if (token) {
-    return {
-      id: token.id, kind: "token", status: token.status, fee_inr: token.fee_inr,
-      hold_expires_at: token.hold_expires_at, doctor_id: token.doctor_id, code: token.code, startsAt: null,
-    }
+// get_payable_hold (0071): the in-app browser's very first render of this page is ANON (the
+// mobile handoff's access token lives in the URL fragment, which never reaches the server) --
+// anon has no table access to appointments at all, so a direct `.from("appointments")` read
+// here always came back null for a slot booking ("Booking not found", the actual P0). This
+// SECURITY DEFINER RPC is the fix: the hold's own uuid acts as an unguessable capability (same
+// trust model as /t/<id>), returns nothing patient-identifying, and only resolves for a hold
+// that's still actually payable.
+export async function fetchPayableHold(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<(PayableHold & { doctorName: string | null; specialty: string | null }) | null> {
+  const { data } = await supabase.rpc("get_payable_hold", { p_id: id }).maybeSingle()
+  if (!data) return null
+  type Row = {
+    id: string; kind: "token" | "appointment"; status: string; fee_inr: number | null
+    hold_expires_at: string | null; doctor_id: string | null; doctor_name: string | null
+    specialty: string | null; starts_at: string | null; code: string | null
   }
-
-  const { data: appt } = await supabase.from("appointments").select(APPOINTMENT_COLUMNS).eq("id", id).maybeSingle()
-  if (!appt) return null
-  const slot = Array.isArray(appt.appointment_slots) ? appt.appointment_slots[0] : appt.appointment_slots
+  const row = data as Row
   return {
-    id: appt.id, kind: "appointment", status: appt.status, fee_inr: appt.fee_inr,
-    hold_expires_at: appt.hold_expires_at, doctor_id: appt.doctor_id, code: null,
-    startsAt: (slot as { starts_at: string } | null)?.starts_at ?? null,
+    id: row.id, kind: row.kind, status: row.status, fee_inr: row.fee_inr,
+    hold_expires_at: row.hold_expires_at, doctor_id: row.doctor_id, code: row.code,
+    startsAt: row.starts_at, doctorName: row.doctor_name, specialty: row.specialty,
   }
-}
-
-export async function fetchDoctor(supabase: SupabaseClient, doctorId: string): Promise<DoctorRow | null> {
-  const { data } = await supabase.from("doctors").select("id, name, specialty").eq("id", doctorId).maybeSingle()
-  return (data as DoctorRow) ?? null
 }
 
 export async function fetchPatientProfile(supabase: SupabaseClient, userId: string): Promise<PatientProfile | null> {

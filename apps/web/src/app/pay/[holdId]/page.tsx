@@ -6,7 +6,7 @@ import { PublicFooter } from "@/components/site/PublicFooter"
 import { PublicHeader } from "@/components/site/PublicHeader"
 import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { createClient } from "@/lib/supabase/server"
-import { fetchDoctor, fetchPayableHold, isUuid } from "./data"
+import { fetchPayableHold, isUuid } from "./data"
 import { PayView } from "./pay-view"
 import styles from "./pay.module.css"
 
@@ -50,7 +50,10 @@ export default async function PayPage({ params }: { params: Promise<{ holdId: st
     return <NotFoundCard />
   }
 
-  const doctor = hold.doctor_id ? await fetchDoctor(supabase, hold.doctor_id) : null
+  const doctor =
+    hold.doctor_id && hold.doctorName
+      ? { id: hold.doctor_id, name: hold.doctorName, specialty: hold.specialty ?? "" }
+      : null
 
   return (
     <>
