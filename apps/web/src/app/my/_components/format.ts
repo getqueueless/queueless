@@ -23,6 +23,9 @@ export const AVAILABILITY_TONE: Record<Availability["kind"], Tone> = {
   break: "warning",
   leave: "danger",
   off: "neutral",
+  before: "neutral",
+  between: "neutral",
+  after: "neutral",
 }
 
 // payments stays admin-only (0051/0053) -- my_payment_status (0058) is the one owner-read door,
@@ -45,37 +48,68 @@ export function initials(name: string): string {
 }
 
 export type Availability = {
-  kind: "available" | "late" | "break" | "leave" | "off"
+  kind: "available" | "late" | "break" | "leave" | "off" | "before" | "between" | "after"
   label: string
   /** Why the doctor cannot be booked today; null when they can. */
   reason: string | null
   bookable: boolean
 }
 
+type Window = { start: string; end: string }
+
 // doctor_leaves beats doctor_status (a leave is planned, a status is today's
 // note), and a doctor with no doctor_schedules row for today's weekday is off
 // whatever their status says. leaveReason is undefined when there is no leave
 // row today, null when there is one without a reason.
+//
+// With today's shifts, breaks and the hospital's clock (nowTime "HH:MM:SS"),
+// the stored status only speaks while a shift is on: before, between and after
+// shifts, and inside a break window, the clock decides. Future slots stay
+// bookable in all of those.
 export function availability({
   status,
   lateMinutes,
   leaveReason,
   hasShiftToday,
+  shifts,
+  breaks = [],
+  nowTime,
 }: {
   status: DoctorStatus
   lateMinutes: number | null
   leaveReason: string | null | undefined
   hasShiftToday: boolean
+  shifts?: Window[]
+  breaks?: Window[]
+  nowTime?: string
 }): Availability {
   if (leaveReason !== undefined || status === "off") {
     return { kind: "leave", label: "On leave", reason: leaveReason || "Not seeing patients today", bookable: false }
   }
-  if (!hasShiftToday) return { kind: "off", label: "Off today", reason: "No clinic hours today", bookable: false }
+  if (!hasShiftToday) return { kind: "off", label: "Not seeing patients today", reason: "No clinic hours today", bookable: false }
+  if (shifts?.length && nowTime) {
+    const sorted = [...shifts].sort((x, y) => x.start.localeCompare(y.start))
+    const current = sorted.find((w) => w.start <= nowTime && nowTime < w.end)
+    if (!current) {
+      const next = sorted.find((w) => nowTime < w.start)
+      if (!next) return { kind: "after", label: "Done for today, book for tomorrow", reason: null, bookable: true }
+      return next === sorted[0]
+        ? { kind: "before", label: `Opens at ${clockLabel(next.start)}`, reason: null, bookable: true }
+        : { kind: "between", label: `Back at ${clockLabel(next.start)}`, reason: null, bookable: true }
+    }
+    const pause = breaks.find((w) => w.start <= nowTime && nowTime < w.end)
+    if (pause) return { kind: "break", label: `On a break until ${clockLabel(pause.end)}`, reason: null, bookable: true }
+  }
   if (status === "running_late") {
     return { kind: "late", label: lateMinutes ? `Running late ${lateMinutes} min` : "Running late", reason: null, bookable: true }
   }
   if (status === "on_break") return { kind: "break", label: "On break", reason: null, bookable: true }
   return { kind: "available", label: "Available", reason: null, bookable: true }
+}
+
+/** The hospital's wall clock as "HH:MM:SS", comparable with Postgres `time` strings. */
+export function clockNow(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(date)
 }
 
 export function firstName(fullName: string | null): string | null {

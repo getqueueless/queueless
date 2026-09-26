@@ -166,6 +166,7 @@ function DoctorCard({
       </dl>
 
       {off && <p className={styles.reason}>{a.kind === "leave" ? `Reason: ${a.reason}` : a.reason}</p>}
+      {a.kind === "before" && <p className={styles.reason}>Book ahead: pick a time below.</p>}
 
       <div className={styles.actions}>
         {off ? (

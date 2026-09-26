@@ -5,7 +5,16 @@ import { fetchCounter, type CounterRow, type TokenRow, type TokenStatus } from "
 import { ACTIVE_STATUSES, readTokenStatus, type RequestedLane } from "@/components/tokens/active-token"
 import type { DoctorStatus } from "@/lib/doctors"
 
-import { availability, dayKey, paidStatusOverride, shiftsLabel, slotLabel, type Availability, type Tone } from "./format"
+import {
+  availability,
+  clockNow,
+  dayKey,
+  paidStatusOverride,
+  shiftsLabel,
+  slotLabel,
+  type Availability,
+  type Tone,
+} from "./format"
 
 type PaymentStatus = "created" | "captured" | "failed" | "refunded" | null
 
@@ -142,14 +151,20 @@ export async function loadDoctors(
     .select("id, service_id, name, specialty, room, fee_inr")
     .eq("active", true)
     .order("name")
-  const [doctorsRes, servicesRes, statusRes, shiftsRes, leavesRes] = await Promise.all([
+  const [doctorsRes, servicesRes, statusRes, shiftsRes, leavesRes, breaksRes] = await Promise.all([
     orgId ? doctorsQuery.eq("org_id", orgId) : doctorsQuery,
     supabase.from("services").select("id, name"),
     supabase.from("doctor_status_today").select("doctor_id, status, late_minutes"),
     supabase.from("doctor_schedules").select("doctor_id, start_time, end_time").eq("weekday", weekday),
     supabase.from("doctor_leaves").select("doctor_id, reason").lte("from_date", today).gte("to_date", today),
+    supabase.from("doctor_breaks").select("doctor_id, start_time, end_time").eq("weekday", weekday),
   ])
   const doctors = (doctorsRes.data ?? []) as DoctorRow[]
+  const nowTime = clockNow(now, timeZone)
+  const breaks = new Map<string, { start: string; end: string }[]>()
+  for (const b of (breaksRes.data ?? []) as { doctor_id: string; start_time: string; end_time: string }[]) {
+    breaks.set(b.doctor_id, [...(breaks.get(b.doctor_id) ?? []), { start: b.start_time, end: b.end_time }])
+  }
 
   // One small query per doctor: a shared one would need a row cap that one
   // busy doctor could eat. 40 covers more than a full day of 15-minute slots.
@@ -197,6 +212,9 @@ export async function loadDoctors(
         lateMinutes: st?.late_minutes ?? null,
         leaveReason: leave.has(d.id) ? leave.get(d.id) : undefined,
         hasShiftToday: today.length > 0,
+        shifts: today,
+        breaks: breaks.get(d.id) ?? [],
+        nowTime,
       }),
       hours: shiftsLabel(today),
       slots: slotRows[i]
@@ -269,12 +287,19 @@ export async function loadAppointments(
   // today, a leave can cover any day.
   const doctorIds = [...new Set(rows.map((a) => a.doctor_id).filter((id): id is string => !!id))]
   const today = dayKey(now, timeZone)
-  const [statusRes, leavesRes] = doctorIds.length
+  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay()
+  const [statusRes, leavesRes, shiftsRes, breaksRes] = doctorIds.length
     ? await Promise.all([
         supabase.from("doctor_status_today").select("doctor_id, status, late_minutes").in("doctor_id", doctorIds),
         supabase.from("doctor_leaves").select("doctor_id, from_date, to_date").in("doctor_id", doctorIds).gte("to_date", today),
+        supabase.from("doctor_schedules").select("doctor_id, start_time, end_time").in("doctor_id", doctorIds).eq("weekday", weekday),
+        supabase.from("doctor_breaks").select("doctor_id, start_time, end_time").in("doctor_id", doctorIds).eq("weekday", weekday),
       ])
-    : [{ data: [] }, { data: [] }]
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }]
+  type TimeRow = { doctor_id: string; start_time: string; end_time: string }
+  const windowsOf = (rows: TimeRow[] | null, id: string) =>
+    (rows ?? []).filter((r) => r.doctor_id === id).map((r) => ({ start: r.start_time, end: r.end_time }))
+  const nowTime = clockNow(now, timeZone)
   const statusOf = new Map(
     ((statusRes.data ?? []) as { doctor_id: string; status: DoctorStatus; late_minutes: number | null }[]).map((r) => [
       r.doctor_id,
@@ -290,7 +315,24 @@ export async function loadAppointments(
     }
     if (day !== today) return null
     const st = statusOf.get(doctorId)
-    if (st?.status === "off") return { text: "Doctor not seeing patients today", tone: "danger" }
+    // Same time-of-day rules as the directory: the stored status only counts during a shift.
+    const shifts = windowsOf(shiftsRes.data as TimeRow[] | null, doctorId)
+    const a = availability({
+      status: st?.status ?? "available",
+      lateMinutes: st?.late_minutes ?? null,
+      leaveReason: undefined,
+      hasShiftToday: shifts.length > 0,
+      shifts,
+      breaks: windowsOf(breaksRes.data as TimeRow[] | null, doctorId),
+      nowTime,
+    })
+    if (a.kind === "leave" || a.kind === "off") return { text: "Doctor not seeing patients today", tone: "danger" }
+    // "Opens at 9 AM" -> "Doctor starts at 9 AM"; "Back at 5 PM" / "On a break until…" -> "Doctor back at…".
+    const lower = a.label.charAt(0).toLowerCase() + a.label.slice(1)
+    if (a.kind === "before") return { text: `Doctor starts ${lower.replace(/^opens /, "")}`, tone: "neutral" }
+    if (a.kind === "between") return { text: `Doctor ${lower}`, tone: "neutral" }
+    if (a.kind === "break") return { text: `Doctor ${lower}`, tone: "warning" }
+    if (a.kind === "after") return null
     if (st?.status === "running_late") {
       if (!st.late_minutes) return { text: "Doctor running late", tone: "warning" }
       const expect = new Date(new Date(startsAt).getTime() + st.late_minutes * 60_000).toLocaleTimeString("en-US", {
@@ -300,7 +342,6 @@ export async function loadAppointments(
       })
       return { text: `Doctor running ${st.late_minutes} min late, expect ~${expect}`, tone: "warning" }
     }
-    if (st?.status === "on_break") return { text: "Doctor on a short break", tone: "warning" }
     return { text: "Doctor available today", tone: "success" }
   }
 

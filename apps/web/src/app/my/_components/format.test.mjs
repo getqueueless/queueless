@@ -2,7 +2,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { ageOn, availability, clockLabel, dayKey, firstName, initials, shiftsLabel, slotLabel } from "./format.ts"
+import { ageOn, availability, clockNow, clockLabel, dayKey, firstName, initials, shiftsLabel, slotLabel } from "./format.ts"
 
 const base = { status: "available", lateMinutes: null, leaveReason: undefined, hasShiftToday: true }
 
@@ -19,7 +19,7 @@ test("status off reads as on leave", () => {
 test("no shift today is off today, not bookable", () => {
   const a = availability({ ...base, hasShiftToday: false })
   assert.equal(a.kind, "off")
-  assert.equal(a.label, "Off today")
+  assert.equal(a.label, "Not seeing patients today")
   assert.equal(a.bookable, false)
 })
 
@@ -75,4 +75,24 @@ test("age turns over on the birthday itself", () => {
   assert.equal(ageOn("1966-09-27", "2026-09-26"), 59)
   assert.equal(ageOn("1966-10-01", "2026-09-26"), 59)
   assert.equal(ageOn("1990-01-15", "2026-09-26"), 36)
+})
+
+test("the clock decides outside a shift; the stored status only inside one", () => {
+  const day = {
+    ...base,
+    status: "running_late",
+    lateMinutes: 20,
+    shifts: [
+      { start: "17:00:00", end: "20:00:00" },
+      { start: "09:00:00", end: "13:00:00" },
+    ],
+    breaks: [{ start: "11:00:00", end: "11:15:00" }],
+  }
+  assert.equal(availability({ ...day, nowTime: "06:30:00" }).label, "Opens at 9 AM")
+  assert.equal(availability({ ...day, nowTime: "10:00:00" }).label, "Running late 20 min")
+  assert.equal(availability({ ...day, nowTime: "11:05:00" }).label, "On a break until 11:15 AM")
+  assert.equal(availability({ ...day, nowTime: "14:00:00" }).label, "Back at 5 PM")
+  assert.equal(availability({ ...day, nowTime: "20:00:00" }).label, "Done for today, book for tomorrow")
+  assert.equal(availability({ ...day, nowTime: "06:30:00" }).bookable, true)
+  assert.equal(clockNow(new Date("2026-09-26T01:00:00Z"), "Asia/Kolkata"), "06:30:00")
 })
