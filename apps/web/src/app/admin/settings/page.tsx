@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { DemoClockSettings } from "./DemoClockSettings"
 import { PrioritySettings } from "./PrioritySettings"
 import type { OrganizationRow } from "../_lib/types"
 import { describeSupabaseError } from "../_lib/describe-error"
@@ -19,7 +20,7 @@ export default async function SettingsPage() {
   const { data: org, error } = profile?.org_id
     ? await supabase
         .from("organizations")
-        .select("id, slug, name, kind, timezone, priority_head_start_minutes")
+        .select("id, slug, name, kind, timezone, priority_head_start_minutes, demo_clock_at, demo_clock_set_at")
         .eq("id", profile.org_id)
         .maybeSingle()
     : { data: null, error: null }
@@ -41,7 +42,10 @@ export default async function SettingsPage() {
       ) : error || !org ? (
         <div className={`${styles.banner} ${styles.bannerDanger}`}>{describeSupabaseError(error)}</div>
       ) : (
-        <PrioritySettings org={org as OrganizationRow} />
+        <div className={styles.stack}>
+          <DemoClockSettings org={org as OrganizationRow} />
+          <PrioritySettings org={org as OrganizationRow} />
+        </div>
       )}
     </div>
   )

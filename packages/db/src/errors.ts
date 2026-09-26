@@ -29,6 +29,10 @@ export type ErrorCode =
   | "too_many_holds"
   | "payment_required"
   | "time_clash"
+  | "outside_hours"
+  | "doctor_on_leave"
+  | "not_payable"
+  | "no_doctor_for_slot"
   | "PGRST003"
   | "PGRST202"
   | "network_error";
@@ -70,6 +74,10 @@ export const ERRORS: Record<ErrorCode, ErrorInfo> = {
   too_many_holds: { http: 409, message: "You already have 2 unpaid bookings", retryable: false },
   payment_required: { http: 402, message: "This booking needs payment -- use Book & pay", retryable: false },
   time_clash: { http: 409, message: "You already have a booking at that time", retryable: false },
+  outside_hours: { http: 409, message: "This doctor isn't accepting walk-ins right now", retryable: false },
+  doctor_on_leave: { http: 409, message: "This doctor is on leave today", retryable: false },
+  not_payable: { http: 409, message: "This doctor has no online fee configured", retryable: false },
+  no_doctor_for_slot: { http: 409, message: "This slot has no doctor assigned", retryable: false },
   PGRST003: { http: 504, message: "Busy, try again", retryable: true },
   PGRST202: { http: 404, message: "Server updating, retry shortly", retryable: true },
   network_error: { http: 0, message: "Couldn't reach the server", retryable: true },

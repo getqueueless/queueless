@@ -27,6 +27,8 @@ export type OrganizationRow = {
   kind: string
   timezone: string
   priority_head_start_minutes: number
+  demo_clock_at: string | null
+  demo_clock_set_at: string | null
 }
 
 export type ProfileRow = {
