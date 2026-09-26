@@ -1210,3 +1210,15 @@ under "Web app" above.
   when the AI is unavailable), and says so plainly when it is asked too often (5 a minute per
   person, 60 a minute overall). If the help service is down, the page says so instead of showing
   a blank list.
+
+## Doctor desk (/doctor)
+
+- A big, calm screen for a doctor or their assistant on a PC or tablet: who is at the desk now
+  (token, name when staff may see it, priority lane, how long since they were called), one large
+  Next patient button, and Start / Done / Recall / No-show with keyboard keys (N, S, D, R, K), so a
+  doctor can move the queue without a mouse. It also shows the next five patients in the exact
+  order the database will call them, today's count and average consult time, a desk open/closed
+  switch, and quick "running late / on break / back" buttons.
+- No new backend: it presses the same database functions the counter console uses. When a desk
+  is linked to a doctor, "Next" only calls that doctor's patients. Every press is broadcast by the
+  database, so patients' phones and the waiting-room TV move within seconds without refreshing.
