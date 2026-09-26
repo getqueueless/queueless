@@ -95,6 +95,12 @@ export async function updateSession(request: NextRequest) {
     // require_complete_profile) regardless of whether this redirect fires.
     const profile = await getMyProfile(supabase, userId);
 
+    // Doctors (their own role) only use /doctor: the staff, kiosk and admin
+    // screens send them to their desk.
+    if (profile?.role === "doctor" && (isAdminPath(pathname) || (isStaffOnlyPath(pathname) && pathname !== "/doctor"))) {
+      return NextResponse.redirect(new URL("/doctor", request.url));
+    }
+
     if (isAdminPath(pathname) && profile?.role !== "admin") {
       return NextResponse.redirect(new URL("/counter", request.url));
     }

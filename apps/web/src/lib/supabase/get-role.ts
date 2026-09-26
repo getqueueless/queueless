@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 export type ProfileSummary = {
-  role: "patient" | "staff" | "admin"
+  role: "patient" | "staff" | "admin" | "doctor"
   orgId: string | null
   fullName: string | null
   profileCompletedAt: string | null

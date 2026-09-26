@@ -17,5 +17,6 @@ export function safeNextPath(value: string | FormDataEntryValue | null | undefin
 export function roleLandingPath(profile: ProfileSummary | null): string {
   if (profile?.role === "admin") return "/admin"
   if (profile?.role === "staff") return "/counter"
+  if (profile?.role === "doctor") return "/doctor"
   return "/my"
 }
