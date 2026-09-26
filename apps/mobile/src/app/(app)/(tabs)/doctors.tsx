@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PrioritySheet, type PriorityLane } from '@/components/booking/PrioritySheet';
 import {
   AnimatedPressable,
   BottomSheet,
@@ -31,7 +32,7 @@ import {
   type NextSlot,
 } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
-import { supabase } from '@/lib/supabase';
+import { startPaidAppointment, startPaidBooking } from '@/lib/paid-booking';
 import { showToast } from '@/lib/toast-store';
 import { useLiveRefresh } from '@/lib/use-live-refresh';
 import { useRequireCompleteProfile } from '@/lib/use-require-complete-profile';
@@ -144,6 +145,7 @@ function DoctorDetailSheet({ doctorId, onClose }: { doctorId: string | null; onC
   const [nextSlots, setNextSlots] = useState<NextSlot[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
+  const [priorityOpen, setPriorityOpen] = useState(false);
 
   // No reset-on-close branch: the sheet is invisible while closed (BottomSheet keeps its content
   // mounted only for the close animation), and the next doctor's data overwrites this on its own
@@ -170,25 +172,30 @@ function DoctorDetailSheet({ doctorId, onClose }: { doctorId: string | null; onC
 
   // A selected slot pill mints a paid hold for THAT time (start_paid_appointment); with no slot
   // picked it's a walk-in hold for the doctor today (start_paid_booking) -- these are different
-  // RPCs (0039 vs 0052), never interchangeable, per Payment work/the orchestrator's rule. Calling
-  // the RPCs directly for now since lib/paid-booking.ts's own startPaidAppointment wrapper
-  // hasn't shipped yet; switch to it once it has (same contract, same return shape).
-  async function handleBookAndPay() {
+  // RPCs (0039 vs 0052), never interchangeable, per Payment work/the orchestrator's rule. Both
+  // ask the priority question first (PrioritySheet) before minting the hold.
+  function handleBookAndPay() {
     if (!doctor || booking) return;
+    setPriorityOpen(true);
+  }
+
+  async function handlePriorityConfirm(lane: PriorityLane, note: string | null) {
+    setPriorityOpen(false);
+    if (!doctor) return;
     setBooking(true);
-    const { data, error } = selectedSlotId
-      ? await supabase.rpc('start_paid_appointment', { p_slot: selectedSlotId }).single()
-      : await supabase.rpc('start_paid_booking', { p_doctor_id: doctor.id }).single();
+    const result = selectedSlotId
+      ? await startPaidAppointment(selectedSlotId, lane, note)
+      : await startPaidBooking(doctor.id, lane, note);
     setBooking(false);
-    if (error) {
-      showToast(mapSupabaseError({ code: error.code, message: error.message }), 'error');
+    if (!result.ok) {
+      showToast(mapSupabaseError({ code: undefined, message: result.error }), 'error');
       return;
     }
-    const hold = data as { id: string } | null;
-    if (hold?.id) goToCheckout(hold.id);
+    goToCheckout('tokenId' in result ? result.tokenId : result.holdId);
   }
 
   return (
+    <>
     <BottomSheet visible={!!doctorId} onClose={onClose}>
       {!doctor ? (
         <View style={styles.sheetLoading}>
@@ -244,6 +251,8 @@ function DoctorDetailSheet({ doctorId, onClose }: { doctorId: string | null; onC
         />
       ) : null}
     </BottomSheet>
+    <PrioritySheet visible={priorityOpen} onClose={() => setPriorityOpen(false)} onConfirm={handlePriorityConfirm} />
+    </>
   );
 }
 

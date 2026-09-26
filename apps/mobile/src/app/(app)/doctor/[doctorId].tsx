@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PrioritySheet, type PriorityLane } from '@/components/booking/PrioritySheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CardShadow, Rounded, Spacing } from '@/constants/theme';
@@ -10,7 +11,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { isCheckInWindow } from '@/lib/appointmentWindow';
 import { doctorStatusLabel, fetchDoctor, formatFee, type DoctorWithStatus } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
-import { startPaidBooking } from '@/lib/paid-booking';
+import { startPaidAppointment, startPaidBooking } from '@/lib/paid-booking';
 import { supabase } from '@/lib/supabase';
 import { useRequireCompleteProfile } from '@/lib/use-require-complete-profile';
 
@@ -38,6 +39,7 @@ export default function DoctorDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [payBusy, setPayBusy] = useState(false);
+  const [priorityRequest, setPriorityRequest] = useState<{ kind: 'walkin' } | { kind: 'slot'; slot: Slot } | null>(null);
 
   async function load() {
     if (!doctorId) return;
@@ -86,35 +88,47 @@ export default function DoctorDetail() {
 
   // No free booking path: migration 0068 makes book_appointment 402 payment_required for a
   // patient caller -- every slot now goes through start_paid_appointment's paid hold, same as
-  // the top "Take token" button's start_paid_booking, just scoped to one specific slot.
-  async function handleBook(slot: Slot) {
-    setActionError(null);
-    setPendingId(slot.id);
-    const { data, error } = await supabase.rpc('start_paid_appointment', { p_slot: slot.id }).single();
-    setPendingId(null);
-    if (error) {
-      setActionError(mapSupabaseError({ code: error.code, message: error.message }));
-      return;
-    }
-    const hold = data as { id: string } | null;
-    if (hold?.id) router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: hold.id } });
+  // the top "Take token" button's start_paid_booking, just scoped to one specific slot. Both
+  // ask the priority question first (PrioritySheet) before minting the hold.
+  function handleBook(slot: Slot) {
+    setPriorityRequest({ kind: 'slot', slot });
   }
 
   // Book & pay: skips the slot list entirely -- a token minted right now, paid online, no
   // appointment slot involved (a separate flow from Book/Check-in/Cancel above, same split the
   // web app's /my page uses between "Take a token" and appointment booking). Mints the hold here,
   // then hands off to the checkout review screen -- it owns the actual payment step.
-  async function handlePayBooking() {
-    if (!doctorId) return;
+  function handlePayBooking() {
+    setPriorityRequest({ kind: 'walkin' });
+  }
+
+  async function handlePriorityConfirm(lane: PriorityLane, note: string | null) {
+    const request = priorityRequest;
+    setPriorityRequest(null);
+    if (!request) return;
     setActionError(null);
-    setPayBusy(true);
-    const result = await startPaidBooking(doctorId);
-    setPayBusy(false);
+
+    if (request.kind === 'walkin') {
+      if (!doctorId) return;
+      setPayBusy(true);
+      const result = await startPaidBooking(doctorId, lane, note);
+      setPayBusy(false);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: result.tokenId } });
+      return;
+    }
+
+    setPendingId(request.slot.id);
+    const result = await startPaidAppointment(request.slot.id, lane, note);
+    setPendingId(null);
     if (!result.ok) {
       setActionError(result.error);
       return;
     }
-    router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: result.tokenId } });
+    router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: result.holdId } });
   }
 
   async function handleCancel(appt: Appointment) {
@@ -270,6 +284,11 @@ export default function DoctorDetail() {
           </ScrollView>
         ) : null}
       </SafeAreaView>
+      <PrioritySheet
+        visible={!!priorityRequest}
+        onClose={() => setPriorityRequest(null)}
+        onConfirm={handlePriorityConfirm}
+      />
     </ThemedView>
   );
 }

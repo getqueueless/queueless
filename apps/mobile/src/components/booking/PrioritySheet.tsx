@@ -7,13 +7,16 @@ import { useTheme } from '@/hooks/use-theme';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/use-session';
 
-export type PriorityLane = 'normal' | 'senior' | 'pregnant' | 'emergency';
+// The only values start_paid_booking/start_paid_appointment accept for p_requested_lane
+// (Hackathon database, confirmed): 'normal' (no request -- the default), 'pregnant',
+// 'emergency'. 'senior' is server-detected from profiles.date_of_birth and ignored/overridden
+// if sent, so it's never an option here -- shown as an informational, non-selectable row instead.
+export type PriorityLane = 'normal' | 'pregnant' | 'emergency';
 
 const NOTE_MAX = 80;
 
 const OPTIONS: { lane: PriorityLane; label: string }[] = [
   { lane: 'normal', label: 'None' },
-  { lane: 'senior', label: 'Senior citizen (60+)' },
   { lane: 'pregnant', label: 'Pregnant' },
   { lane: 'emergency', label: 'Emergency' },
 ];
@@ -45,7 +48,7 @@ export function PrioritySheet({
   const { session } = useSession();
   const [lane, setLane] = useState<PriorityLane>('normal');
   const [note, setNote] = useState('');
-  const [autoSenior, setAutoSenior] = useState(false);
+  const [isSenior, setIsSenior] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -60,10 +63,7 @@ export function PrioritySheet({
       .then(({ data }) => {
         if (cancelled) return;
         const dob = (data as { date_of_birth: string | null } | null)?.date_of_birth;
-        if (dob && ageFromDob(dob) >= 60) {
-          setAutoSenior(true);
-          setLane((current) => (current === 'normal' ? 'senior' : current));
-        }
+        setIsSenior(!!dob && ageFromDob(dob) >= 60);
       });
     return () => {
       cancelled = true;
@@ -82,6 +82,14 @@ export function PrioritySheet({
           Staff verify this at the counter before it applies to your place in line.
         </UIText>
 
+        {isSenior ? (
+          <View style={[styles.seniorNote, { backgroundColor: theme.primarySoft, borderColor: theme.primaryOutline }]}>
+            <UIText variant="secondaryStrong" color="primaryText">
+              You&apos;re marked as a senior citizen (60+) automatically from your profile — no need to select it below.
+            </UIText>
+          </View>
+        ) : null}
+
         <View style={styles.options}>
           {OPTIONS.map((opt) => {
             const selected = lane === opt.lane;
@@ -95,7 +103,6 @@ export function PrioritySheet({
                   />
                   <UIText variant="body" style={styles.flex}>
                     {opt.label}
-                    {opt.lane === 'senior' && autoSenior ? ' (from your profile)' : ''}
                   </UIText>
                 </View>
               </Card>
@@ -138,6 +145,7 @@ export function PrioritySheet({
 
 const styles = StyleSheet.create({
   subtitle: { marginTop: 4, marginBottom: 16 },
+  seniorNote: { borderWidth: 1, borderRadius: 16, padding: 12, marginBottom: 12 },
   options: { gap: 8 },
   optionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   flex: { flex: 1 },

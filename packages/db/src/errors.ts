@@ -10,6 +10,7 @@ export type ErrorCode =
   | "rate_limited"
   | "cooldown"
   | "lane_not_allowed"
+  | "note_too_long"
   | "slot_full"
   | "checkin_window"
   | "counter_busy"
@@ -50,6 +51,7 @@ export const ERRORS: Record<ErrorCode, ErrorInfo> = {
   rate_limited: { http: 429, message: "Too many requests, please slow down", retryable: true },
   cooldown: { http: 403, message: "Too many cancellations today, try again tomorrow", retryable: true },
   lane_not_allowed: { http: 403, message: "That lane isn't available to you", retryable: false },
+  note_too_long: { http: 400, message: "That note is too long -- keep it under 80 characters", retryable: false },
   slot_full: { http: 409, message: "That slot just filled up", retryable: false },
   checkin_window: { http: 409, message: "It's too early or too late to check in", retryable: false },
   counter_busy: { http: 409, message: "That desk is already serving someone", retryable: false },
