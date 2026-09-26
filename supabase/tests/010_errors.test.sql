@@ -39,7 +39,7 @@ select is(
 ) from pg_temp.call_fail(409, 'illegal_transition', 'nope', null, null) r;
 
 select is(
-  r.v_message::jsonb -> 'details' ->> 'token_id', 'abc-123', 'details payload passes through'
+  (r.v_message::jsonb ->> 'details')::jsonb ->> 'token_id', 'abc-123', 'details payload passes through as a JSON string (PostgREST rejects an object)'
 ) from pg_temp.call_fail(409, 'already_active', 'already have one', null, '{"token_id": "abc-123"}'::jsonb) r;
 
 select * from finish(true);

@@ -1,5 +1,5 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -59,7 +59,7 @@ export default function DoctorDetail() {
           .gt('starts_at', new Date().toISOString())
           .order('starts_at', { ascending: true }),
         patientId
-          ? supabase.from('appointments').select('id, slot_id, status').eq('patient_id', patientId).eq('status', 'booked')
+          ? supabase.from('appointments').select('id, slot_id, status').eq('patient_id', patientId).in('status', ['booked', 'pending_payment'])
           : Promise.resolve({ data: [], error: null }),
       ]);
 
@@ -77,13 +77,15 @@ export default function DoctorDetail() {
     }
   }
 
-  useEffect(() => {
-    if (!ready) return;
-    (async () => {
-      await load();
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load() is redefined every render from doctorId (already listed) plus stable setters; adding it here would re-run the effect every render.
-  }, [ready, doctorId]);
+  // On focus, not just mount: coming back from checkout (paid, or hold cancelled) must show the
+  // slot's new state.
+  useFocusEffect(
+    useCallback(() => {
+      if (!ready) return;
+      load();
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- load() is redefined every render from doctorId (already listed) plus stable setters; adding it here would re-run the effect every render.
+    }, [ready, doctorId]),
+  );
 
   function findMine(slot: Slot) {
     return myAppointments.find((a) => a.slot_id === slot.id);
@@ -117,6 +119,12 @@ export default function DoctorDetail() {
       const result = await startPaidBooking(doctorId, lane, note);
       setPayBusy(false);
       if (!result.ok) {
+        // An open ticket for this doctor already exists -- usually an unpaid hold from a payment
+        // that never finished. Checkout shows it: pay, cancel the hold, or (if paid) view status.
+        if (result.existingTokenId) {
+          router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: result.existingTokenId } });
+          return;
+        }
         setActionError(result.error);
         return;
       }
@@ -139,7 +147,12 @@ export default function DoctorDetail() {
   async function handleCancel(appt: Appointment) {
     setActionError(null);
     setPendingId(appt.id);
-    const { error } = await supabase.rpc('cancel_appointment', { p_appointment: appt.id });
+    // An unpaid hold is released with cancel_hold (no refund involved); a paid booking goes
+    // through cancel_appointment and its refund rules.
+    const { error } =
+      appt.status === 'pending_payment'
+        ? await supabase.rpc('cancel_hold', { p_id: appt.id })
+        : await supabase.rpc('cancel_appointment', { p_appointment: appt.id });
     if (error) setActionError(mapSupabaseError({ code: error.code, message: error.message }));
     await load();
     setPendingId(null);
@@ -240,7 +253,30 @@ export default function DoctorDetail() {
                 <View key={slot.id} style={[styles.slotCard, CardShadow, { borderColor: theme.hairline, backgroundColor: theme.surface }]}>
                   <ThemedText type="bodyLg">{formatSlot(slot.starts_at)}</ThemedText>
 
-                  {mine ? (
+                  {mine?.status === 'pending_payment' ? (
+                    <View style={styles.actions}>
+                      <Pressable
+                        disabled={busy}
+                        onPress={() => router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: mine.id } })}
+                        style={[styles.button, { backgroundColor: theme.primary, opacity: busy ? 0.6 : 1 }]}>
+                        <ThemedText type="button" themeColor="onPrimary">
+                          Finish payment
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        disabled={busy}
+                        onPress={() => handleCancel(mine)}
+                        style={[styles.buttonOutline, { borderColor: theme.primaryOutline, opacity: busy ? 0.6 : 1 }]}>
+                        {busy ? (
+                          <ActivityIndicator color={theme.ink} />
+                        ) : (
+                          <ThemedText type="button" themeColor="ink">
+                            Cancel hold
+                          </ThemedText>
+                        )}
+                      </Pressable>
+                    </View>
+                  ) : mine ? (
                     <View style={styles.actions}>
                       {canCheckIn ? (
                         <Pressable

@@ -12,6 +12,16 @@ import { CalendarIcon, ClockIcon, SearchIcon } from "./_components/icons"
 import { PriorityStep, type PriorityChoice } from "./_components/PriorityStep"
 import ui from "./_components/ui.module.css"
 
+// private.fail sends details as a JSON string (0078).
+function existingTokenId(details: unknown): string | null {
+  try {
+    const d = (typeof details === "string" ? JSON.parse(details) : details) as { token_id?: string } | null
+    return d?.token_id ?? null
+  } catch {
+    return null
+  }
+}
+
 const FIRST_SLOTS = 6
 
 // Booking codes worth our own words (0057/0068/0069); every other failure shows
@@ -109,6 +119,13 @@ function DoctorCard({
         p_doctor_id: d.id,
         ...priorityArgs(choice),
       })
+      // already_active: an open ticket for this doctor exists, usually an unpaid hold from a
+      // payment that never finished. /pay shows it: pay, cancel the hold, or view it if paid.
+      const existing = rpcError?.code === "already_active" ? existingTokenId(rpcError.details) : null
+      if (existing) {
+        router.push(`/pay/${existing}`)
+        return
+      }
       if (rpcError || !data?.id) {
         fail(bookingErrorText(rpcError))
         setTaking(false)

@@ -16,7 +16,23 @@ const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_URL ?? 'https://lpu.lol';
 
 export type StartHoldResult =
   | { ok: true; tokenId: string; priorityDropped: boolean }
-  | { ok: false; error: string };
+  | { ok: false; error: string; existingTokenId?: string };
+
+// already_active carries the patient's open ticket for this service (often an unpaid hold left
+// behind by a payment that never finished) so the caller can take them to it: pay, cancel, or
+// just view it. details arrives as a JSON string (private.fail, 0078).
+function holdFailure(error: { code?: string; message: string; details?: unknown }): { ok: false; error: string; existingTokenId?: string } {
+  if (error.code === 'already_active') {
+    try {
+      const raw = error.details;
+      const d = (typeof raw === 'string' ? JSON.parse(raw) : raw) as { token_id?: string } | null;
+      if (d?.token_id) return { ok: false, error: error.message, existingTokenId: d.token_id };
+    } catch {
+      // fall through to the plain message
+    }
+  }
+  return { ok: false, error: error.message };
+}
 
 // p_requested_lane/p_note (Hackathon database, confirmed signature): only 'pregnant', 'emergency'
 // are valid to pass ('normal' is the server default -- never sent, so a 'None' pick is the exact
@@ -42,10 +58,10 @@ export async function startPaidBooking(
       ...(note ? { p_note: note } : {}),
     });
     if (!withPriority.error) return { ok: true, tokenId: withPriority.data.id, priorityDropped: false };
-    if (!isFunctionNotFound(withPriority.error)) return { ok: false, error: withPriority.error.message };
+    if (!isFunctionNotFound(withPriority.error)) return holdFailure(withPriority.error);
   }
   const { data, error } = await supabase.rpc('start_paid_booking', { p_doctor_id: doctorId });
-  if (error) return { ok: false, error: error.message };
+  if (error) return holdFailure(error);
   return { ok: true, tokenId: data.id, priorityDropped: wantsPriority };
 }
 

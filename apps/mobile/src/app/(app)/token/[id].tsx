@@ -48,7 +48,6 @@ type QueueStatus = {
   recall_count: number | null;
 };
 
-const TERMINAL_STATUSES = new Set<TokenStatus>(['no_show', 'cancelled', 'skipped']);
 
 /** Round up to whole minutes; anything under a minute reads clearer as "less than a minute". */
 export function formatEta(etaSeconds: number | null): string | null {
@@ -243,7 +242,6 @@ export default function TokenScreen() {
     );
   }
 
-  const isTerminal = TERMINAL_STATUSES.has(status.status);
   // The ticket wears its department's tone, the same one as the department's tile on Home.
   const tone = Tones[toneFor(status.service_name)][dark ? 'dark' : 'light'];
 
@@ -283,7 +281,7 @@ export default function TokenScreen() {
                 Your slot is held for {Math.floor(holdSecondsLeft / 60)}:{String(holdSecondsLeft % 60).padStart(2, '0')}
               </UIText>
             </View>
-          ) : !isTerminal && feeInr != null && feeInr > 0 ? (
+          ) : status.status === 'pending_payment' && feeInr != null && feeInr > 0 ? (
             <Button label={`Book & pay ${formatFee(feeInr)}`} onPress={handleBookAndPay} loading={paying} block />
           ) : null}
 
