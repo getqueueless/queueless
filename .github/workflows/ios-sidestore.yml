@@ -126,7 +126,7 @@ jobs:
           VERSION="$BASE.${{ github.run_number }}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-          echo "Building Queueless $VERSION (build ${{ github.run_number }})"
+          echo "Building WaitWise $VERSION (build ${{ github.run_number }})"
 
       - name: Stamp version into app.json
         working-directory: apps/mobile
@@ -283,16 +283,16 @@ jobs:
             const fs = require("fs");
             const [, baseUrl, version, build, ipaName, ipaSize, date, minOS] = process.argv;
             const source = {
-              name: "Queueless",
+              name: "WaitWise",
               identifier: "xyz.lpu.queueless.source",
               apps: [
                 {
-                  name: "Queueless",
+                  name: "WaitWise",
                   bundleIdentifier: "com.queueless.mobile",
-                  developerName: "Queueless team",
+                  developerName: "WaitWise team",
                   subtitle: "Take a token. Leave the line.",
                   localizedDescription:
-                    "Queueless: a smart public-service queue app. Take a token, watch your live position, get called when it is your turn.",
+                    "WaitWise: a smart public-service queue app. Take a token, watch your live position, get called when it is your turn.",
                   iconURL: `${baseUrl}/icon.png`,
                   tintColor: "0cb7d6",
                   versions: [

@@ -205,7 +205,7 @@ jobs:
               versionCode: Number(e.BUILD),
               versionName: e.VERSION,
               apk: "https://lpu.lol/android/" + e.NAME,
-              notes: "Queueless " + e.VERSION + " (build " + e.BUILD + ", " + e.SHA.slice(0, 7) + ")",
+              notes: "WaitWise " + e.VERSION + " (build " + e.BUILD + ", " + e.SHA.slice(0, 7) + ")",
             };
             require("fs").writeFileSync("android-version.json", JSON.stringify(out, null, 2) + "\n");
           '
