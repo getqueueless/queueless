@@ -122,3 +122,25 @@ def test_help_ask_rejects_a_question_over_the_length_limit(client):
 def test_help_ask_rejects_unknown_lang(client):
     resp = client.post("/help/ask", json={"question": "how do I take a token", "lang": "fr"})
     assert resp.status_code == 422
+
+
+def test_help_ask_drops_a_refusal_line_stuck_in_front_of_a_real_answer(client):
+    import app.main as main_module
+
+    stray = (
+        "I can only help with WaitWise and your hospital visit.\n\n"
+        "Paid bookings are held for 10 minutes and confirmed after payment.\n"
+        "[faq: payments-refund-policy]"
+    )
+    real_client = main_module.app.state.deepseek_client
+    main_module.app.state.deepseek_client = _fake_client(stray)
+    try:
+        resp = client.post("/help/ask", json={"question": "how can i make a payment here?"})
+    finally:
+        main_module.app.state.deepseek_client = real_client
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"].startswith("Paid bookings are held")
+    assert "I can only help" not in body["answer"]
+    assert [b["id"] for b in body["based_on"]] == ["payments-refund-policy"]
