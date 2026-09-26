@@ -1,5 +1,4 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, AppState, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +14,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFee } from '@/lib/doctors';
 import { mapSupabaseError } from '@/lib/errors';
+import { openPaymentHandoff } from '@/lib/paid-booking';
 import { markTokenPaid } from '@/lib/paid-tokens';
 import { supabase } from '@/lib/supabase';
 import { useServiceUpdates } from '@/lib/service-updates';
@@ -135,20 +135,16 @@ export default function TokenScreen() {
     setPaying(true);
     setPayError(null);
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token ?? '';
-    const payUrl = `https://lpu.lol/pay/${id}#access_token=${accessToken}`;
-
-    const result = await WebBrowser.openAuthSessionAsync(payUrl, `queueless://paid/${id}`);
+    const result = await openPaymentHandoff(id);
     setPaying(false);
 
-    if (result.type === 'success') {
+    if (result.paid) {
       markTokenPaid(id);
       setHoldSecondsLeft(HOLD_SECONDS);
-      refetch();
-    } else if (result.type !== 'cancel' && result.type !== 'dismiss') {
-      setPayError("Couldn't open the payment page — check your connection and try again.");
     }
+    // Not an error either way -- refetch() reads the real status back from the server, the same
+    // ground truth this screen already polls every 10s via useLiveRefresh above.
+    refetch();
   }
 
   useEffect(() => {
