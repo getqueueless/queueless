@@ -9,7 +9,12 @@ on:
     paths:
       - "apps/mobile/**"
       - ".github/workflows/android-apk.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Build even if a newer run is queued (demo / release builds)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -55,7 +60,7 @@ jobs:
 
   build:
     needs: wait-turn
-    if: needs.wait-turn.outputs.newest == 'true'
+    if: needs.wait-turn.outputs.newest == 'true' || inputs.force
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # Job level: Metro inlines EXPO_PUBLIC_* while Gradle bundles the JS, not only at prebuild.
