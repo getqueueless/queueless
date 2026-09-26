@@ -399,6 +399,11 @@
   opacity: 0;
 }
 
+.toast[data-tone="error"] {
+  background: var(--color-danger);
+  color: #fff;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .toast {
     transition:

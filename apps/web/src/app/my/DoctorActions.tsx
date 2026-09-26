@@ -1,23 +1,30 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useId, useMemo, useState } from "react"
-import { errorInfo } from "@queueless/db"
+import { useEffect, useId, useMemo, useState } from "react"
 
 import { createClient } from "@/lib/supabase/client"
-import { BookAndPayButton } from "../pay/BookAndPayButton"
 import type { DashboardDoctor, Slot } from "./_components/data"
 import styles from "./_components/Doctors.module.css"
+import { actionErrorText, Toast } from "./_components/CancelButton"
 import { AVAILABILITY_TONE, initials } from "./_components/format"
 import { CalendarIcon, ClockIcon, SearchIcon } from "./_components/icons"
 import ui from "./_components/ui.module.css"
 
 const FIRST_SLOTS = 6
 
-// start_paid_appointment's own codes (0057/0068) that errorInfo does not map.
+// Booking codes worth our own words (0057/0068/0069); every other failure shows
+// the server's message or BOOK_FALLBACK, never nothing.
 const HOLD_ERRORS: Record<string, string> = {
   too_many_holds: "You already have 2 unpaid bookings. Pay or cancel one first.",
   rate_limited: "Too many tries, wait a bit.",
+}
+const BOOK_FALLBACK = "Couldn't book right now. Try again in a few minutes."
+
+function bookingErrorText(error: { code?: string; message?: string } | null): string {
+  // time_clash's own message names the clashing time ("You already have a booking at 10:00").
+  if (error?.code === "time_clash") return error.message || "You already have a booking at that time."
+  return actionErrorText(error, HOLD_ERRORS, BOOK_FALLBACK)
 }
 
 // "Today, 5:00 PM" -> ["Today", "5:00 PM"]; slots arrive soonest first, so
@@ -33,36 +40,59 @@ function byDay(slots: Slot[]): { day: string; slots: (Slot & { time: string })[]
   return days
 }
 
-function DoctorCard({ doctor: d }: { doctor: DashboardDoctor }) {
+function DoctorCard({ doctor: d, onError }: { doctor: DashboardDoctor; onError: (text: string) => void }) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const [open, setOpen] = useState(false)
   const [more, setMore] = useState(false)
   const [pending, setPending] = useState<string | null>(null)
+  const [taking, setTaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const panelId = useId()
   const a = d.availability
   const off = !a.bookable
   const next = d.slots[0]
 
+  function fail(text: string) {
+    setError(text)
+    onError(text)
+  }
+
   // Booking is paid (0068): hold the slot for 10 minutes, then pay on /pay/<id>.
   async function book(slot: Slot) {
     setError(null)
     setPending(slot.id)
-    const { data, error: rpcError } = await supabase.rpc("start_paid_appointment", { p_slot: slot.id })
-    if (rpcError || !data?.id) {
-      const code = rpcError?.code ?? ""
-      const known = errorInfo(code)
-      // time_clash's own message names the clashing time ("You already have a booking at 10:00").
-      setError(
-        code === "time_clash"
-          ? rpcError?.message || "You already have a booking at that time."
-          : (HOLD_ERRORS[code] ?? (known.http !== 500 ? known.message : rpcError?.message || known.message)),
-      )
+    try {
+      const { data, error: rpcError } = await supabase.rpc("start_paid_appointment", { p_slot: slot.id })
+      if (rpcError || !data?.id) {
+        fail(bookingErrorText(rpcError))
+        setPending(null)
+        return
+      }
+      router.push(`/pay/${data.id}`)
+    } catch {
+      fail(BOOK_FALLBACK)
       setPending(null)
-      return
     }
-    router.push(`/pay/${data.id}`)
+  }
+
+  // Same hold-then-pay flow as BookAndPayButton (start_paid_booking), with the
+  // errors this list needs: shown inline and as a toast, never swallowed.
+  async function takeToken() {
+    setError(null)
+    setTaking(true)
+    try {
+      const { data, error: rpcError } = await supabase.rpc("start_paid_booking", { p_doctor_id: d.id })
+      if (rpcError || !data?.id) {
+        fail(bookingErrorText(rpcError))
+        setTaking(false)
+        return
+      }
+      router.push(`/pay/${data.id}`)
+    } catch {
+      fail(BOOK_FALLBACK)
+      setTaking(false)
+    }
   }
 
   return (
@@ -117,9 +147,9 @@ function DoctorCard({ doctor: d }: { doctor: DashboardDoctor }) {
             Take token
           </button>
         ) : (
-          <BookAndPayButton doctorId={d.id} className={styles.primary}>
-            Take token
-          </BookAndPayButton>
+          <button type="button" className={styles.primary} onClick={takeToken} disabled={taking}>
+            {taking ? "Holding your spot…" : "Take token"}
+          </button>
         )}
         <button
           type="button"
@@ -172,6 +202,13 @@ function DoctorCard({ doctor: d }: { doctor: DashboardDoctor }) {
 export function DoctorActions({ doctors }: { doctors: DashboardDoctor[] }) {
   const [dept, setDept] = useState("all")
   const [query, setQuery] = useState("")
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const hide = setTimeout(() => setToast(null), 6000)
+    return () => clearTimeout(hide)
+  }, [toast])
 
   // The pills are the departments that actually have doctors, A to Z.
   const departments = useMemo(() => {
@@ -202,6 +239,7 @@ export function DoctorActions({ doctors }: { doctors: DashboardDoctor[] }) {
 
   return (
     <>
+      <Toast message={toast} tone="error" />
       <div className={styles.toolbar}>
         <div className={styles.filters} role="group" aria-label="Filter by department">
           {[{ id: "all", name: "All", count: doctors.length }, ...departments].map((d) => (
@@ -259,7 +297,7 @@ export function DoctorActions({ doctors }: { doctors: DashboardDoctor[] }) {
       ) : (
         <ul className={styles.grid}>
           {shown.map((d) => (
-            <DoctorCard key={d.id} doctor={d} />
+            <DoctorCard key={d.id} doctor={d} onError={setToast} />
           ))}
         </ul>
       )}

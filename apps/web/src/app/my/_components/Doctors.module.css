@@ -264,18 +264,6 @@
   margin-top: auto;
 }
 
-/* BookAndPayButton wraps its button (and any error) in a div. */
-.actions > div {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.actions > div > p {
-  color: var(--color-danger);
-  font-size: 13px;
-}
-
 .primary,
 .secondary {
   width: 100%;

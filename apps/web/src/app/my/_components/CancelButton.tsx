@@ -26,11 +26,27 @@ export async function cancelHold(
 
 export const HOLD_OUTCOME = "Nothing was charged for this hold, so there is nothing to refund. The slot goes back to other patients."
 
-export function cancelErrorText(error: { code?: string; message?: string } | null): string | null {
-  if (!error) return null
-  const code = error.code ?? ""
+/**
+ * Words for a failed booking or cancel, never empty: our own copy for codes we
+ * know, the server's message for any other private.fail code (they are written
+ * for patients), and a plain fallback for raw database or network errors.
+ */
+export function actionErrorText(
+  error: { code?: string; message?: string } | null,
+  own: Record<string, string>,
+  fallback: string,
+): string {
+  const code = error?.code ?? ""
+  if (own[code]) return own[code]
   const known = errorInfo(code)
-  return CANCEL_ERRORS[code] ?? (known.http !== 500 ? known.message : error.message || known.message)
+  if (known.http !== 500) return known.message
+  return /^[a-z_]+$/.test(code) && error?.message ? error.message : fallback
+}
+
+export const CANCEL_FALLBACK = "Couldn't cancel right now. Try again in a few minutes."
+
+export function cancelErrorText(error: { code?: string; message?: string } | null): string | null {
+  return error ? actionErrorText(error, CANCEL_ERRORS, CANCEL_FALLBACK) : null
 }
 
 /**
@@ -60,7 +76,12 @@ export function CancelButton({
   async function confirm() {
     setBusy(true)
     setError(null)
-    const message = await run()
+    let message: string | null
+    try {
+      message = await run()
+    } catch {
+      message = CANCEL_FALLBACK
+    }
     setBusy(false)
     if (message) {
       setError(message)
@@ -119,9 +140,9 @@ export function CancelButton({
 }
 
 /** A short confirmation at the foot of the screen after a cancel. */
-export function Toast({ message }: { message: string | null }) {
+export function Toast({ message, tone }: { message: string | null; tone?: "error" }) {
   return (
-    <p className={h.toast} role="status" data-show={message ? "" : undefined}>
+    <p className={h.toast} role={tone === "error" ? "alert" : "status"} data-show={message ? "" : undefined} data-tone={tone}>
       {message}
     </p>
   )
