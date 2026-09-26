@@ -33,6 +33,30 @@
   outline-offset: 2px;
 }
 
+/* The pinned copy once the header has scrolled away: its own surface, since
+   it floats over page content rather than sitting in a header. */
+.float {
+  composes: back;
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  z-index: 60;
+  border-color: var(--color-hairline-strong);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-raised);
+}
+
+/* Admin: clear of the slate sidebar on desktop, the hamburger on phones. */
+.float[data-variant="admin"] {
+  left: 236px;
+}
+
+@media (max-width: 639px) {
+  .float[data-variant="admin"] {
+    left: 64px;
+  }
+}
+
 /* Phones: arrow only, the header is tight. */
 @media (max-width: 479px) {
   .back {

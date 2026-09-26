@@ -127,6 +127,7 @@ function Bar({ initial }: { initial: LiveToken }) {
     <Link
       href={pending ? `/pay/${id}` : `/t/${id}`}
       className={styles.bar}
+      data-sticky-top
       data-status={token.status}
       aria-label={`Token ${token.code}: ${stage}. Open live status.`}
     >

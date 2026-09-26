@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import styles from "./BackButton.module.css"
 
@@ -25,28 +25,81 @@ function parentOf(path: string) {
 let firstPath: string | null = null
 let navigated = false
 
-export function BackButton({ className }: { className?: string }) {
+// Below whatever sticky strip is pinned to the top (the live-token bar), else 12px.
+function floatTop() {
+  const bar = document.querySelector("[data-sticky-top]")
+  const r = bar?.getBoundingClientRect()
+  return r && r.top <= 0 && r.bottom > 0 ? r.bottom + 8 : 12
+}
+
+const Chevron = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M15 18l-6-6 6-6" />
+  </svg>
+)
+
+export function BackButton({ className, variant }: { className?: string; variant?: "admin" }) {
   const pathname = usePathname()
   const router = useRouter()
+  const ref = useRef<HTMLButtonElement>(null)
+  // Once the header's own button scrolls off screen, a pinned copy takes over
+  // in the top-left corner, so Back is reachable from every part of the page.
+  const [floating, setFloating] = useState<number | null>(null)
 
   useEffect(() => {
     if (firstPath === null) firstPath = pathname
     else if (pathname !== firstPath) navigated = true
   }, [pathname])
 
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let frame = 0
+    const update = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        setFloating(el.getBoundingClientRect().bottom < 0 ? floatTop() : null)
+      })
+    }
+    update()
+    window.addEventListener("scroll", update, { passive: true })
+    window.addEventListener("resize", update)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", update)
+      window.removeEventListener("resize", update)
+    }
+  }, [pathname])
+
   if (hiddenOn(pathname)) return null
 
+  const goBack = () => (navigated ? router.back() : router.push(parentOf(pathname) as "/"))
+
   return (
-    <button
-      type="button"
-      className={className ? `${styles.back} ${className}` : styles.back}
-      onClick={() => (navigated ? router.back() : router.push(parentOf(pathname) as "/"))}
-      aria-label="Go back"
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M15 18l-6-6 6-6" />
-      </svg>
-      <span className={styles.label}>Back</span>
-    </button>
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className={className ? `${styles.back} ${className}` : styles.back}
+        onClick={goBack}
+        aria-label="Go back"
+      >
+        <Chevron />
+        <span className={styles.label}>Back</span>
+      </button>
+      {floating !== null && (
+        <button
+          type="button"
+          className={styles.float}
+          data-variant={variant}
+          style={{ top: floating }}
+          onClick={goBack}
+          aria-label="Go back"
+        >
+          <Chevron />
+          <span className={styles.label}>Back</span>
+        </button>
+      )}
+    </>
   )
 }

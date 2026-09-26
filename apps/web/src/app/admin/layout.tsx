@@ -36,7 +36,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className={styles.shell}>
         <AdminNav orgName={orgName} />
         <main id="admin-main" className={styles.content}>
-          <BackButton className={styles.adminBack} />
+          <BackButton className={styles.adminBack} variant="admin" />
           {children}
         </main>
       </div>
