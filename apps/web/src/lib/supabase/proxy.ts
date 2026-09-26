@@ -19,6 +19,7 @@ const PUBLIC_PATH_PATTERNS = [
   /^\/display\/[^/]+$/,
   /^\/t\/[^/]+$/,
   /^\/pay\/[^/]+$/,
+  /^\/faq$/,
 ];
 
 // Staff-only device screens -- a signed-in patient must never land here.
