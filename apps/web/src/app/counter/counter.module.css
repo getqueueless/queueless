@@ -410,6 +410,102 @@
   white-space: nowrap;
 }
 
+.printLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: var(--space-sm);
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.printLink:hover {
+  color: var(--color-primary-hover);
+}
+
+/* ---- Priority requests: a badge + note + Verify/Reject, on the current
+   token card and on each waiting-list row alike. */
+
+.requestedLane {
+  width: 100%;
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px dashed var(--color-hairline-strong);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.requestedLaneNote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-ink-secondary);
+}
+
+.requestedLaneActions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.requestedLaneActions .actionPrimary,
+.requestedLaneActions .actionSecondary {
+  min-height: 40px;
+  padding: 0 var(--space-md);
+  font-size: 13px;
+}
+
+/* ---- Waiting list: below the current-token card, one compact row each. */
+
+.waitingList {
+  width: 100%;
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-hairline-strong);
+}
+
+.waitingListTitle {
+  margin: 0 0 var(--space-sm);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink-secondary);
+}
+
+.waitingListItems {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.waitingListItem {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.waitingListRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.waitingListCode {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.waitingListMeta {
+  color: var(--color-ink-secondary);
+  font-size: 13px;
+}
+
 /* ---- Keycaps */
 
 .kbd {

@@ -6,15 +6,12 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle"
 import { createClient } from "@/lib/supabase/server"
 import { SignOutButton } from "@/components/auth/SignOutButton"
 import { CounterConsole } from "./counter-console"
-import { ACTIVE_TOKEN_STATUSES, type CounterRow, type ProfileRow, type TokenRow } from "./types"
+import { ACTIVE_TOKEN_STATUSES, TOKEN_COLUMNS, type CounterRow, type ProfileRow, type TokenRow } from "./types"
 import styles from "./counter.module.css"
 
 export const metadata: Metadata = {
   title: "Counter",
 }
-
-const TOKEN_COLUMNS =
-  "id, org_id, service_id, service_day, number, code, lane, status, patient_id, walk_in_label, counter_id, recall_count, called_at, serving_at"
 
 // Slate app bar shared by the console and the no-desk state: skip link, the
 // brand mark, the screen name and the theme toggle. data-surface="slate" opts
@@ -108,14 +105,28 @@ export default async function CounterPage() {
       .in("status", ACTIVE_TOKEN_STATUSES)
       .limit(1)
       .maybeSingle(),
-    supabase.from("counter_services").select("services(name, code)").eq("counter_id", counter.id),
+    supabase.from("counter_services").select("service_id, services(name, code)").eq("counter_id", counter.id),
   ])
 
-  const serviceLabel =
-    (servicesRes.data as { services: { name: string; code: string } | null }[] | null)
-      ?.map((row) => row.services?.name)
-      .filter((name): name is string => Boolean(name))
-      .join(" · ") || "No service assigned"
+  const services = (servicesRes.data as { service_id: string; services: { name: string; code: string } | null }[] | null) ?? []
+  const serviceLabel = services.map((row) => row.services?.name).filter((name): name is string => Boolean(name)).join(" · ") || "No service assigned"
+  const serviceIds = services.map((row) => row.service_id)
+
+  // This desk's own org runs on Asia/Kolkata; tokens.service_day is the
+  // org's local day (private.service_day), not UTC's -- matching it with
+  // the server's UTC date would show yesterday's queue until 05:30 IST.
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
+
+  const waitingRes =
+    serviceIds.length > 0
+      ? await supabase
+          .from("tokens")
+          .select(TOKEN_COLUMNS)
+          .in("service_id", serviceIds)
+          .eq("service_day", today)
+          .eq("status", "waiting")
+          .order("priority_at", { ascending: true })
+      : { data: [] }
 
   return (
     <div className={styles.page}>
@@ -124,6 +135,8 @@ export default async function CounterPage() {
         <CounterConsole
           counter={counter}
           initialToken={(currentTokenRes.data as TokenRow | null) ?? null}
+          initialWaiting={(waitingRes.data as TokenRow[] | null) ?? []}
+          serviceIds={serviceIds}
           serviceLabel={serviceLabel}
           staffName={profile.full_name ?? user.email ?? "Staff"}
         />

@@ -5,8 +5,50 @@ import { ERRORS, errorInfo } from "@queueless/db"
 
 import { createClient } from "@/lib/supabase/client"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
-import { ACTIVE_TOKEN_STATUSES, type CounterRow, type Lane, type TokenRow } from "./types"
+import { ACTIVE_TOKEN_STATUSES, TOKEN_COLUMNS, type CounterRow, type Lane, type TokenRow } from "./types"
 import styles from "./counter.module.css"
+
+const REQUESTED_LANE_LABELS: Partial<Record<Lane, string>> = {
+  pregnant: "Requested: Pregnant",
+  senior: "Senior 60+ (auto)",
+  emergency: "Emergency",
+}
+
+// Verify/Reject only make sense for a lane verify_priority can actually set
+// (senior/pregnant) -- an emergency request shows the same red badge and
+// note but has nothing to confirm, so it gets no buttons.
+function RequestedLaneRow({
+  row,
+  busy,
+  onVerify,
+  onReject,
+}: {
+  row: Pick<TokenRow, "requested_lane" | "requested_lane_note">
+  busy: boolean
+  onVerify: () => void
+  onReject: () => void
+}) {
+  if (!row.requested_lane) return null
+  const verifiable = row.requested_lane === "senior" || row.requested_lane === "pregnant"
+  return (
+    <div className={styles.requestedLane}>
+      <span className={styles.laneBadge} data-lane={row.requested_lane}>
+        {REQUESTED_LANE_LABELS[row.requested_lane] ?? row.requested_lane}
+      </span>
+      {row.requested_lane_note && <p className={styles.requestedLaneNote}>{row.requested_lane_note}</p>}
+      {verifiable && (
+        <div className={styles.requestedLaneActions}>
+          <button type="button" className={styles.actionPrimary} onClick={onVerify} disabled={busy}>
+            {busy ? "Verifying…" : "Verify"}
+          </button>
+          <button type="button" className={styles.actionSecondary} onClick={onReject} disabled={busy}>
+            Reject
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 type Banner = { kind: "error" | "info"; text: string } | null
 
@@ -41,15 +83,21 @@ function formatElapsed(seconds: number): string {
 export function CounterConsole({
   counter,
   initialToken,
+  initialWaiting,
+  serviceIds,
   serviceLabel,
   staffName,
 }: {
   counter: CounterRow
   initialToken: TokenRow | null
+  initialWaiting: TokenRow[]
+  serviceIds: string[]
   serviceLabel: string
   staffName: string
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const [waiting, setWaiting] = useState<TokenRow[]>(initialWaiting)
+  const [verifyBusyId, setVerifyBusyId] = useState<string | null>(null)
   const [current, setCurrent] = useState<TokenRow | null>(initialToken)
   const [banner, setBanner] = useState<Banner>(null)
   const [pending, setPending] = useState(false)
@@ -85,6 +133,35 @@ export function CounterConsole({
       window.removeEventListener("focus", refreshDeskState)
     }
   }, [counter.id, supabase])
+
+  // Waiting tokens have no counter_id yet (that's only set once they're
+  // called), so the tokens realtime channel below -- filtered to this
+  // counter's own id -- never sees them. Same polling approach as the desk
+  // state above: on mount, every 10s, on focus, and once more right after
+  // Call Next (which removes whoever it pulled from this same list).
+  const refreshWaiting = useCallback(async () => {
+    if (serviceIds.length === 0) return
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
+    const { data } = await supabase
+      .from("tokens")
+      .select(TOKEN_COLUMNS)
+      .in("service_id", serviceIds)
+      .eq("service_day", today)
+      .eq("status", "waiting")
+      .order("priority_at", { ascending: true })
+    if (data) setWaiting(data as TokenRow[])
+  }, [serviceIds, supabase])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount, see react.dev/learn/you-might-not-need-an-effect#fetching-data
+    refreshWaiting()
+    const id = setInterval(refreshWaiting, 10000)
+    window.addEventListener("focus", refreshWaiting)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener("focus", refreshWaiting)
+    }
+  }, [refreshWaiting])
 
   // One-second ticker for the "since call started" timer, only while there's
   // something to time.
@@ -140,8 +217,9 @@ export function CounterConsole({
         return
       }
       setCurrent(token)
+      await refreshWaiting()
     })
-  }, [counter.id, run, supabase])
+  }, [counter.id, run, supabase, refreshWaiting])
 
   // "Done" covers both remaining lifecycle steps: a ticket lands here as
   // 'called' (complete_token only accepts 'serving'), so this starts serving
@@ -191,6 +269,43 @@ export function CounterConsole({
       setBanner({ kind: "info", text: `Recalled ${code}.` })
     })
   }, [current, run, supabase])
+
+  // verify_priority (supabase/migrations/0015_staff_issue_verify_priority.sql)
+  // only accepts p_status in ('senior', 'pregnant') -- it 403s
+  // ('lane_not_allowed') on anything else, including 'normal'. So "Verify"
+  // calls it with the requested lane, but "Reject" can't call it with
+  // 'normal' the way a first pass at this spec assumed; it clears the
+  // request directly instead. Both need requested_lane on tokens, which
+  // isn't live yet -- these are no-ops (row never has requested_lane set)
+  // until that column and its read path ship.
+  const verifyPriority = useCallback(
+    async (row: TokenRow) => {
+      if (!row.requested_lane || (row.requested_lane !== "senior" && row.requested_lane !== "pregnant")) return
+      setVerifyBusyId(row.id)
+      const { error } = await supabase.rpc("verify_priority", { p_token: row.id, p_status: row.requested_lane })
+      setVerifyBusyId(null)
+      if (error) {
+        setBanner({ kind: "error", text: mapSupabaseError(error) })
+        return
+      }
+      await refreshWaiting()
+    },
+    [supabase, refreshWaiting],
+  )
+
+  const rejectPriority = useCallback(
+    async (row: TokenRow) => {
+      setVerifyBusyId(row.id)
+      const { error } = await supabase.from("tokens").update({ requested_lane: null }).eq("id", row.id)
+      setVerifyBusyId(null)
+      if (error) {
+        setBanner({ kind: "error", text: mapSupabaseError(error) })
+        return
+      }
+      await refreshWaiting()
+    },
+    [supabase, refreshWaiting],
+  )
 
   // Realtime: a second screen open on this same counter (a supervisor view, a
   // second tab) sees calls/done/no-show/recall/transfer without a refresh.
@@ -311,6 +426,14 @@ export function CounterConsole({
             {current.walk_in_label ?? "Registered patient"} · #{current.number}
             {current.recall_count > 0 ? ` · recalled ${current.recall_count}×` : ""}
           </p>
+          {current.requested_lane && (
+            <RequestedLaneRow
+              row={current}
+              busy={verifyBusyId === current.id}
+              onVerify={() => void verifyPriority(current)}
+              onReject={() => void rejectPriority(current)}
+            />
+          )}
           <p className={styles.timer}>
             Called <span className={styles.timerValue}>{elapsedLabel}</span> ago
           </p>
@@ -344,7 +467,42 @@ export function CounterConsole({
               Recall <kbd className={styles.kbd} aria-hidden="true">R</kbd>
             </button>
           </div>
+
+          <a href={`/slip/${current.id}`} target="_blank" rel="noopener noreferrer" className={styles.printLink}>
+            Print OPD slip
+          </a>
         </div>
+      )}
+
+      {waiting.length > 0 && (
+        <section className={styles.waitingList} aria-labelledby="waiting-list-title">
+          <h2 id="waiting-list-title" className={styles.waitingListTitle}>
+            Waiting ({waiting.length})
+          </h2>
+          <ul className={styles.waitingListItems}>
+            {waiting.map((row) => (
+              <li key={row.id} className={styles.waitingListItem}>
+                <div className={styles.waitingListRow}>
+                  <span className={styles.laneBadge} data-lane={row.lane}>
+                    {LANE_LABELS[row.lane]}
+                  </span>
+                  <span translate="no" className={styles.waitingListCode}>
+                    {row.code}
+                  </span>
+                  <span className={styles.waitingListMeta}>{row.walk_in_label ?? "Registered patient"}</span>
+                </div>
+                {row.requested_lane && (
+                  <RequestedLaneRow
+                    row={row}
+                    busy={verifyBusyId === row.id}
+                    onVerify={() => void verifyPriority(row)}
+                    onReject={() => void rejectPriority(row)}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {/* Messages sit under the card so they never push the buttons down

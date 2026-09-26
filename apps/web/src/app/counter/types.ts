@@ -49,6 +49,14 @@ export type TokenRow = {
   recall_count: number
   called_at: string | null
   serving_at: string | null
+  // Not selected yet -- the column doesn't exist on prod until Hackathon
+  // database ships it. Optional so the waiting-list UI can render the same
+  // row shape either way; undefined/null both mean "nothing requested".
+  requested_lane?: Lane | null
+  requested_lane_note?: string | null
 }
 
 export const ACTIVE_TOKEN_STATUSES: TokenStatus[] = ["called", "serving"]
+
+export const TOKEN_COLUMNS =
+  "id, org_id, service_id, service_day, number, code, lane, status, patient_id, walk_in_label, counter_id, recall_count, called_at, serving_at"
