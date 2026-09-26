@@ -1,4 +1,4 @@
-# Queueless QA — FINAL regression — 2026-09-26 05:47 IST (00:17 UTC)
+# WaitWise QA — FINAL regression — 2026-09-26 05:47 IST (00:17 UTC)
 _Updated 05:52 IST: items 10 and 14 re-tested after `feb9fd5`/`cb7851f` landed — both now PASS. See "Update" section at the bottom._
 
 Target: production, https://lpu.lol (API https://api.lpu.lol, Supabase https://sb.lpu.lol)
@@ -7,7 +7,7 @@ Tester: QA session on branch `qa`, report-only — no app code touched.
 
 ## Summary
 
-**No open P0.** The one P0 found this cycle (post-login open redirect) is fixed and confirmed. Everything the orchestrator asked to be covered in this final pass was tested; a few items were verified via direct RPC/DB calls instead of end-to-end UI because a web UI doesn't exist yet (cash-desk was mobile-only until today) or because Razorpay's own hosted checkout iframe reproducibly gets stuck on contact-detail validation in this headless browser environment (not a Queueless bug — see the Payment section).
+**No open P0.** The one P0 found this cycle (post-login open redirect) is fixed and confirmed. Everything the orchestrator asked to be covered in this final pass was tested; a few items were verified via direct RPC/DB calls instead of end-to-end UI because a web UI doesn't exist yet (cash-desk was mobile-only until today) or because Razorpay's own hosted checkout iframe reproducibly gets stuck on contact-detail validation in this headless browser environment (not a WaitWise bug — see the Payment section).
 
 ## PASS/FAIL table
 
@@ -31,7 +31,7 @@ Tester: QA session on branch `qa`, report-only — no app code touched.
 | 16 | `/my` | Booking the same time twice → `time_clash` | **PASS** — server returns `409 time_clash`, UI shows "You already have a booking at 09:00" inline under the time picker |
 | 17 | `/my` | Cancel a hold + refund-policy confirm dialog | **PASS** — dialog correctly says "nothing was charged... nothing to refund" for an unpaid hold, cancels cleanly, "Appointment cancelled" confirmation, removed from Upcoming |
 | 18 | `/pay` | Razorpay test-mode UPI | **PASS (copy fixed)** — page now correctly says "UPI isn't enabled on this account yet" instead of over-promising it (earlier finding fixed) |
-| 19 | `/pay` | Razorpay test-mode card (`4111 1111 1111 1111`) | **BLOCKED — not a Queueless bug** — Razorpay's own hosted checkout iframe gets stuck re-showing its "save card?" dialog after the contact-details step in this headless environment; reproduced twice, independent of account. `pending_payment` hold mechanics (item 15) are confirmed correct up to the point Razorpay takes over; full completion relies on the team's own manual verification already on record (`18f1680`). |
+| 19 | `/pay` | Razorpay test-mode card (`4111 1111 1111 1111`) | **BLOCKED — not a WaitWise bug** — Razorpay's own hosted checkout iframe gets stuck re-showing its "save card?" dialog after the contact-details step in this headless environment; reproduced twice, independent of account. `pending_payment` hold mechanics (item 15) are confirmed correct up to the point Razorpay takes over; full completion relies on the team's own manual verification already on record (`18f1680`). |
 | 20 | `/kiosk` | Regular kiosk-token issuance | **PASS** — clean, no console errors |
 | 21 | `/kiosk?mode=cash` | Cash walk-in with phone → slip → claim on `/my` | **PASS** — full UI path tested end to end this pass (new page, `a2d9afe`): issued PED-014 with a real patient's phone, claimed via `/my` "Claim a ticket", landed on the correct `/t/<id>`, `patient_id` linked. Negative case (no-phone kiosk code) fails cleanly with a friendly error. |
 | 22 | `/counter` | Loads, no console errors, staff names correct | **PASS** — "Unnamed staff" fully resolved, real names shown everywhere |

@@ -93,7 +93,7 @@ Plain-English notes per feature: what was built, how it actually works, and why.
 - **Offline.** A slim banner (`@react-native-community/netinfo`) appears when connectivity drops
   and disappears on reconnect.
 - **App icon and splash.** The launcher icon, the Android adaptive icon (with a monochrome layer
-  for themed icons) and the splash screen all use the Queueless mark on the brand's slate-teal.
+  for themed icons) and the splash screen all use the WaitWise mark on the brand's slate-teal.
   They are rasterized from the same SVGs as the web app's icon, so phone and web share one
   identity.
 - **Production.** The app runs against the deployed backend (`sb.lpu.lol`, `api.lpu.lol`). A web
@@ -423,7 +423,7 @@ Plain-English notes per feature: what was built, how it actually works, and why.
     instead of a fake flat 0-minute line. Empty values read "Unassigned"/"None"/"No data yet",
     which exposed a real display bug: counters with staff whose profiles have no name looked
     unassigned. Every page keeps its h1 in error states and row buttons name their row.
-  - *Shared.* Page titles use a `"%s | Queueless"` template (no em dashes), slate regions get a
+  - *Shared.* Page titles use a `"%s | WaitWise"` template (no em dashes), slate regions get a
     cyan focus ring via `data-surface="slate"`, and every text/background pair was recomputed for
     both themes and passes AA (`node apps/web/brand/contrast-check.mjs`).
   - *Known limits, left for a logic/DB pass.* `board_counters` has no service or org column and an
@@ -435,7 +435,7 @@ Plain-English notes per feature: what was built, how it actually works, and why.
   Poppins headings with a cyan second word. It was a presentation pass. RPC calls, data fetching
   and validation are unchanged, and no npm dependency was added. It is still CSS Modules on top of
   the `globals.css` tokens, and `DESIGN.md` is kept in sync.
-  - *Brand kit.* Queueless now has its own mark. It is a Q whose ring is the line and whose tail
+  - *Brand kit.* WaitWise now has its own mark. It is a Q whose ring is the line and whose tail
     is a token slip torn off along the baseline, drawn on an 18 x 16 grid. The same `Logo`
     component is used in the public header, the counter app bar, the admin sidebar, the favicon
     (`src/app/icon.svg`) and the printed slip. `apps/web/brand/BRAND.md` has the strategy,
@@ -972,7 +972,7 @@ under "Web app" above.
 ## One sign-in screen on the phone (2026-09-26)
 
 - **Same shape as the web login.** Email and password first, with "Forgot password?"; then
-  Google; then "Email me a sign-in code instead"; then "New to Queueless? Create an account".
+  Google; then "Email me a sign-in code instead"; then "New to WaitWise? Create an account".
   Patients, staff and admins all use this one screen, and the database role decides which tabs
   they land on afterwards.
 - **Sign-up is verified.** A new account gets a 6-digit code by email before it can sign in.
@@ -1181,7 +1181,7 @@ under "Web app" above.
   opens the rear camera in a sheet and reads the slip's QR with the browser's own barcode reader
   where one exists (Chrome on Android), or with the small jsQR library, loaded only when the
   sheet opens, everywhere else (iPhone Safari, Firefox). A slip's code opens that token's live
-  page; any other QR code gets a plain "that isn't a Queueless slip" note; a blocked camera says
+  page; any other QR code gets a plain "that isn't a WaitWise slip" note; a blocked camera says
   to allow it or type the link. The camera turns off the moment a code is read, the sheet
   closes, or the page changes. Tested with a simulated camera showing a real slip QR.
 - **Theme switch.** Switching light/dark now visibly sweeps the whole page: the new theme grows
@@ -1199,12 +1199,12 @@ under "Web app" above.
 - The landing's numbers and service list now count only the demo hospital, so a load test
   running on the same database never inflates what visitors see.
 
-## FAQ and "Ask Queueless"
+## FAQ and "Ask WaitWise"
 
 - A public /faq page: questions grouped by who is asking (patients, payments and refunds, staff,
   admin, privacy and security, installing the app), with category buttons and a search box. The
   landing page shows the four most common ones with a link to the rest.
-- "Ask Queueless" takes a question in your own words and answers only from those FAQ entries,
+- "Ask WaitWise" takes a question in your own words and answers only from those FAQ entries,
   listing the ones it used as links that open them on the page. It labels whether the answer was
   written by AI or simply matched from the FAQ (the backend falls back to plain keyword matching
   when the AI is unavailable), and says so plainly when it is asked too often (5 a minute per

@@ -1,4 +1,4 @@
-# Queueless monitoring stack
+# WaitWise monitoring stack
 
 Prometheus + Grafana + postgres_exporter + Alertmanager, memory-limited to <=384MB
 total, well under the 1GB budget (see `docker-compose.yml`'s header comment for the

@@ -112,7 +112,7 @@ export async function deletePushToken(client: SupabaseClient, token: string): Pr
 - [ ] `app.json`: set `adaptiveIcon.backgroundColor` to `#1a3237`, drop `backgroundImage` and delete its PNG, and set the splash `backgroundColor` to `#1a3237`.
 - [ ] iOS `expo.icon` (best effort): swap the layer for the brand mark, set `fill.automatic-gradient` to slate-teal `extended-srgb:0.10196,0.19608,0.21569,1.00000`, and drop the template `grid.png` layer.
 - [ ] Theme AA check against `apps/web/brand/BRAND.md`. `theme.ts` has neither `#0a95ae` nor `#087589`. Display cyan text (`TwoToneHeading`, the Home card numbers) uses `#0cb7d6`, which is 2.40:1 on white, and `onPrimary` puts white on cyan fills. Fix: add `primaryDisplay` (`#0a95ae` light, `#3fd6f0` dark), use it for those two, and set the light `onPrimary` to ink `#252525`, as BRAND.md asks ("use ink instead").
-- [ ] Commits: `feat: Queueless icon, adaptive icon and splash for Android`, `feat: Queueless iOS icon layer`, `fix: AA-safe cyan display text and ink on cyan fills`.
+- [ ] Commits: `feat: WaitWise icon, adaptive icon and splash for Android`, `feat: WaitWise iOS icon layer`, `fix: AA-safe cyan display text and ink on cyan fills`.
 
 ### Task 4: Expo web bundling
 

@@ -1,4 +1,4 @@
-# Queueless brand
+# WaitWise brand
 
 ## Strategy
 - **Category:** public-service queue platform. The demo preset is a hospital OPD.
@@ -12,7 +12,7 @@ It is built on an 18 x 16 grid, where 1 unit is 1 px at 16 px tall. Every straig
 - **Ring (the line):** a circle of radius 8, stroke 3, centred at (8, 8). It is the queue that goes round and round.
 - **Slip (the token):** a 3-unit-high bar at the same weight as the ring. It sits on the ring's baseline (y 13 to 16) and runs 2 units past the ring's right edge.
 - **Tear:** a 1-unit gap separates the slip from the ring. It appears once as a vertical cut at the bottom and once above the slip, where the ring ends in a flat cut at y 12. The slip is torn off, not attached.
-- **Reading:** a Q for Queueless whose tail is a ticket sliding out along the floor, away from the loop.
+- **Reading:** a Q for WaitWise whose tail is a ticket sliding out along the floor, away from the loop.
 - **Details:** the torn end is square and the leading end has a 1-unit radius. Tickets have soft corners; tears don't.
 - **Rejected:** a 45-degree tail. It read as the search (magnifier) icon at 16 px. Keep the tail horizontal and on the baseline.
 
@@ -43,7 +43,7 @@ It is built on an 18 x 16 grid, where 1 unit is 1 px at 16 px tall. Every straig
 - **Poppins 700:** the wordmark and display headings. Headings are uppercase with a cyan second word.
 - **Poppins 400:** public-screen copy.
 - **Inter:** dense staff UI (counter, admin).
-- **Wordmark:** "Queueless" in mixed case, Poppins Bold, tracking -0.01em. Don't retype it in another font. Outside the app, use the outlined `queueless-logo.svg`.
+- **Wordmark:** "WaitWise" in mixed case, Poppins Bold, tracking -0.01em. Don't retype it in another font. Outside the app, use the outlined `queueless-logo.svg`.
 
 ## Tagline
 **Take a token. Leave the line.**

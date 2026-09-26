@@ -1,4 +1,4 @@
-# Queueless mobile — MedWin-derived design tokens
+# WaitWise mobile — MedWin-derived design tokens
 
 Derived directly from `~/code/design-ref/medwin/` (a static HTML template) and
 `~/code/design-ref/medwin-full.png`. Every color below cites the `css/style.css` line it came

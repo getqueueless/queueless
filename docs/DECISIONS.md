@@ -274,7 +274,7 @@ One line per deviation from the plan/spec, with why.
     sign-in link", a link only, with no 6-digit code. The app's code screen has nothing to accept.
   - **The link is broken too.** It points at `https://sb.lpu.lol/verify` without the `/auth/v1`
     prefix, and returns 404. The same token works at `/auth/v1/verify`.
-  - **Fix.** Set `GOTRUE_MAILER_SUBJECTS_MAGIC_LINK="{{ .Token }} is your Queueless code"`, the
+  - **Fix.** Set `GOTRUE_MAILER_SUBJECTS_MAGIC_LINK="{{ .Token }} is your WaitWise code"`, the
     same pattern as confirmation. Also fix the mailer URL paths (`GOTRUE_MAILER_URLPATHS_*` or
     `API_EXTERNAL_URL`).
 - 2026-09-26 (mobile, found on prod, **DB action needed**): **Realtime delivers nothing.** The
@@ -568,7 +568,7 @@ One line per deviation from the plan/spec, with why.
   `supabase/docker-compose.yml`). A user who already exists gets the *magic link* template
   instead: subject "Your sign-in link", a link, no 6-digit code, so the app's code screen can never
   complete for them. Confirmed with a real inbox on 2026-09-26. Fix is server-side (not mobile's
-  dirs): add `GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "{{ .Token }} is your Queueless code"` and
+  dirs): add `GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "{{ .Token }} is your WaitWise code"` and
   redeploy auth. No app change needed; `verifyOtp({ type: 'email' })` accepts that code.
 - 2026-09-26 (mobile): staff/admin skip the patient profile form after email-code or Google
   sign-in. The form asks for phone/DOB/city for booking, and prod staff accounts have no name.

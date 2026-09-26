@@ -1,6 +1,6 @@
 ---
 version: beta
-name: Queueless-design-system
+name: WaitWise-design-system
 description: "A bright, clinical public-service look after the MedWin hospital template: white base, one cyan accent, dark slate-teal sections, near-black ink, Poppins display type set bold and uppercase with a cyan second word. Public screens (landing, kiosk, token status, login) carry the full marketing treatment: numbered cards, overlapping hero card, rounded dark section, cyan-dot footer. Staff screens (counter, admin) take the same palette, radii and type pairing but stay dense and fast. Light is the default theme; dark is an explicit toggle. Every text colour pair is AA-checked by apps/web/brand/contrast-check.mjs."
 
 colors:
@@ -334,7 +334,7 @@ components:
 
 ## Overview
 
-Queueless is a public-service queue platform; the demo preset is a hospital OPD. The look follows the MedWin hospital template: a bright white base, one cyan accent (`#0cb7d6`), dark slate-teal sections (`#1a3237`), near-black ink (`#252525`) and Poppins set bold and uppercase for headings, with the second word of a heading in cyan ("TAKE A **TOKEN**").
+WaitWise is a public-service queue platform; the demo preset is a hospital OPD. The look follows the MedWin hospital template: a bright white base, one cyan accent (`#0cb7d6`), dark slate-teal sections (`#1a3237`), near-black ink (`#252525`) and Poppins set bold and uppercase for headings, with the second word of a heading in cyan ("TAKE A **TOKEN**").
 
 There are two registers:
 
@@ -455,7 +455,7 @@ Light is the default. The theme is attribute-driven, not `prefers-color-scheme`:
 - **One signature per public screen.** The landing's is the example token slip in the status card: fixed `#ffffff` paper in both themes, print sizes 11/12/34px, and a real QR that only encodes "Example slip only".
 - **/t CALLED** fills the status card head with brand `accent` and `on-accent` ink (6.39:1).
 - The landing's How it works is `section-dark` with `radius-section` on all four corners (MedWin's stadium) and canvas space before the footer.
-- No em dashes in UI copy; page titles come from the root layout's `"%s | Queueless"` template.
+- No em dashes in UI copy; page titles come from the root layout's `"%s | WaitWise"` template.
 
 ## Do's and Don'ts
 

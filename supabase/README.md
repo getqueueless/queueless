@@ -1,7 +1,7 @@
-# Queueless — Supabase backend
+# WaitWise — Supabase backend
 
 Self-hosted Supabase (Postgres 17 + GoTrue + PostgREST + Realtime + Kong), driving the
-whole Queueless queue/appointment/notification system. Every write goes through a
+whole WaitWise queue/appointment/notification system. Every write goes through a
 `SECURITY DEFINER` RPC in schema `public`. Nothing else is directly writable over the API.
 
 ## Running the stack
@@ -42,7 +42,7 @@ await supabase.auth.verifyOtp({ email, token, type: 'email' })
 ```
 
 The code is a 6-digit number, expires after **10 minutes**, and arrives in the **email
-subject line** (`###### is your Queueless code`), not the body — patients are typing a code,
+subject line** (`###### is your WaitWise code`), not the body — patients are typing a code,
 not clicking a link, so this is optimized for exactly that. Sends are capped at 30/hour
 (`GOTRUE_RATE_LIMIT_EMAIL_SENT`) as the abuse line for this feature.
 

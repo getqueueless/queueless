@@ -1,10 +1,10 @@
-# Queueless Mobile App Implementation Plan
+# WaitWise Mobile App Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > **Deviation from template, disclosed:** this plan is executed inline, same session, by the author who wrote it — no fresh engineer reads it cold. Full verbatim code-per-step (the base writing-plans format) would be pure duplication under those conditions, and the project is a 12-24h hackathon under an explicit 20-minute time-box per stuck step. Tasks below carry file paths, exact contracts (RPC names, table names, env vars, auth options), and code only where it is non-obvious or exact values matter (client init, error map, ETA formula, realtime channel wiring). Screen JSX is written directly during execution, not pre-written here twice.
 
-**Goal:** Build `apps/mobile`, the Expo patient app for Queueless — auth, live queue home, take-token flow, live token position, appointments, push/local notification fallback, history, settings — talking to the self-hosted Supabase backend other sessions are building in parallel.
+**Goal:** Build `apps/mobile`, the Expo patient app for WaitWise — auth, live queue home, take-token flow, live token position, appointments, push/local notification fallback, history, settings — talking to the self-hosted Supabase backend other sessions are building in parallel.
 
 **Architecture:** Expo Router file-based app, `(auth)` and `(app)` route groups gated by `onAuthStateChange`. All state comes from Supabase Postgres RPC calls + Realtime subscriptions (no custom backend calls except two optional, non-blocking API endpoints for push registration and ML wait prediction). Local fallbacks (estimate math, local notifications) exist wherever a dependency service might not be up, so the core flow (auth → take token → see live position) never blocks on anything but the DB.
 
