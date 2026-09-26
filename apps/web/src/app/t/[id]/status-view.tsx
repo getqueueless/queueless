@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { LogoMark } from "@/components/brand/Logo"
 import { QueueTracker } from "@/components/motion/QueueTracker"
 import { useEtaAtJoin, useNowServing } from "@/components/motion/useQueueExtras"
+import { useShiftGate } from "@/components/motion/useShiftGate"
 import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { createClient } from "@/lib/supabase/client"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
@@ -144,6 +145,7 @@ export function StatusView({
   const nowServing = useNowServing(token.service_id, token.service_day)
   const etaMinutes = predictedWaitMinutes === null ? null : Math.max(0, Math.round(predictedWaitMinutes))
   const etaAtJoin = useEtaAtJoin(tokenId, etaMinutes)
+  const gate = useShiftGate(tokenId)
 
   // Refresh position + ETA periodically while still waiting -- these are
   // derived from every other waiting token in the service, which the
@@ -206,6 +208,7 @@ export function StatusView({
           etaMinutes={etaMinutes}
           etaAtJoin={etaAtJoin}
           etaIsRough={predictedIsFallback}
+          gate={gate}
           counterCode={displayCounter?.name ?? null}
           nowServingNumber={nowServing}
           serviceName={service?.name ?? null}

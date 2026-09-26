@@ -95,6 +95,31 @@
   color: var(--color-ink-secondary);
 }
 
+/* Before the doctor's shift: a place in line and when the queue starts,
+   never a made-up countdown. */
+.gate {
+  display: grid;
+  gap: var(--space-xs);
+  justify-items: center;
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-soft);
+  text-align: center;
+}
+
+.gatePlace {
+  font-size: clamp(26px, 7vw, 34px);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.gateText {
+  max-width: 34ch;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-ink-secondary);
+}
+
 /* ---------- b) Queue lane: you, the people ahead, the counter ---------- */
 
 .laneWrap {

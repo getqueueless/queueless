@@ -3,6 +3,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { MAX_DOTS, freshLane, moveLane, stageOf, type TrackerStatus } from "./queue-lane";
 import { RolodexWord } from "./RolodexWord";
+import type { DoctorGate } from "./useShiftGate";
 import styles from "./QueueTracker.module.css";
 
 export type { TrackerStatus };
@@ -22,6 +23,8 @@ export type QueueTrackerProps = {
   serviceName: string | null;
   /** The estimate is /predict's documented fallback, not the model. */
   etaIsRough?: boolean;
+  /** The token's doctor hasn't started (or is between) today's shifts: no ETA, show when the queue starts. */
+  gate?: DoctorGate | null;
 };
 
 const ENDED: Partial<Record<TrackerStatus, { label: string; text: string }>> = {
@@ -64,6 +67,7 @@ export function QueueTracker({
   nowServingNumber,
   serviceName,
   etaIsRough = false,
+  gate = null,
 }: QueueTrackerProps) {
   // Called or being served: nobody is ahead any more, you are at the counter.
   const atCounter = status === "called" || status === "serving";
@@ -114,7 +118,19 @@ export function QueueTracker({
 
   return (
     <div className={styles.tracker} data-status={status}>
-      {live && (
+      {status === "waiting" && gate && (
+        <div className={styles.gate} role="status">
+          {ahead !== null && <p className={styles.gatePlace}>You’re #{ahead + 1} in line</p>}
+          <p className={styles.gateText}>
+            {gate.kind === "before"
+              ? `Queue starts when ${gate.doctorName} arrives at ${gate.at}.`
+              : `Queue resumes at ${gate.at}.`}{" "}
+            We’ll update live.
+          </p>
+        </div>
+      )}
+
+      {live && !(status === "waiting" && gate) && (
         <div className={styles.ring} role="img" aria-label={ringLabel}>
           <svg viewBox="0 0 120 120" aria-hidden="true">
             <circle className={styles.ringTrack} cx="60" cy="60" r="52" />
