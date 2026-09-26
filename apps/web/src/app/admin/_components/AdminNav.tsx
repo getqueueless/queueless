@@ -55,7 +55,7 @@ const LINKS = [
   },
   {
     href: "/admin/settings",
-    label: "Priority settings",
+    label: "Settings",
     icon: <path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM9 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />,
   },
 ]

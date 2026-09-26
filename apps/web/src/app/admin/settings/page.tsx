@@ -29,9 +29,9 @@ export default async function SettingsPage() {
     <div>
       <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.pageTitle}>Priority settings</h1>
+          <h1 className={styles.pageTitle}>Settings</h1>
           <p className={styles.pageSubtitle}>
-            Priority lanes are fixed by the platform. The one thing you can tune is how much of a head start they get.
+            The demo clock for walk-in hours, and how much of a head start priority lanes get.
           </p>
         </div>
       </div>
