@@ -1,11 +1,12 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
 import { createClient } from "@/lib/supabase/client"
 
-import { cancelErrorText, CancelButton, cancelHold, HOLD_OUTCOME, Toast } from "./CancelButton"
+import { actionErrorText, cancelErrorText, CancelButton, cancelHold, HOLD_OUTCOME, Toast } from "./CancelButton"
 import { loadAppointments, type Appointment } from "./data"
 import type { Tone } from "./format"
 import styles from "./History.module.css"
@@ -74,10 +75,69 @@ function outcome(appt: Appointment) {
   return <p>Nothing was charged for this booking, so there is nothing to refund.</p>
 }
 
-function AppointmentRow({ appt, onCancelled, onExpire }: { appt: Appointment; onCancelled: () => void; onExpire: () => void }) {
+// check_in (0072) opens 30 minutes before the slot and closes 15 minutes after.
+const OPENS_MS = 30 * 60_000
+const CLOSES_MS = 15 * 60_000
+const CHECKIN_ERRORS: Record<string, string> = {
+  checkin_window: "Check-in opens 30 minutes before your slot and closes 15 minutes after it.",
+  rate_limited: "Too many tries, wait a bit.",
+}
+
+/** "in 2 h 43 m", "in 12 m", "now", "started 5 m ago". */
+function countdown(ms: number): string {
+  const m = Math.round(Math.abs(ms) / 60_000)
+  const span =
+    m >= 1440
+      ? `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h`
+      : m >= 60
+        ? `${Math.floor(m / 60)} h ${m % 60} m`
+        : `${m} m`
+  if (m === 0) return "now"
+  return ms > 0 ? `in ${span}` : `started ${span} ago`
+}
+
+function clockAt(ms: number): string {
+  return new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+}
+
+function AppointmentRow({
+  appt,
+  now,
+  onCancelled,
+  onExpire,
+}: {
+  appt: Appointment
+  now: number | null
+  onCancelled: () => void
+  onExpire: () => void
+}) {
+  const router = useRouter()
   const [supabase] = useState(() => createClient())
+  const [checking, setChecking] = useState(false)
+  const [checkError, setCheckError] = useState<string | null>(null)
   const [day, time] = split(appt.when)
   const chip = CHIP[appt.state]
+  const start = new Date(appt.startsAt).getTime()
+  const confirmed = appt.state === "paid" || appt.state === "booked"
+  const canCheckIn = now !== null && now >= start - OPENS_MS && now <= start + CLOSES_MS
+  const started = now !== null && now >= start
+
+  async function checkIn() {
+    setChecking(true)
+    setCheckError(null)
+    try {
+      const { data, error } = await supabase.rpc("check_in", { p_appointment: appt.id })
+      if (error || !data?.id) {
+        setCheckError(actionErrorText(error, CHECKIN_ERRORS, "Couldn't check in right now. Try again, or ask at reception."))
+        setChecking(false)
+        return
+      }
+      router.push(`/t/${data.id}`)
+    } catch {
+      setCheckError("Couldn't check in right now. Try again, or ask at reception.")
+      setChecking(false)
+    }
+  }
 
   return (
     <li className={styles.row}>
@@ -94,7 +154,23 @@ function AppointmentRow({ appt, onCancelled, onExpire }: { appt: Appointment; on
           <span className={ui.chip} data-tone={chip.tone}>
             {chip.label}
           </span>
+          {now !== null && <span className={styles.countdown}>{countdown(start - now)}</span>}
         </div>
+        {appt.doctorLine && (
+          <p className={styles.doctorLine} data-tone={appt.doctorLine.tone}>
+            {appt.doctorLine.text}
+          </p>
+        )}
+        {confirmed && (
+          <p className={styles.explain}>
+            You&apos;ll join the live queue when you check in (opens 30 min before your slot).
+          </p>
+        )}
+        {checkError && (
+          <p role="alert" className={styles.error}>
+            {checkError}
+          </p>
+        )}
         {appt.state === "pending" && appt.holdExpiresAt && (
           <>
             <HoldTimer expiresAt={appt.holdExpiresAt} onExpire={onExpire} />
@@ -119,16 +195,35 @@ function AppointmentRow({ appt, onCancelled, onExpire }: { appt: Appointment; on
           />
         </div>
       ) : appt.state === "refunded" ? null : (
-        <CancelButton
-          title="Cancel this appointment?"
-          outcome={outcome(appt)}
-          confirmLabel="Cancel appointment"
-          run={async () => {
-            const { error } = await supabase.rpc("cancel_appointment", { p_appointment: appt.id })
-            return cancelErrorText(error)
-          }}
-          onDone={onCancelled}
-        />
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.checkIn}
+            onClick={checkIn}
+            disabled={!canCheckIn || checking}
+            title={canCheckIn ? undefined : `Opens at ${clockAt(start - OPENS_MS)}`}
+          >
+            {checking
+              ? "Checking in…"
+              : canCheckIn
+                ? "Check in"
+                : day === "Today"
+                  ? `Check in from ${clockAt(start - OPENS_MS)}`
+                  : "Check in on the day"}
+          </button>
+          {!started && (
+            <CancelButton
+              title="Cancel this appointment?"
+              outcome={outcome(appt)}
+              confirmLabel="Cancel appointment"
+              run={async () => {
+                const { error } = await supabase.rpc("cancel_appointment", { p_appointment: appt.id })
+                return cancelErrorText(error)
+              }}
+              onDone={onCancelled}
+            />
+          )}
+        </div>
       )}
     </li>
   )
@@ -150,6 +245,17 @@ export function Appointments({
   const [supabase] = useState(() => createClient())
   const [items, setItems] = useState(initial)
   const [toast, setToast] = useState<string | null>(null)
+  // null on the server render, so countdowns never mismatch at hydration.
+  const [now, setNow] = useState<number | null>(null)
+
+  useEffect(() => {
+    const first = setTimeout(() => setNow(Date.now()), 0)
+    const tick = setInterval(() => setNow(Date.now()), 30_000)
+    return () => {
+      clearTimeout(first)
+      clearInterval(tick)
+    }
+  }, [])
 
   const reload = useCallback(() => {
     if (!userId) return
@@ -202,7 +308,7 @@ export function Appointments({
       <Toast message={toast} />
       <ul className={styles.list}>
         {items.map((a) => (
-          <AppointmentRow key={a.id} appt={a} onCancelled={cancelled} onExpire={reload} />
+          <AppointmentRow key={a.id} appt={a} now={now} onCancelled={cancelled} onExpire={reload} />
         ))}
       </ul>
     </>

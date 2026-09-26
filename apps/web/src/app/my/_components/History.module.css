@@ -81,6 +81,8 @@
 .actions {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: var(--space-sm);
 }
@@ -142,6 +144,68 @@
   align-items: center;
   gap: 4px var(--space-sm);
   margin-top: 2px;
+}
+
+.countdown {
+  color: var(--color-ink-secondary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.doctorLine {
+  margin-top: 4px;
+  color: var(--color-success);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.doctorLine[data-tone="warning"] {
+  color: var(--color-warning);
+}
+
+.doctorLine[data-tone="danger"] {
+  color: var(--color-danger);
+}
+
+.explain {
+  margin-top: 2px;
+  color: var(--color-ink-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.checkIn {
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease-out);
+}
+
+.checkIn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.checkIn:disabled {
+  border-color: var(--color-hairline);
+  background: var(--color-surface-sunken);
+  color: var(--color-ink-muted);
+  cursor: not-allowed;
+}
+
+.checkIn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .hold {
@@ -349,6 +413,10 @@
   .row > :nth-child(3) {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .row .actions {
+    justify-content: flex-start;
   }
 
   .when {

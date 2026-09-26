@@ -209,6 +209,8 @@ export async function loadDoctors(
 
 // ---------- appointments + history ----------
 
+const CHECKIN_GRACE_MS = 15 * 60_000
+
 export type Appointment = {
   id: string
   /** "Today, 5:00 PM" */
@@ -221,10 +223,13 @@ export type Appointment = {
   feeInr: number | null
   /** Slot start, ISO: decides whether a paid cancel still refunds itself (0059, 2 hours). */
   startsAt: string
+  /** The doctor's live status for that day, e.g. "Running late, expect ~9:20 AM". */
+  doctorLine: { text: string; tone: Tone } | null
 }
 
 type AppointmentRow = {
   id: string
+  doctor_id: string | null
   status: "booked" | "pending_payment" | "cancelled"
   fee_inr: number | null
   hold_expires_at: string | null
@@ -247,7 +252,7 @@ export async function loadAppointments(
 ): Promise<Appointment[]> {
   const { data } = await supabase
     .from("appointments")
-    .select("id, status, fee_inr, hold_expires_at, appointment_slots(starts_at), doctors(name), services(name)")
+    .select("id, doctor_id, status, fee_inr, hold_expires_at, appointment_slots(starts_at), doctors(name), services(name)")
     .eq("patient_id", userId)
     .in("status", ["booked", "pending_payment", "cancelled"])
   const rows = ((data ?? []) as AppointmentRow[])
@@ -255,9 +260,49 @@ export async function loadAppointments(
       const slot = Array.isArray(a.appointment_slots) ? a.appointment_slots[0] : a.appointment_slots
       return { ...a, startsAt: slot?.starts_at ?? "" }
     })
-    .filter((a) => a.startsAt && new Date(a.startsAt) > now)
+    // check_in (0072) stays open until 15 minutes after the start, so keep the row until then.
+    .filter((a) => a.startsAt && new Date(a.startsAt).getTime() + CHECKIN_GRACE_MS > now.getTime())
     .filter((a) => a.status !== "pending_payment" || !a.hold_expires_at || new Date(a.hold_expires_at) > now)
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+
+  // Doctor status for the row's own day: doctor_status_today only speaks for
+  // today, a leave can cover any day.
+  const doctorIds = [...new Set(rows.map((a) => a.doctor_id).filter((id): id is string => !!id))]
+  const today = dayKey(now, timeZone)
+  const [statusRes, leavesRes] = doctorIds.length
+    ? await Promise.all([
+        supabase.from("doctor_status_today").select("doctor_id, status, late_minutes").in("doctor_id", doctorIds),
+        supabase.from("doctor_leaves").select("doctor_id, from_date, to_date").in("doctor_id", doctorIds).gte("to_date", today),
+      ])
+    : [{ data: [] }, { data: [] }]
+  const statusOf = new Map(
+    ((statusRes.data ?? []) as { doctor_id: string; status: DoctorStatus; late_minutes: number | null }[]).map((r) => [
+      r.doctor_id,
+      r,
+    ]),
+  )
+  const leaves = (leavesRes.data ?? []) as { doctor_id: string; from_date: string; to_date: string }[]
+  function doctorLine(doctorId: string | null, startsAt: string): Appointment["doctorLine"] {
+    if (!doctorId) return null
+    const day = dayKey(new Date(startsAt), timeZone)
+    if (leaves.some((l) => l.doctor_id === doctorId && l.from_date <= day && l.to_date >= day)) {
+      return { text: "Doctor on leave that day. A paid booking is refunded automatically.", tone: "danger" }
+    }
+    if (day !== today) return null
+    const st = statusOf.get(doctorId)
+    if (st?.status === "off") return { text: "Doctor not seeing patients today", tone: "danger" }
+    if (st?.status === "running_late") {
+      if (!st.late_minutes) return { text: "Doctor running late", tone: "warning" }
+      const expect = new Date(new Date(startsAt).getTime() + st.late_minutes * 60_000).toLocaleTimeString("en-US", {
+        timeZone,
+        hour: "numeric",
+        minute: "2-digit",
+      })
+      return { text: `Doctor running ${st.late_minutes} min late, expect ~${expect}`, tone: "warning" }
+    }
+    if (st?.status === "on_break") return { text: "Doctor on a short break", tone: "warning" }
+    return { text: "Doctor available today", tone: "success" }
+  }
 
   const payments = await Promise.all(
     rows.map((a) =>
@@ -290,6 +335,7 @@ export async function loadAppointments(
       holdExpiresAt: a.hold_expires_at,
       feeInr: a.fee_inr,
       startsAt: a.startsAt,
+      doctorLine: doctorLine(a.doctor_id, a.startsAt),
     })
   })
   return out
