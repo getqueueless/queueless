@@ -1222,3 +1222,27 @@ under "Web app" above.
 - No new backend: it presses the same database functions the counter console uses. When a desk
   is linked to a doctor, "Next" only calls that doctor's patients. Every press is broadcast by the
   database, so patients' phones and the waiting-room TV move within seconds without refreshing.
+
+## Requested priority lanes, and a real reject button (2026-09-26)
+
+- Patients can now ask for a priority lane when they take a paid walk-in ticket or book a paid
+  appointment: seniors (60+, from their profile's date of birth) are elevated automatically, no
+  staff step needed; pregnant or emergency requests stay in the normal lane until a staff member
+  verifies them at the counter (one pending request per patient per day, so it can't be spammed).
+  Staff verify or reject from the counter screen; rejecting now goes through a real database
+  function (`reject_priority`) instead of a raw table write the counter had no permission to make.
+- A patient can also release their own unpaid hold before paying (`cancel_hold`), and the payment
+  screen reads what it needs to charge a hold through one safe, narrow database function
+  (`get_payable_hold`) rather than needing to be signed in first.
+
+## Doctor working hours for walk-ins (2026-09-26)
+
+- Taking a paid walk-in ticket for a specific doctor now checks that doctor's actual shift
+  (already used for appointment slots, just never checked here): the ticket window opens 60
+  minutes before the shift starts and closes 30 minutes before it ends, so nobody queues for a
+  doctor who isn't there yet or is about to leave. A doctor with no shift today (day off, or no
+  hours ever set) simply can't be walk-in-booked. Breaks don't close the window, same as they
+  don't block appointment slots outside the break itself; staff issuing a walk-in from the desk
+  are unaffected, since that path was never tied to a specific doctor.
+- A small new lookup (`next_walkin_window`) tells the app the next time a given doctor will
+  actually accept a walk-in, for a "come back at 3:30" message instead of a bare error.

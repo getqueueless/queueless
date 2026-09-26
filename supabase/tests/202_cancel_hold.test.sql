@@ -11,6 +11,12 @@ values
   ('b0000000-0000-0000-0000-000000000204', 'a0000000-0000-0000-0000-000000000202', 'B', 'Svc B', true, 500);
 insert into public.doctors (id, org_id, service_id, name, specialty, fee_inr, active)
 values ('d0000000-0000-0000-0000-000000000203', 'a0000000-0000-0000-0000-000000000202', 'b0000000-0000-0000-0000-000000000203', 'Dr. A', 'General', 400, true);
+-- 0075's working-hours gate on start_paid_booking needs a schedule covering "now" -- centered on
+-- the actual test-run time so this never flakes near a day boundary.
+insert into public.doctor_schedules (doctor_id, weekday, start_time, end_time, max_patients, slot_minutes)
+values ('d0000000-0000-0000-0000-000000000203', extract(dow from (now() at time zone 'Asia/Kolkata'))::smallint,
+  ((now() at time zone 'Asia/Kolkata') - interval '30 minutes')::time,
+  ((now() at time zone 'Asia/Kolkata') + interval '90 minutes')::time, 50, 15);
 insert into public.appointment_slots (id, service_id, doctor_id, starts_at, capacity, booked)
 values ('e0000000-0000-0000-0000-000000000205', 'b0000000-0000-0000-0000-000000000203', 'd0000000-0000-0000-0000-000000000203', now() + interval '2 days', 1, 0);
 

@@ -14,6 +14,13 @@ insert into public.doctors (id, org_id, service_id, name, specialty, fee_inr, ac
 values
   ('d0000000-0000-0000-0000-000000000205', 'a0000000-0000-0000-0000-000000000204', 'b0000000-0000-0000-0000-000000000206', 'Dr. A', 'General', 400, true),
   ('d0000000-0000-0000-0000-000000000206', 'a0000000-0000-0000-0000-000000000204', 'b0000000-0000-0000-0000-000000000207', 'Dr. B', 'General', 400, true);
+-- 0075's working-hours gate on start_paid_booking needs a schedule covering "now" for both.
+insert into public.doctor_schedules (doctor_id, weekday, start_time, end_time, max_patients, slot_minutes)
+select d.id, extract(dow from (now() at time zone 'Asia/Kolkata'))::smallint,
+  ((now() at time zone 'Asia/Kolkata') - interval '30 minutes')::time,
+  ((now() at time zone 'Asia/Kolkata') + interval '90 minutes')::time, 50, 15
+from public.doctors d
+where d.id in ('d0000000-0000-0000-0000-000000000205', 'd0000000-0000-0000-0000-000000000206');
 
 insert into auth.users (id, email) values
   ('c0000000-0000-0000-0000-000000000206', 'p204senior@queueless.test'),

@@ -16,6 +16,18 @@ insert into public.doctors (id, org_id, service_id, name, specialty, fee_inr, ac
 -- disagree on which calendar date "today" is for several hours around UTC midnight.
 insert into public.doctor_leaves (doctor_id, from_date, to_date)
 select 'f0000000-0000-0000-0000-000000000182', private.service_day('a0000000-0000-0000-0000-000000000180', now()), private.service_day('a0000000-0000-0000-0000-000000000180', now());
+-- 0075's working-hours gate on start_paid_booking needs a schedule covering "now" for every
+-- doctor exercised through that RPC in this file (Dr. Away/Dr. Hold fail on leave/other checks
+-- before hours would matter, but give every doctor here one for consistency).
+insert into public.doctor_schedules (doctor_id, weekday, start_time, end_time, max_patients, slot_minutes)
+select d.id, extract(dow from (now() at time zone 'Asia/Kolkata'))::smallint,
+  ((now() at time zone 'Asia/Kolkata') - interval '30 minutes')::time,
+  ((now() at time zone 'Asia/Kolkata') + interval '90 minutes')::time, 50, 15
+from public.doctors d
+where d.id in (
+  'f0000000-0000-0000-0000-000000000180', 'f0000000-0000-0000-0000-000000000181',
+  'f0000000-0000-0000-0000-000000000182', 'f0000000-0000-0000-0000-000000000183'
+);
 
 insert into auth.users (id, email) values
   ('11100000-0000-0000-0000-000000000180', 'p180@queueless.test'),
