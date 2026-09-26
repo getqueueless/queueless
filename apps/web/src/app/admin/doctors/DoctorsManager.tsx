@@ -13,6 +13,7 @@ import type {
   DoctorStatusTodayRow,
   ServiceRow,
 } from "../_lib/types"
+import { DoctorLoginPanel } from "./DoctorLoginPanel"
 import styles from "../admin.module.css"
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -55,6 +56,7 @@ export function DoctorsManager({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scheduleDoctorId, setScheduleDoctorId] = useState<string | null>(null)
+  const [loginDoctorId, setLoginDoctorId] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -238,6 +240,13 @@ export function DoctorsManager({
                       >
                         {scheduleDoctorId === d.id ? "Hide schedule" : "Schedule"}
                       </button>
+                      <button
+                        type="button"
+                        className={styles.buttonSecondary}
+                        onClick={() => setLoginDoctorId(loginDoctorId === d.id ? null : d.id)}
+                      >
+                        {loginDoctorId === d.id ? "Hide login" : "Login"}
+                      </button>
                       {d.active && (
                         <button type="button" className={styles.buttonDanger} onClick={() => deactivate(d)} disabled={busy}>
                           Deactivate<span className={styles.srOnly}> {d.name}</span>
@@ -261,6 +270,10 @@ export function DoctorsManager({
 
       {scheduleDoctorId && (
         <DoctorScheduleEditor doctorId={scheduleDoctorId} doctorName={doctors.find((d) => d.id === scheduleDoctorId)?.name ?? ""} />
+      )}
+
+      {loginDoctorId && (
+        <DoctorLoginPanel doctorId={loginDoctorId} doctorName={doctors.find((d) => d.id === loginDoctorId)?.name ?? ""} />
       )}
 
       <section className={styles.card} aria-labelledby="doc-form-title">
