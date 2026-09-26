@@ -49,6 +49,16 @@
   white-space: nowrap;
 }
 
+/* The priority request, in the accent so it reads on slate (7.0:1). */
+.priority {
+  overflow: hidden;
+  color: var(--color-accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- progress line ---------- */
 
 .track {
@@ -157,5 +167,10 @@
 
   .stage {
     font-size: 13px;
+  }
+
+  /* A phone has no room for it beside the code; the card below still says it. */
+  .priority {
+    display: none;
   }
 }

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { availability, clockLabel, dayKey, firstName, initials, shiftsLabel, slotLabel } from "./format.ts"
+import { ageOn, availability, clockLabel, dayKey, firstName, initials, shiftsLabel, slotLabel } from "./format.ts"
 
 const base = { status: "available", lateMinutes: null, leaveReason: undefined, hasShiftToday: true }
 
@@ -68,4 +68,11 @@ test("initials skip the title", () => {
   assert.equal(initials("Dr. Neha Sharma"), "NS")
   assert.equal(initials("Dr Arjun Menon"), "AM")
   assert.equal(initials("Meera"), "M")
+})
+
+test("age turns over on the birthday itself", () => {
+  assert.equal(ageOn("1966-09-26", "2026-09-26"), 60)
+  assert.equal(ageOn("1966-09-27", "2026-09-26"), 59)
+  assert.equal(ageOn("1966-10-01", "2026-09-26"), 59)
+  assert.equal(ageOn("1990-01-15", "2026-09-26"), 36)
 })

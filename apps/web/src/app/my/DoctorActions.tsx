@@ -9,6 +9,7 @@ import styles from "./_components/Doctors.module.css"
 import { actionErrorText, Toast } from "./_components/CancelButton"
 import { AVAILABILITY_TONE, initials } from "./_components/format"
 import { CalendarIcon, ClockIcon, SearchIcon } from "./_components/icons"
+import { PriorityStep, type PriorityChoice } from "./_components/PriorityStep"
 import ui from "./_components/ui.module.css"
 
 const FIRST_SLOTS = 6
@@ -40,7 +41,24 @@ function byDay(slots: Slot[]): { day: string; slots: (Slot & { time: string })[]
   return days
 }
 
-function DoctorCard({ doctor: d, onError }: { doctor: DashboardDoctor; onError: (text: string) => void }) {
+// The requested lane rides along on the hold; staff confirm it at the counter.
+// Senior goes as normal: the server applies it from the date of birth (0072).
+function priorityArgs(choice: PriorityChoice) {
+  return {
+    p_requested_lane: choice.lane === "senior" ? "normal" : choice.lane,
+    p_note: choice.lane === "normal" ? null : choice.note || null,
+  }
+}
+
+function DoctorCard({
+  doctor: d,
+  seniorAuto,
+  onError,
+}: {
+  doctor: DashboardDoctor
+  seniorAuto: boolean
+  onError: (text: string) => void
+}) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const [open, setOpen] = useState(false)
@@ -48,6 +66,8 @@ function DoctorCard({ doctor: d, onError }: { doctor: DashboardDoctor; onError: 
   const [pending, setPending] = useState<string | null>(null)
   const [taking, setTaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // What the priority step is about to hold: a walk-in token or a slot.
+  const [ask, setAsk] = useState<{ kind: "token" } | { kind: "slot"; slot: Slot } | null>(null)
   const panelId = useId()
   const a = d.availability
   const off = !a.bookable
@@ -59,11 +79,14 @@ function DoctorCard({ doctor: d, onError }: { doctor: DashboardDoctor; onError: 
   }
 
   // Booking is paid (0068): hold the slot for 10 minutes, then pay on /pay/<id>.
-  async function book(slot: Slot) {
+  async function book(slot: Slot, choice: PriorityChoice) {
     setError(null)
     setPending(slot.id)
     try {
-      const { data, error: rpcError } = await supabase.rpc("start_paid_appointment", { p_slot: slot.id })
+      const { data, error: rpcError } = await supabase.rpc("start_paid_appointment", {
+        p_slot: slot.id,
+        ...priorityArgs(choice),
+      })
       if (rpcError || !data?.id) {
         fail(bookingErrorText(rpcError))
         setPending(null)
@@ -78,11 +101,14 @@ function DoctorCard({ doctor: d, onError }: { doctor: DashboardDoctor; onError: 
 
   // Same hold-then-pay flow as BookAndPayButton (start_paid_booking), with the
   // errors this list needs: shown inline and as a toast, never swallowed.
-  async function takeToken() {
+  async function takeToken(choice: PriorityChoice) {
     setError(null)
     setTaking(true)
     try {
-      const { data, error: rpcError } = await supabase.rpc("start_paid_booking", { p_doctor_id: d.id })
+      const { data, error: rpcError } = await supabase.rpc("start_paid_booking", {
+        p_doctor_id: d.id,
+        ...priorityArgs(choice),
+      })
       if (rpcError || !data?.id) {
         fail(bookingErrorText(rpcError))
         setTaking(false)
@@ -147,7 +173,7 @@ function DoctorCard({ doctor: d, onError }: { doctor: DashboardDoctor; onError: 
             Take token
           </button>
         ) : (
-          <button type="button" className={styles.primary} onClick={takeToken} disabled={taking}>
+          <button type="button" className={styles.primary} onClick={() => setAsk({ kind: "token" })} disabled={taking}>
             {taking ? "Holding your spot…" : "Take token"}
           </button>
         )}
@@ -175,7 +201,7 @@ function DoctorCard({ doctor: d, onError }: { doctor: DashboardDoctor; onError: 
                     className={styles.pill}
                     disabled={pending !== null}
                     aria-label={`Book ${s.label}, pay ₹${d.feeInr}`}
-                    onClick={() => book(s)}
+                    onClick={() => setAsk({ kind: "slot", slot: s })}
                   >
                     {pending === s.id ? "Holding…" : s.time}
                   </button>
@@ -195,11 +221,24 @@ function DoctorCard({ doctor: d, onError }: { doctor: DashboardDoctor; onError: 
           {error}
         </p>
       )}
+
+      <PriorityStep
+        open={ask !== null}
+        seniorAuto={seniorAuto}
+        actionLabel={`Continue to pay ₹${d.feeInr}`}
+        onCancel={() => setAsk(null)}
+        onContinue={(choice) => {
+          const next = ask
+          setAsk(null)
+          if (next?.kind === "token") takeToken(choice)
+          else if (next?.kind === "slot") book(next.slot, choice)
+        }}
+      />
     </li>
   )
 }
 
-export function DoctorActions({ doctors }: { doctors: DashboardDoctor[] }) {
+export function DoctorActions({ doctors, seniorAuto = false }: { doctors: DashboardDoctor[]; seniorAuto?: boolean }) {
   const [dept, setDept] = useState("all")
   const [query, setQuery] = useState("")
   const [toast, setToast] = useState<string | null>(null)
@@ -297,7 +336,7 @@ export function DoctorActions({ doctors }: { doctors: DashboardDoctor[] }) {
       ) : (
         <ul className={styles.grid}>
           {shown.map((d) => (
-            <DoctorCard key={d.id} doctor={d} onError={setToast} />
+            <DoctorCard key={d.id} doctor={d} seniorAuto={seniorAuto} onError={setToast} />
           ))}
         </ul>
       )}

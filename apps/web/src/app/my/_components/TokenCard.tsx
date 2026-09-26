@@ -11,7 +11,7 @@ import { useEtaAtJoin, useNowServing } from "@/components/motion/useQueueExtras"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import { createClient } from "@/lib/supabase/client"
 
-import { readTokenStatus } from "@/components/tokens/active-token"
+import { priorityLabel, readTokenStatus } from "@/components/tokens/active-token"
 
 import { cancelErrorText, CancelButton, cancelHold, HOLD_OUTCOME, Toast } from "./CancelButton"
 import type { ActiveToken } from "./data"
@@ -104,6 +104,10 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
           {status.label}
         </span>
       </div>
+
+      {priorityLabel(initial.requestedLane, token.lane) && (
+        <p className={styles.priority}>{priorityLabel(initial.requestedLane, token.lane)}</p>
+      )}
 
       {token.status === "waiting" && ahead !== null && (
         <p className={styles.ahead}>

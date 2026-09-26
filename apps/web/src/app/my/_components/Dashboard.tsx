@@ -20,7 +20,7 @@ import {
   type Org,
   type Visit,
 } from "./data"
-import { dayKey, firstName, TOKEN_STATUS } from "./format"
+import { ageOn, dayKey, firstName, TOKEN_STATUS } from "./format"
 import h from "./History.module.css"
 import { ArrowIcon, PhoneOffIcon, TicketIcon } from "./icons"
 import { LiveNow, LiveNowSkeleton } from "./LiveNow"
@@ -33,6 +33,8 @@ type DashboardProps = {
   supabase: SupabaseClient
   userId: string | null
   fullName: string | null
+  /** YYYY-MM-DD from the profile; 60+ pre-selects Senior in the priority step. */
+  dateOfBirth: string | null
   org: Org
   now: Date
 }
@@ -41,8 +43,9 @@ type DashboardProps = {
 // read starts here at once and streams into its own <Suspense>, so the hero
 // paints immediately and each section swaps its skeleton for real rows as
 // they land.
-export function Dashboard({ supabase, userId, fullName, org, now }: DashboardProps) {
+export function Dashboard({ supabase, userId, fullName, dateOfBirth, org, now }: DashboardProps) {
   const name = firstName(fullName)
+  const seniorAuto = dateOfBirth ? ageOn(dateOfBirth, dayKey(now, org.timeZone)) >= 60 : false
   const today = now.toLocaleDateString("en-US", {
     timeZone: org.timeZone,
     weekday: "long",
@@ -104,7 +107,7 @@ export function Dashboard({ supabase, userId, fullName, org, now }: DashboardPro
             <AnimatedHeading as="h2" id="doctors-title" lead="Find a" accent="doctor" />
           </div>
           <Suspense fallback={<DoctorsSkeleton />}>
-            <DoctorsSlot doctors={doctors} />
+            <DoctorsSlot doctors={doctors} seniorAuto={seniorAuto} />
           </Suspense>
         </section>
 
@@ -165,8 +168,8 @@ async function LiveSlot({ departments, day }: { departments: Promise<Department[
   return <LiveNow departments={await departments} day={day} />
 }
 
-async function DoctorsSlot({ doctors }: { doctors: Promise<DashboardDoctor[]> }) {
-  return <DoctorActions doctors={await doctors} />
+async function DoctorsSlot({ doctors, seniorAuto }: { doctors: Promise<DashboardDoctor[]>; seniorAuto: boolean }) {
+  return <DoctorActions doctors={await doctors} seniorAuto={seniorAuto} />
 }
 
 async function AppointmentsSlot({

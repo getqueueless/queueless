@@ -9,7 +9,7 @@ import { useEtaAtJoin } from "@/components/motion/useQueueExtras"
 import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import { createClient } from "@/lib/supabase/client"
 
-import { ACTIVE_STATUSES, readTokenStatus, type LiveToken } from "./active-token"
+import { ACTIVE_STATUSES, priorityLabel, readTokenStatus, type LiveToken } from "./active-token"
 import styles from "./ActiveTokenBar.module.css"
 
 // Status poll, same 10s floor as /t/[id]. The model is asked again only when
@@ -135,6 +135,9 @@ function Bar({ initial }: { initial: LiveToken }) {
           {token.code}
         </span>
         <span className={styles.stage}>{stage}</span>
+        {priorityLabel(initial.requestedLane, token.lane) && (
+          <span className={styles.priority}>{priorityLabel(initial.requestedLane, token.lane)}</span>
+        )}
       </span>
 
       <span className={styles.track} aria-hidden="true">

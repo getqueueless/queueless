@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { loadBoard } from "@/app/_landing/board"
 import { fetchCounter, type CounterRow, type TokenRow, type TokenStatus } from "@/app/t/[id]/data"
-import { ACTIVE_STATUSES, readTokenStatus } from "@/components/tokens/active-token"
+import { ACTIVE_STATUSES, readTokenStatus, type RequestedLane } from "@/components/tokens/active-token"
 import type { DoctorStatus } from "@/lib/doctors"
 
 import { availability, dayKey, paidStatusOverride, shiftsLabel, slotLabel, type Availability, type Tone } from "./format"
@@ -51,13 +51,14 @@ export type ActiveToken = {
   doctorName: string | null
   ahead: number | null
   counter: CounterRow | null
+  requestedLane: RequestedLane
 }
 
 export async function loadActiveToken(supabase: SupabaseClient, userId: string): Promise<ActiveToken | null> {
   const { data } = await supabase
     .from("tokens")
     .select(
-      "id, service_id, service_day, number, code, lane, lane_rank, priority_at, status, counter_id, created_at, called_at, serving_at, finished_at, services(name), doctors(name)",
+      "id, service_id, service_day, number, code, lane, lane_rank, priority_at, status, counter_id, created_at, called_at, serving_at, finished_at, requested_lane, services(name), doctors(name)",
     )
     .eq("patient_id", userId)
     .in("status", ACTIVE_STATUSES)
@@ -66,13 +67,24 @@ export async function loadActiveToken(supabase: SupabaseClient, userId: string):
     .maybeSingle()
   if (!data) return null
 
-  const { services, doctors, ...token } = data as TokenRow & { services: Named; doctors: Named }
+  const { services, doctors, requested_lane, ...token } = data as TokenRow & {
+    services: Named
+    doctors: Named
+    requested_lane: RequestedLane
+  }
   const [status, counter] = await Promise.all([
     token.status === "waiting" ? readTokenStatus(supabase, token.id) : null,
     token.counter_id ? fetchCounter(supabase, token.counter_id) : null,
   ])
   const ahead = status?.ahead ?? null
-  return { token, serviceName: nameOf(services) ?? "Queueless", doctorName: nameOf(doctors), ahead, counter }
+  return {
+    token,
+    serviceName: nameOf(services) ?? "Queueless",
+    doctorName: nameOf(doctors),
+    ahead,
+    counter,
+    requestedLane: requested_lane,
+  }
 }
 
 // ---------- departments ----------

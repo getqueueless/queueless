@@ -45,6 +45,16 @@
   font-size: 15px;
 }
 
+.priority {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .ahead {
   color: var(--color-ink-secondary);
   font-size: 15px;
