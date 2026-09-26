@@ -13,7 +13,7 @@ import { getLanguagePreference } from '@/lib/language-preference';
 
 type NewMessage =
   | { from: 'you'; text: string }
-  | { from: 'queueless'; text: string; basedOn: { id: string; question: string }[] }
+  | { from: 'queueless'; text: string; aiGenerated: boolean; basedOn: { id: string; question: string }[] }
   | { from: 'system'; text: string };
 type Message = NewMessage & { id: number };
 
@@ -42,7 +42,12 @@ export default function AskQueueless() {
     const result = await askQueueless(question, getLanguagePreference());
     setBusy(false);
     if (result.ok) {
-      push({ from: 'queueless', text: result.data.answer || 'I don’t have an answer for that yet.', basedOn: result.data.basedOn });
+      push({
+        from: 'queueless',
+        text: result.data.answer || 'I don’t have an answer for that yet.',
+        aiGenerated: result.data.aiGenerated,
+        basedOn: result.data.basedOn,
+      });
     } else if (result.kind === 'rate_limited') {
       push({
         from: 'system',
@@ -104,6 +109,12 @@ export default function AskQueueless() {
                 accessibilityLiveRegion="polite"
                 style={[styles.bubble, styles.theirs, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
                 <UIText>{m.text}</UIText>
+                {/* Say plainly when a model wrote it; the keyword fallback quotes the FAQ as is. */}
+                {m.aiGenerated ? (
+                  <UIText variant="secondary" color="inkSecondary">
+                    Written by AI from the hospital’s FAQ. Check with the desk if unsure.
+                  </UIText>
+                ) : null}
                 {m.basedOn.length > 0 ? (
                   <View style={styles.sources}>
                     <UIText variant="secondaryStrong" color="inkSecondary">

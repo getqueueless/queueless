@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 
 export type FaqItem = { id: string; question: string; answer: string };
 export type FaqGroup = { title: string; items: FaqItem[] };
-export type AskAnswer = { answer: string; basedOn: { id: string; question: string }[] };
+export type AskAnswer = { answer: string; aiGenerated: boolean; basedOn: { id: string; question: string }[] };
 export type AskResult =
   | { ok: true; data: AskAnswer }
   | { ok: false; kind: 'rate_limited'; retryAfter: number | null }
@@ -75,6 +75,7 @@ export async function askQueueless(question: string, lang: string): Promise<AskR
       ok: true,
       data: {
         answer: str(body.answer, body.text, body.reply),
+        aiGenerated: body.ai_generated === true,
         basedOn: (Array.isArray(sources) ? sources : []).map((s, i) => ({ id: str(s.id, s.slug) || String(i), question: str(s.question, s.q, s.title) })).filter((s) => s.question),
       },
     };
