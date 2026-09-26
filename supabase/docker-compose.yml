@@ -78,7 +78,7 @@ services:
       GOTRUE_SMTP_USER: ${SMTP_USER:-}
       GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-}
-      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-Queueless}
+      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-WaitWise}
       GOTRUE_MAILER_OTP_EXP: "600"                              # 10 min, not GoTrue's 1-day default
       GOTRUE_MAILER_OTP_LENGTH: "6"
       GOTRUE_RATE_LIMIT_EMAIL_SENT: "30/1h"                      # abuse cap; also below Namecheap's own daily send limit
@@ -95,10 +95,10 @@ services:
       GOTRUE_RATE_LIMIT_VERIFY: "30"                             # redeeming a code at /verify, per 5 min
       GOTRUE_RATE_LIMIT_TOKEN_REFRESH: "150"                     # session refresh, per 5 min -- frequent, legitimate traffic
       GOTRUE_PASSWORD_MIN_LENGTH: "8"     # unified login's password fallback path (below OTP is still primary)
-      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "{{ .Token }} is your Queueless code"
-      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "{{ .Token }} is your Queueless code"
-      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Reset your Queueless password {{ .Token }}"
-      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "{{ .Token }} confirms your new Queueless email"
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "{{ .Token }} is your WaitWise code"
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "{{ .Token }} is your WaitWise code"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Reset your WaitWise password {{ .Token }}"
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "{{ .Token }} confirms your new WaitWise email"
       # Branded templates: a big 6-digit {{ .Token }} (this system's actual sign-in method --
       # see docs/JUDGE_NOTES.md § Mobile "Auth" -- not a link to click) with a small
       # {{ .ConfirmationURL }} fallback underneath. GoTrue fetches these by HTTP at send time, so

@@ -1,4 +1,4 @@
-# Queueless monitoring stack: Prometheus + Grafana + postgres_exporter + Alertmanager.
+# WaitWise monitoring stack: Prometheus + Grafana + postgres_exporter + Alertmanager.
 # Deliberately separate compose project (`queueless-monitoring`, not `queueless`) from
 # supabase/docker-compose.yml -- this stack observes the app, it isn't part of it.
 #

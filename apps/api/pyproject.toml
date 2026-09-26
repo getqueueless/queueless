@@ -1,7 +1,7 @@
 [project]
 name = "queueless-api"
 version = "0.1.0"
-description = "Queueless backend API: auth, push notifications, no-show scheduler, wait-time ML"
+description = "WaitWise backend API: auth, push notifications, no-show scheduler, wait-time ML"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
