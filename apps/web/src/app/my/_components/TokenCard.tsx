@@ -8,7 +8,7 @@ import { countOpenCounters, fetchCounter, type TokenStatus } from "@/app/t/[id]/
 import { fetchPrediction } from "@/app/t/[id]/predict"
 import { QueueTracker } from "@/components/motion/QueueTracker"
 import { useEtaAtJoin, useNowServing } from "@/components/motion/useQueueExtras"
-import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
+import { useResilientChannel, useServiceBroadcasts } from "@/lib/realtime/useResilientChannel"
 import { createClient } from "@/lib/supabase/client"
 
 import { priorityLabel, readTokenStatus } from "@/components/tokens/active-token"
@@ -52,6 +52,10 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
     if (p.status) setToken((prev) => ({ ...prev, status: p.status!, counter_id: p.counter_id ?? null }))
   }, [])
   useResilientChannel({ channelName: `token:${id}`, broadcastEvent: "token_update", onEvent })
+  // People ahead moving is a write on the service topic, not on this token.
+  const [serviceTick, setServiceTick] = useState(0)
+  const onServiceEvent = useCallback(() => setServiceTick((n) => n + 1), [])
+  useServiceBroadcasts([initial.token.service_id], onServiceEvent)
 
   useEffect(() => {
     let cancelled = false
@@ -73,7 +77,7 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
       cancelled = true
       clearInterval(timer)
     }
-  }, [supabase, id])
+  }, [supabase, id, serviceTick])
 
   // Realtime payloads carry a counter id, not its name.
   useEffect(() => {

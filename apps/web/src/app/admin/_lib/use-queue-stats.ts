@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { createClient } from "@/lib/supabase/client"
-import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
+import { useServiceBroadcasts } from "@/lib/realtime/useResilientChannel"
 import { describeSupabaseError } from "./describe-error"
 import { fetchPredictedWait } from "./predict"
 import type { BoardServiceRow, ServiceRow, TokenRow } from "./types"
@@ -11,7 +11,6 @@ import type { BoardServiceRow, ServiceRow, TokenRow } from "./types"
 // A filter that matches no real row -- used to keep the realtime hooks below
 // unconditional (React hooks can't be called conditionally) when no service
 // is selected yet, instead of subscribing to every token/board row.
-const NO_MATCH_FILTER = "service_id=eq.00000000-0000-0000-0000-000000000000"
 
 export type QueueStats = {
   queueLength: number
@@ -188,18 +187,7 @@ export function useQueueStats(service: ServiceRow | null) {
   // safety net if Realtime publications for these tables haven't been wired
   // up by the DB agent yet -- either way the dashboard stays live within
   // REFRESH_MS.
-  useResilientChannel({
-    channelName: `admin-tokens-${service?.id ?? "none"}`,
-    table: "tokens",
-    filter: service ? `service_id=eq.${service.id}` : NO_MATCH_FILTER,
-    onEvent: onChange,
-  })
-  useResilientChannel({
-    channelName: `admin-board-${service?.id ?? "none"}`,
-    table: "board_services",
-    filter: service ? `service_id=eq.${service.id}` : NO_MATCH_FILTER,
-    onEvent: onChange,
-  })
+  useServiceBroadcasts(service ? [service.id] : [], onChange)
 
   if (!service) return EMPTY_STATE
   return state

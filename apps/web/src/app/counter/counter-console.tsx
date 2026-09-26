@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ERRORS, errorInfo } from "@queueless/db"
 
 import { createClient } from "@/lib/supabase/client"
-import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
-import { ACTIVE_TOKEN_STATUSES, TOKEN_COLUMNS, type CounterRow, type Lane, type TokenRow } from "./types"
+import { useServiceBroadcasts } from "@/lib/realtime/useResilientChannel"
+import { TOKEN_COLUMNS, type CounterRow, type Lane, type TokenRow } from "./types"
 import styles from "./counter.module.css"
 
 const REQUESTED_LANE_LABELS: Partial<Record<Lane, string>> = {
@@ -304,32 +304,10 @@ export function CounterConsole({
     [supabase, refreshWaiting],
   )
 
-  // Realtime: a second screen open on this same counter (a supervisor view, a
-  // second tab) sees calls/done/no-show/recall/transfer without a refresh.
-  // ponytail: this only reacts to updates where counter_id already equals (or
-  // becomes) this counter -- a transfer OUT that a *different* client
-  // initiates updates counter_id to the target, so this filter never matches
-  // that specific row change, and this screen won't auto-clear from it. Not a
-  // gap for the spec'd case (this desk's own actions always resolve locally
-  // via the RPC's response, above); upgrade to a broader `service_id=eq.`
-  // filter if cross-counter visibility into "my token got pulled away" turns
-  // out to matter for the demo.
-  const handleTokenEvent = useCallback((payload: { new?: TokenRow | null }) => {
-    const row = payload?.new
-    if (!row || !row.id) return
-    setCurrent((prev) => {
-      if (ACTIVE_TOKEN_STATUSES.includes(row.status)) return row
-      if (prev && prev.id === row.id) return null
-      return prev
-    })
-  }, [])
-
-  useResilientChannel({
-    channelName: `counter-${counter.id}-tokens`,
-    table: "tokens",
-    filter: `counter_id=eq.${counter.id}`,
-    onEvent: handleTokenEvent,
-  })
+  // Realtime: every token write in a served service broadcasts on service:<id>
+  // (0044) -- a new booking, a check-in, another desk calling someone -- so
+  // the waiting list refreshes on the push instead of the 10s poll.
+  useServiceBroadcasts(serviceIds, refreshWaiting)
 
   // Keyboard shortcuts: N/D/S/R, ignored while typing in a field and while a
   // call is in flight (the `pending` lock inside `run` covers the actual

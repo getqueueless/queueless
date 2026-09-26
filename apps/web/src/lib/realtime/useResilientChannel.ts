@@ -146,3 +146,14 @@ export function useResilientChannel({ channelName, table, filter, broadcastEvent
     }
   }, [channelName, table, filter, broadcastEvent, onEvent])
 }
+
+/** Calls `onEvent` (keep it stable) on every `token_update` broadcast for any of these services. */
+export function useServiceBroadcasts(serviceIds: string[], onEvent: () => void) {
+  const key = [...new Set(serviceIds)].sort().join(",")
+  useEffect(() => {
+    if (!key) return
+    const topics = key.split(",").map((id) => `service:${id}`)
+    topics.forEach((t) => acquire(t, undefined, undefined, "token_update", onEvent))
+    return () => topics.forEach((t) => release(t, onEvent))
+  }, [key, onEvent])
+}

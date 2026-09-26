@@ -9,7 +9,7 @@ import { useEtaAtJoin, useNowServing } from "@/components/motion/useQueueExtras"
 import { useShiftGate } from "@/components/motion/useShiftGate"
 import { TwoToneHeading } from "@/components/site/TwoToneHeading"
 import { createClient } from "@/lib/supabase/client"
-import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
+import { useResilientChannel, useServiceBroadcasts } from "@/lib/realtime/useResilientChannel"
 import {
   countOpenCounters,
   fetchCounter,
@@ -101,6 +101,13 @@ export function StatusView({
   // hard ceiling on staleness regardless of why the push failed. get_token_status
   // (migration 0048) also carries people_ahead, so this corrects queueAhead too
   // instead of waiting up to REFRESH_MS for the separate ETA effect below.
+  // token:<id> above only fires for this ticket's own row; people ahead being
+  // called or cancelled is a write on the service topic. Each push re-runs the
+  // effect below, which refetches at once.
+  const [serviceTick, setServiceTick] = useState(0)
+  const onServiceEvent = useCallback(() => setServiceTick((n) => n + 1), [])
+  useServiceBroadcasts([token.service_id], onServiceEvent)
+
   useEffect(() => {
     let cancelled = false
     const refetch = () => {
@@ -110,6 +117,7 @@ export function StatusView({
         if (row.status === "waiting") setQueueAhead(row.people_ahead)
       })
     }
+    if (serviceTick > 0) refetch()
     const interval = setInterval(refetch, 10_000)
     const handleVisible = () => {
       if (document.visibilityState === "visible") refetch()
@@ -122,7 +130,7 @@ export function StatusView({
       document.removeEventListener("visibilitychange", handleVisible)
       window.removeEventListener("focus", refetch)
     }
-  }, [supabase, tokenId])
+  }, [supabase, tokenId, serviceTick])
 
   // Look up the new counter's name whenever the counter this token is
   // assigned to changes (realtime payloads carry raw columns only, not the
