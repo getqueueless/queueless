@@ -6,6 +6,7 @@ import { useMemo, useState } from "react"
 import { useQueueStats } from "../_lib/use-queue-stats"
 import type { ServiceRow } from "../_lib/types"
 import { ModelCard } from "./ModelCard"
+import { PriorityRequests } from "./PriorityRequests"
 import { ServiceSelect } from "./ServiceSelect"
 import { StatTile } from "./StatTile"
 import { WaitComparisonChart } from "./WaitComparisonChart"
@@ -71,6 +72,8 @@ export function DashboardClient({ services }: { services: ServiceRow[] }) {
           {error}
         </div>
       )}
+
+      <PriorityRequests services={services} />
 
       <div className={styles.statGrid} aria-busy={loading || undefined}>
         <StatTile label="Queue length" value={loading ? "…" : String(stats?.queueLength ?? 0)} />
