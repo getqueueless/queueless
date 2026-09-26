@@ -12,7 +12,8 @@ export type DeskInfo = {
   serviceIds: string[]
   serviceLabel: string
   doctor: { id: string; name: string; room: string | null; specialty: string } | null
-  isAdmin: boolean
+  /** "self": the signed-in doctor's own desk; "admin": an admin running a picked doctor's desk. */
+  mode: "self" | "admin"
 }
 
 type Waiting = Pick<TokenRow, "id" | "code" | "lane" | "walk_in_label"> & { created_at: string }
@@ -197,11 +198,10 @@ export function DoctorDesk({ desk, initialToken }: { desk: DeskInfo; initialToke
     (status: "available" | "running_late" | "on_break", late?: number) =>
       doctor &&
       run(async () => {
-        const res = await supabase.rpc("set_doctor_status", {
-          p_doctor: doctor.id,
-          p_status: status,
-          p_late_minutes: late ?? null,
-        })
+        const res =
+          desk.mode === "self"
+            ? await supabase.rpc("set_my_doctor_status", { p_status: status, p_late_minutes: late ?? null })
+            : await supabase.rpc("set_doctor_status", { p_doctor: doctor.id, p_status: status, p_late_minutes: late ?? null })
         if (!res.error)
           setBanner({
             kind: "info",
@@ -209,7 +209,7 @@ export function DoctorDesk({ desk, initialToken }: { desk: DeskInfo; initialToke
           })
         return res
       }),
-    [run, supabase, doctor],
+    [run, supabase, doctor, desk.mode],
   )
 
   // N next, S start, D done, K skip, R recall. Ignored while typing or mid-request.
