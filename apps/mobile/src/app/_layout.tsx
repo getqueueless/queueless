@@ -1,3 +1,4 @@
+import '@/lib/polyfills';
 import { Poppins_400Regular, Poppins_700Bold, useFonts } from '@expo-google-fonts/poppins';
 import { Slot } from 'expo-router';
 import { useEffect, useSyncExternalStore } from 'react';
