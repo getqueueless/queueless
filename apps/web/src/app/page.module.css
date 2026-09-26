@@ -918,6 +918,71 @@
   display: none;
 }
 
+/* ---------- FAQ teaser ---------- */
+
+.faqTeaser {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: clamp(64px, 8vw, 104px);
+}
+
+.faqList {
+  align-self: stretch;
+  max-width: 820px;
+  width: 100%;
+  margin: var(--space-xl) auto 0;
+  border-top: 1px solid var(--color-hairline);
+}
+
+.faqItem {
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.faqItem summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-height: 56px;
+  padding: var(--space-sm) 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  list-style: none;
+}
+
+.faqItem summary::-webkit-details-marker {
+  display: none;
+}
+
+.faqItem summary::after {
+  content: "+";
+  flex: none;
+  width: 24px;
+  font-size: 22px;
+  font-weight: 400;
+  text-align: center;
+  color: var(--color-primary);
+}
+
+.faqItem[open] summary::after {
+  content: "−";
+}
+
+.faqItem p {
+  padding-bottom: var(--space-md);
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--color-ink-secondary);
+}
+
+.faqAll {
+  margin-top: var(--space-xl);
+  min-height: 48px;
+}
+
 /* ---------- QR scanner sheet ---------- */
 
 .scanIcon {

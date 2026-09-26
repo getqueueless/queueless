@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server"
 
 import corridor from "../../public/images/opd-corridor.jpg"
 import { loadBoard } from "./_landing/board"
+import { fetchFaq } from "./faq/help-api"
 import { ExampleSlip } from "./_landing/ExampleSlip"
 import { GetApp } from "./_landing/GetApp"
 import { LiveStats } from "./_landing/LiveStats"
@@ -55,9 +56,10 @@ export default async function Home() {
 
   // Same query /kiosk uses to list services. `services` is readable by anon
   // (supabase/migrations/0030_rls_public_tables.sql), so no session needed.
-  const [{ data: allServices, error: servicesError }, board] = await Promise.all([
+  const [{ data: allServices, error: servicesError }, board, faq] = await Promise.all([
     supabase.from("services").select("id, name, code, org_id").eq("is_open", true).order("name"),
     loadBoard(supabase),
+    fetchFaq(),
   ])
   // Only the demo hospital's services; another org on the same database
   // (the load-test org) must not show up here.
@@ -213,6 +215,24 @@ export default async function Home() {
 
         <div className={styles.container}>
           <GetApp />
+
+          {/* Omitted, not an error box, when the help API is down. */}
+          {faq && (
+            <section aria-labelledby="faq-title" className={styles.faqTeaser}>
+              <AnimatedHeading as="h2" id="faq-title" lead="Common" accent="questions" align="center" />
+              <div className={styles.faqList}>
+                {faq.slice(0, 4).map((item) => (
+                  <details key={item.id} className={styles.faqItem}>
+                    <summary>{item.question}</summary>
+                    <p>{item.answer}</p>
+                  </details>
+                ))}
+              </div>
+              <Link href="/faq" className={`${styles.btn} ${styles.btnOutline} ${styles.faqAll}`}>
+                See all FAQs
+              </Link>
+            </section>
+          )}
         </div>
       </main>
 
