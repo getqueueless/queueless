@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Poppins } from "next/font/google";
 import "./globals.css";
+import { BackButton } from "@/components/site/BackButton";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -39,7 +40,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <BackButton />
+      </body>
     </html>
   );
 }
