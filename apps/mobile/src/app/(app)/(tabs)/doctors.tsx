@@ -251,8 +251,10 @@ function DoctorDetailSheet({ doctorId, onClose }: { doctorId: string | null; onC
           disabled={doctor.onLeaveToday}
         />
       ) : null}
+      {/* Inside the doctor sheet's Modal, not beside it: iOS can't present a second sibling
+          Modal while one is up -- it never shows, and its invisible layer swallows every touch. */}
+      <PrioritySheet visible={priorityOpen} onClose={() => setPriorityOpen(false)} onConfirm={handlePriorityConfirm} />
     </BottomSheet>
-    <PrioritySheet visible={priorityOpen} onClose={() => setPriorityOpen(false)} onConfirm={handlePriorityConfirm} />
     </>
   );
 }
