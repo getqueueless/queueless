@@ -32,3 +32,7 @@ deepseek_call_failures_total = Counter(
 # running total.
 retrain_last_success = Gauge("retrain_last_success", "1 if the most recent retrain succeeded, else 0")
 retrain_duration_seconds = Gauge("retrain_duration_seconds", "Wall-clock duration of the most recent retrain")
+
+help_ask_total = Counter(
+    "help_ask_total", "POST /help/ask answers, by how they were produced", ["mode"]
+)  # mode: "ai" (DeepSeek) or "fallback" (keyword-matched FAQ, no key or an upstream error)

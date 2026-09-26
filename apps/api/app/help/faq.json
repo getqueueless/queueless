@@ -1,0 +1,158 @@
+[
+  {
+    "id": "patients-take-token",
+    "category": "Patients",
+    "question": "How do I take a token?",
+    "answer": "Open the app, pick a service, and tap \"Take a token\". You get a real queue number and a QR-code slip right away -- no paperwork."
+  },
+  {
+    "id": "patients-live-status",
+    "category": "Patients",
+    "question": "How do I check my live status?",
+    "answer": "Your token's own page updates live: your number, how many people are ahead of you, and an estimated wait. Use \"Scan QR\" on the landing page to jump straight to your slip's page by scanning its code."
+  },
+  {
+    "id": "patients-claim-paper-ticket",
+    "category": "Patients",
+    "question": "I have a paper ticket from the walk-in desk -- can I track it in the app?",
+    "answer": "Yes. Enter the ticket code in the app to claim it. The phone number on the ticket has to match the phone number on your account, or the claim is refused."
+  },
+  {
+    "id": "patients-book-slot",
+    "category": "Patients",
+    "question": "Can I book a doctor's slot in advance instead of walking in?",
+    "answer": "Yes, as a paid appointment. Booking holds your slot for 10 minutes and mints your queue number immediately, so your place is fair even before payment finishes -- it just isn't confirmed until you pay."
+  },
+  {
+    "id": "patients-max-unpaid-holds",
+    "category": "Patients",
+    "question": "Can I hold more than one unpaid booking at a time?",
+    "answer": "No. You can have at most 2 unpaid holds at once, across every service and doctor. Pay for one or let it expire before starting another."
+  },
+  {
+    "id": "patients-no-double-booking",
+    "category": "Patients",
+    "question": "Can I book two appointments for the exact same time?",
+    "answer": "No. One booking per start time -- a second booking attempt at a time you already hold is refused."
+  },
+  {
+    "id": "patients-no-show-called",
+    "category": "Patients",
+    "question": "What happens if I don't respond when I'm called?",
+    "answer": "If a called token isn't served within the service's no-show window, it's automatically marked no-show and skipped -- no staff action needed."
+  },
+  {
+    "id": "patients-no-show-appointment",
+    "category": "Patients",
+    "question": "What happens if I miss a booked appointment slot?",
+    "answer": "A booked slot that isn't checked in for within 15 minutes of its start time is automatically marked no-show."
+  },
+  {
+    "id": "patients-priority-lanes",
+    "category": "Patients",
+    "question": "I'm a senior citizen or pregnant -- do I get priority?",
+    "answer": "Yes. Senior and pregnant patients can be verified by a staff member for a priority lane, which moves your ticket ahead in the queue."
+  },
+  {
+    "id": "patients-languages",
+    "category": "Patients",
+    "question": "What languages does the app support?",
+    "answer": "English by default. Notifications and this help assistant can also answer in Hindi or Punjabi."
+  },
+  {
+    "id": "payments-refund-policy",
+    "category": "Payments & refunds",
+    "question": "If I cancel a paid booking, do I get a refund?",
+    "answer": "Cancel at least 2 hours before your slot and you get an automatic full refund. Cancel later, and it isn't automatic -- an admin can still approve one manually."
+  },
+  {
+    "id": "payments-doctor-leave-refund",
+    "category": "Payments & refunds",
+    "question": "What if my doctor goes on leave after I've paid?",
+    "answer": "You get an automatic full refund. You don't need to cancel anything yourself."
+  },
+  {
+    "id": "payments-walkin-non-refundable",
+    "category": "Payments & refunds",
+    "question": "I paid cash at the walk-in desk -- can I get a refund?",
+    "answer": "No. Walk-in/cash payments are non-refundable. The automatic-refund policy above only applies to online prepaid bookings."
+  },
+  {
+    "id": "payments-test-mode",
+    "category": "Payments & refunds",
+    "question": "Is this real money?",
+    "answer": "Not right now -- payments run in Razorpay test mode, so no real money moves. Use the test card 4111 1111 1111 1111 with any future expiry date and any CVV."
+  },
+  {
+    "id": "payments-fee-source",
+    "category": "Payments & refunds",
+    "question": "Who sets the consultation fee?",
+    "answer": "The doctor's own fee on file. It's never something you or the app can change at checkout."
+  },
+  {
+    "id": "staff-call-next",
+    "category": "Staff",
+    "question": "How do I call the next patient at my desk?",
+    "answer": "Open your desk and tap \"Call Next\". It pulls the next real waiting ticket for your desk in priority-and-arrival order, and refuses if your desk is already serving someone."
+  },
+  {
+    "id": "staff-concurrent-desks",
+    "category": "Staff",
+    "question": "Can two desks accidentally call the same patient?",
+    "answer": "No. The database itself guarantees a waiting ticket can only ever be claimed by one desk, verified live under real concurrent load."
+  },
+  {
+    "id": "staff-priority-verify",
+    "category": "Staff",
+    "question": "How do I mark a patient as senior or pregnant priority?",
+    "answer": "Use the priority-verification action on their ticket. Only the senior and pregnant lanes can be set this way, and it moves them ahead in the queue."
+  },
+  {
+    "id": "admin-reports",
+    "category": "Admin",
+    "question": "Can I see reports on how the queue is running?",
+    "answer": "Yes -- no-shows by service, average wait by hour, busiest counters, token volume trends, and a daily AI-generated operations summary."
+  },
+  {
+    "id": "admin-ask-your-data",
+    "category": "Admin",
+    "question": "What is \"Ask your data\"?",
+    "answer": "Type a question in plain English, Hindi, or Punjabi and an AI assistant answers using only real numbers from your own organization's queue data -- never invented figures, and never another organization's data."
+  },
+  {
+    "id": "admin-retrain-model",
+    "category": "Admin",
+    "question": "Can I retrain the wait-time prediction model on our own data?",
+    "answer": "Yes, on demand, once your organization has enough real completed tickets. It refuses to retrain on too little real data rather than fit noise and call it a model."
+  },
+  {
+    "id": "privacy-data-stored",
+    "category": "Privacy & security",
+    "question": "What data do you store about me?",
+    "answer": "Your name, phone number, and your own queue activity (tickets, appointments, notifications) for the hospital you use Queueless with. Nothing more."
+  },
+  {
+    "id": "privacy-other-patients",
+    "category": "Privacy & security",
+    "question": "Can another patient see my ticket or profile?",
+    "answer": "No. The database itself enforces that a patient only ever sees their own tickets, notifications, and profile -- staff and admins only ever see their own organization's data."
+  },
+  {
+    "id": "privacy-ai-data-sharing",
+    "category": "Privacy & security",
+    "question": "Is my data shared with the AI assistant?",
+    "answer": "Only what's needed to answer the specific question asked, drawn from your own organization's real data -- it's never sent anywhere else and never used to identify you to a third party."
+  },
+  {
+    "id": "install-iphone",
+    "category": "App install",
+    "question": "How do I install Queueless on iPhone?",
+    "answer": "Queueless isn't on the App Store yet -- install it through SideStore, following the three steps shown on the website's \"Get the app\" section. Once installed, it can update itself like a normal app."
+  },
+  {
+    "id": "install-android",
+    "category": "App install",
+    "question": "How do I install or update Queueless on Android?",
+    "answer": "Download the APK directly from the website's \"Get the app\" section, or scan the QR code shown there from your phone."
+  }
+]

@@ -20,7 +20,7 @@ from app.payments.razorpay_client import get_razorpay_client
 from app.payments.refund_job import doctor_leave_refund_loop
 from app.payments import routes as payments_routes
 from app.rate_limit import limiter
-from app.routes import admin, ai, health, predict, staff
+from app.routes import admin, ai, health, help as help_routes, predict, staff
 from app.summary import daily_summary_loop
 from app.translate import TranslateDeps
 from app.ttl_cache import TTLCache
@@ -115,5 +115,6 @@ app.include_router(admin.router)
 app.include_router(staff.router)
 app.include_router(ai.router)
 app.include_router(payments_routes.router)
+app.include_router(help_routes.router)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
