@@ -14,6 +14,36 @@ import { useLiveRefresh } from '@/lib/use-live-refresh';
 import { mapSupabaseError } from '@/lib/errors';
 import { showToast } from '@/lib/toast-store';
 
+// doctor_status_today (0038): a stale/missing row reads back as 'available', same convention
+// lib/doctors.ts's fetchDoctor uses -- kept as its own tiny query here rather than pulling in
+// fetchDoctor's heavier shifts+leaves joins, which this card doesn't need.
+type LiveDoctorStatus = { status: 'available' | 'running_late' | 'on_break' | 'off'; late_minutes: number | null };
+
+function doctorStatusLine(doctorName: string, live: LiveDoctorStatus | null, startsAt: string | null): string | null {
+  if (!live) return null;
+  if (live.status === 'off') return `${doctorName} is on leave today.`;
+  if (live.status === 'on_break') return `${doctorName} is on a break right now.`;
+  if (live.status === 'running_late' && live.late_minutes) {
+    const eta = startsAt ? new Date(new Date(startsAt).getTime() + live.late_minutes * 60_000) : null;
+    const etaLabel = eta ? `, expect ~${eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
+    return `${doctorName} is running ${live.late_minutes} min late${etaLabel}.`;
+  }
+  return `${doctorName} is available.`;
+}
+
+function formatCountdown(startsAt: string): string | null {
+  const diffMinutes = Math.round((new Date(startsAt).getTime() - Date.now()) / 60_000);
+  if (diffMinutes <= 0) return null;
+  const hours = Math.floor(diffMinutes / 60);
+  const minutes = diffMinutes % 60;
+  return hours > 0 ? `in ${hours} h ${minutes} m` : `in ${minutes} m`;
+}
+
+function formatOpensAt(startsAt: string): string {
+  const opensAt = new Date(new Date(startsAt).getTime() - 30 * 60_000);
+  return opensAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 const ACTIVE_TOKEN_STATUSES = ['pending_payment', 'waiting', 'called', 'serving'];
 const PAST_TOKEN_STATUSES = ['done', 'no_show', 'cancelled', 'skipped'];
 const PAST_APPOINTMENT_STATUSES = ['cancelled', 'no_show'];
@@ -96,7 +126,7 @@ type ActiveAppointmentRow = {
   status: string;
   fee_inr: number | null;
   appointment_slots: Embed<{ starts_at: string }>;
-  doctors: Embed<{ name: string }>;
+  doctors: Embed<{ id: string; name: string }>;
   services: Embed<{ name: string }>;
 };
 
@@ -107,33 +137,67 @@ function formatSlot(startsAt: string) {
 
 function ActiveAppointmentCard({
   appt,
+  doctorId,
+  doctorName,
+  onOpenDetails,
   onCheckIn,
   onPayNow,
   onCancel,
 }: {
   appt: ActiveAppointmentRow;
+  doctorId: string | null;
+  doctorName: string | null;
+  onOpenDetails: (() => void) | null;
   onCheckIn: () => void;
   onPayNow: () => void;
   onCancel: (status: 'booked' | 'pending_payment') => void;
 }) {
   const startsAt = one(appt.appointment_slots)?.starts_at ?? null;
-  const doctorName = one(appt.doctors)?.name ?? null;
   const serviceName = one(appt.services)?.name ?? 'Appointment';
   const pendingPayment = appt.status === 'pending_payment';
   const canCheckIn = !pendingPayment && startsAt ? isCheckInWindow(new Date(startsAt), new Date()) : false;
+  const countdown = startsAt ? formatCountdown(startsAt) : null;
+
+  const [liveStatus, setLiveStatus] = useState<LiveDoctorStatus | null>(null);
+  const refetchDoctorStatus = useCallback(async () => {
+    if (!doctorId) return;
+    const { data } = await supabase.from('doctor_status_today').select('status, late_minutes').eq('doctor_id', doctorId).maybeSingle();
+    setLiveStatus((data as LiveDoctorStatus | null) ?? { status: 'available', late_minutes: null });
+  }, [doctorId]);
+  useLiveRefresh(refetchDoctorStatus, 30_000);
+
+  const chipLabel = pendingPayment ? 'Payment pending' : appt.fee_inr ? 'Paid' : 'Booked';
+  const chipStatus = pendingPayment ? 'pending' : 'paid';
+  const statusLine = doctorName ? doctorStatusLine(doctorName, liveStatus, startsAt) : null;
+
+  const info = (
+    <>
+      <View style={styles.apptHeaderRow}>
+        <UIText variant="bodyStrong">{serviceName}</UIText>
+        <StatusChip status={chipStatus} label={countdown ? `${chipLabel} · ${countdown}` : chipLabel} />
+      </View>
+      {doctorName ? <UIText variant="secondary">{doctorName}</UIText> : null}
+      <UIText variant="body">{startsAt ? formatSlot(startsAt) : 'Time to be confirmed'}</UIText>
+      {statusLine ? (
+        <UIText variant="secondaryStrong" color={liveStatus?.status === 'running_late' ? 'warning' : 'inkSecondary'}>
+          {statusLine}
+        </UIText>
+      ) : null}
+      <UIText variant="secondary" style={styles.apptExplainer}>
+        You&apos;ll join the live queue when you check in at the hospital. Check-in opens 30 min before your slot.
+      </UIText>
+    </>
+  );
 
   return (
     <Card style={styles.apptCard}>
-      <View style={styles.apptHeaderRow}>
-        <UIText variant="bodyStrong">{serviceName}</UIText>
-        {pendingPayment ? <StatusChip status="pending" label="Payment pending" /> : null}
-      </View>
-      {doctorName ? <UIText variant="secondary">Dr. {doctorName}</UIText> : null}
-      <UIText variant="body">{startsAt ? formatSlot(startsAt) : 'Time to be confirmed'}</UIText>
+      {onOpenDetails ? <Pressable onPress={onOpenDetails}>{info}</Pressable> : info}
       {pendingPayment ? (
-        <Button label="Pay now" size="md" onPress={onPayNow} />
+        <Button label="Pay now" size="md" block onPress={onPayNow} />
       ) : canCheckIn ? (
-        <Button label="Check in" size="md" onPress={onCheckIn} />
+        <Button label="Check in" size="lg" block onPress={onCheckIn} />
+      ) : startsAt ? (
+        <Button label={`Opens at ${formatOpensAt(startsAt)}`} size="lg" block disabled onPress={() => {}} />
       ) : null}
       {/* cancel_appointment (0013) only matches status='booked'; a pending_payment hold goes
           through cancel_hold (0070) instead -- two different RPCs, same button slot. */}
@@ -174,7 +238,7 @@ function ActiveTab() {
       supabase.from('tokens').select('id, service_id').eq('patient_id', patientId).in('status', ACTIVE_TOKEN_STATUSES).order('created_at', { ascending: false }),
       supabase
         .from('appointments')
-        .select('id, service_id, status, fee_inr, appointment_slots(starts_at), doctors(name), services(name)')
+        .select('id, service_id, status, fee_inr, appointment_slots(starts_at), doctors(id, name), services(name)')
         .eq('patient_id', patientId)
         .in('status', ACTIVE_APPOINTMENT_STATUSES),
     ]);
@@ -288,15 +352,22 @@ function ActiveTab() {
               onCancel={(status) => confirmCancelToken(t.id, status)}
             />
           ))}
-          {appointments?.map((a) => (
-            <ActiveAppointmentCard
-              key={a.id}
-              appt={a}
-              onCheckIn={() => handleCheckIn(a.id)}
-              onPayNow={() => router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: a.id } })}
-              onCancel={() => confirmCancelAppointment(a)}
-            />
-          ))}
+          {appointments?.map((a) => {
+            const doctor = one(a.doctors);
+            const doctorId = doctor?.id ?? null;
+            return (
+              <ActiveAppointmentCard
+                key={a.id}
+                appt={a}
+                doctorId={doctorId}
+                doctorName={doctor?.name ?? null}
+                onOpenDetails={doctorId ? () => router.push({ pathname: '/(app)/doctor/[doctorId]', params: { doctorId } }) : null}
+                onCheckIn={() => handleCheckIn(a.id)}
+                onPayNow={() => router.push({ pathname: '/(app)/checkout/[holdId]', params: { holdId: a.id } })}
+                onCancel={() => confirmCancelAppointment(a)}
+              />
+            );
+          })}
         </>
       )}
 
@@ -467,6 +538,7 @@ const styles = StyleSheet.create({
   activeHeader: { gap: 2, marginBottom: 4 },
   apptCard: { gap: 4, alignItems: 'flex-start' },
   apptHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch', gap: 8 },
+  apptExplainer: { marginTop: 4, marginBottom: 4 },
   cancelButton: { marginTop: 4, alignSelf: 'flex-start' },
   confirmSheet: { gap: 12, paddingBottom: 8 },
   pastRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
