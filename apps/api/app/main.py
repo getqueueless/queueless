@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
         await app.state.db_pool.close()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(title="WaitWise API", lifespan=lifespan)
 app.state.settings = settings
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
