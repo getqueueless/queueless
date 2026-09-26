@@ -75,11 +75,12 @@ function outcome(appt: Appointment) {
   return <p>Nothing was charged for this booking, so there is nothing to refund.</p>
 }
 
-// check_in (0072) opens 30 minutes before the slot and closes 15 minutes after.
-const OPENS_MS = 30 * 60_000
+// check_in (0077) opens when the hospital's day starts on the appointment's
+// own day (IST service day) and closes 15 minutes after the slot.
 const CLOSES_MS = 15 * 60_000
+const istDay = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(ms))
 const CHECKIN_ERRORS: Record<string, string> = {
-  checkin_window: "Check-in opens 30 minutes before your slot and closes 15 minutes after it.",
+  checkin_window: "Check-in opens on the day of your appointment and closes 15 minutes after your slot.",
   rate_limited: "Too many tries, wait a bit.",
 }
 
@@ -94,10 +95,6 @@ function countdown(ms: number): string {
         : `${m} m`
   if (m === 0) return "now"
   return ms > 0 ? `in ${span}` : `started ${span} ago`
-}
-
-function clockAt(ms: number): string {
-  return new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 }
 
 function AppointmentRow({
@@ -119,7 +116,7 @@ function AppointmentRow({
   const chip = CHIP[appt.state]
   const start = new Date(appt.startsAt).getTime()
   const confirmed = appt.state === "paid" || appt.state === "booked"
-  const canCheckIn = now !== null && now >= start - OPENS_MS && now <= start + CLOSES_MS
+  const canCheckIn = now !== null && istDay(now) === istDay(start) && now <= start + CLOSES_MS
   const started = now !== null && now >= start
 
   async function checkIn() {
@@ -163,7 +160,7 @@ function AppointmentRow({
         )}
         {confirmed && (
           <p className={styles.explain}>
-            You&apos;ll join the live queue when you check in (opens 30 min before your slot).
+            Check in any time on your appointment day, from when the hospital opens, to join the live queue. Your place follows your slot time.
           </p>
         )}
         {checkError && (
@@ -201,15 +198,13 @@ function AppointmentRow({
             className={styles.checkIn}
             onClick={checkIn}
             disabled={!canCheckIn || checking}
-            title={canCheckIn ? undefined : `Opens at ${clockAt(start - OPENS_MS)}`}
+            title={canCheckIn ? undefined : "Opens on the day of your appointment"}
           >
             {checking
               ? "Checking in…"
               : canCheckIn
                 ? "Check in"
-                : day === "Today"
-                  ? `Check in from ${clockAt(start - OPENS_MS)}`
-                  : "Check in on the day"}
+                : "Check in on the day"}
           </button>
           {!started && (
             <CancelButton
