@@ -7,11 +7,17 @@ import { ThemedView } from '@/components/themed-view';
 import { Button, EmptyState, Radius, Skeleton, UIText, type IconName } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchFaq, type FaqGroup, type FaqItem } from '@/lib/help-api';
+import { useRole } from '@/lib/use-role';
+import { useSession } from '@/lib/use-session';
 
 const CHEVRON: IconName = { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' };
 const HELP_ICON: IconName = { ios: 'questionmark.circle', android: 'help', web: 'help' };
 
 type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; groups: FaqGroup[] };
+
+// Staff and admin answers are for those roles only (the public web /faq still lists all six).
+// Until the role is known, show the patient set.
+const HIDDEN: Record<string, string[]> = { patient: ['Staff', 'Admin'], staff: ['Admin'], admin: [] };
 
 export default function Faq() {
   const theme = useTheme();
@@ -19,6 +25,9 @@ export default function Faq() {
   const { open: openParam } = useLocalSearchParams<{ open?: string }>();
   const [state, setState] = useState<State>({ status: 'loading' });
   const [query, setQuery] = useState('');
+  const { session } = useSession();
+  const { role } = useRole(session?.user?.id);
+  const hidden = HIDDEN[role ?? 'patient'] ?? HIDDEN.patient;
   const [open, setOpen] = useState<Set<string>>(() => new Set(openParam ? [openParam] : []));
 
   const load = () =>
@@ -47,6 +56,7 @@ export default function Faq() {
   const groups =
     state.status === 'ready'
       ? state.groups
+          .filter((g) => !hidden.includes(g.title))
           .map((g) => ({
             ...g,
             items: g.items.filter((i) => !q || i.question.toLowerCase().includes(q) || i.answer.toLowerCase().includes(q)),
