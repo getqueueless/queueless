@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/themed-view';
 import { Type, UIText } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
-import { askQueueless } from '@/lib/help-api';
+import { askWaitWise } from '@/lib/help-api';
 import { getLanguagePreference } from '@/lib/language-preference';
 
 type NewMessage =
@@ -19,8 +19,8 @@ type Message = NewMessage & { id: number };
 
 const SUGGESTIONS = ['How do I take a token?', 'When do I get a refund?', 'What does priority mean?'];
 
-/** Ask Queueless: a chat-style help screen over POST /help/ask, answering in the app's language. */
-export default function AskQueueless() {
+/** Ask WaitWise: a chat-style help screen over POST /help/ask, answering in the app's language. */
+export default function AskWaitWise() {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -39,7 +39,7 @@ export default function AskQueueless() {
     push({ from: 'you', text: question });
     setDraft('');
     setBusy(true);
-    const result = await askQueueless(question, getLanguagePreference());
+    const result = await askWaitWise(question, getLanguagePreference());
     setBusy(false);
     if (result.ok) {
       push({
@@ -62,7 +62,7 @@ export default function AskQueueless() {
 
   return (
     <ThemedView type="canvasSoft" style={styles.flex}>
-      <Stack.Screen options={{ title: 'Ask Queueless' }} />
+      <Stack.Screen options={{ title: 'Ask WaitWise' }} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
         <ScrollView
           ref={scroller}
@@ -71,7 +71,7 @@ export default function AskQueueless() {
           keyboardShouldPersistTaps="handled">
           {messages.length === 0 ? (
             <View style={styles.intro}>
-              <UIText variant="title2">Ask Queueless</UIText>
+              <UIText variant="title2">Ask WaitWise</UIText>
               <UIText color="inkSecondary">
                 Questions about tokens, appointments, payments or your visit. Answers come from the hospital’s help pages.
               </UIText>
@@ -139,7 +139,7 @@ export default function AskQueueless() {
           )}
 
           {busy ? (
-            <View style={[styles.bubble, styles.theirs, { backgroundColor: theme.surface, borderColor: theme.hairline }]} accessibilityLabel="Queueless is answering">
+            <View style={[styles.bubble, styles.theirs, { backgroundColor: theme.surface, borderColor: theme.hairline }]} accessibilityLabel="WaitWise is answering">
               <UIText color="inkSecondary">Thinking…</UIText>
             </View>
           ) : null}

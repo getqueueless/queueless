@@ -441,7 +441,7 @@ export default function SignIn() {
     <>
       <ThemedText type="displayMd">Welcome</ThemedText>
       <UIText variant="body" color="inkSecondary" style={styles.subtitle}>
-        Sign in to Queueless.
+        Sign in to WaitWise.
       </UIText>
 
       {emailInput}
@@ -497,7 +497,7 @@ export default function SignIn() {
 
       <View style={[styles.footerRow, styles.footerDivider, { borderColor: theme.hairline }]}>
         <UIText variant="secondary" color="inkSecondary">
-          New to Queueless?
+          New to WaitWise?
         </UIText>
         {link('Create an account', () => switchMode('signup'))}
       </View>

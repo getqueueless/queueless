@@ -99,7 +99,7 @@ export default function Profile() {
 
   function confirmSignOut() {
     if (Platform.OS === 'web') {
-      if (window.confirm('Sign out of Queueless on this device?')) doSignOut();
+      if (window.confirm('Sign out of WaitWise on this device?')) doSignOut();
       return;
     }
     Alert.alert('Sign out?', 'You can sign back in any time. Your tokens stay on your account.', [
@@ -194,8 +194,8 @@ export default function Profile() {
 
         <ListGroup title="Help & legal">
           <ListRow title="FAQ" subtitle="Search common questions" icon={icon('book', 'menu_book')} tone="blue" onPress={go('/(app)/help/faq' as Href)} />
-          <ListRow title="Ask Queueless" subtitle="Get an answer in your language" icon={icon('bubble.left.and.bubble.right', 'forum')} tone="teal" onPress={go('/(app)/help/ask' as Href)} />
-          <ListRow title="How Queueless works" icon={icon('questionmark.circle', 'help')} tone="blue" onPress={go({ pathname: '/(app)/help/[topic]', params: { topic: 'how' } } as Href)} />
+          <ListRow title="Ask WaitWise" subtitle="Get an answer in your language" icon={icon('bubble.left.and.bubble.right', 'forum')} tone="teal" onPress={go('/(app)/help/ask' as Href)} />
+          <ListRow title="How WaitWise works" icon={icon('questionmark.circle', 'help')} tone="blue" onPress={go({ pathname: '/(app)/help/[topic]', params: { topic: 'how' } } as Href)} />
           <ListRow title="Cancellation & refund policy" icon={icon('arrow.uturn.backward.circle', 'currency_exchange')} tone="green" onPress={go({ pathname: '/(app)/help/[topic]', params: { topic: 'refunds' } } as Href)} />
           <ListRow title="Privacy" subtitle="What we store and why" icon={icon('lock', 'lock')} tone="teal" onPress={go({ pathname: '/(app)/help/[topic]', params: { topic: 'privacy' } } as Href)} />
         </ListGroup>

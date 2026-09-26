@@ -54,7 +54,7 @@ export async function fetchFaq(): Promise<FaqGroup[]> {
   return [...byGroup].map(([title, items]) => ({ title, items }));
 }
 
-export async function askQueueless(question: string, lang: string): Promise<AskResult> {
+export async function askWaitWise(question: string, lang: string): Promise<AskResult> {
   try {
     const res = await fetch(`${BASE}/help/ask`, {
       method: 'POST',
@@ -80,6 +80,6 @@ export async function askQueueless(question: string, lang: string): Promise<AskR
       },
     };
   } catch {
-    return { ok: false, kind: 'error', message: "Couldn't reach Queueless. Check your connection." };
+    return { ok: false, kind: 'error', message: "Couldn't reach WaitWise. Check your connection." };
   }
 }

@@ -127,7 +127,7 @@ export default function Faq() {
           <View style={styles.none}>
             <UIText color="inkSecondary">No questions match “{query.trim()}”.</UIText>
             <Button
-              label="Ask Queueless instead"
+              label="Ask WaitWise instead"
               variant="secondary"
               size="md"
               onPress={() => router.push({ pathname: '/(app)/help/ask', params: { q: query.trim() } } as Href)}

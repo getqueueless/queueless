@@ -9,10 +9,10 @@ import { signOut } from '@/lib/sign-out';
 // Alert.alert with buttons is a no-op on react-native-web, so web falls back to confirm().
 function confirmSignOut(onConfirm: () => void) {
   if (Platform.OS === 'web') {
-    if (window.confirm('Sign out of Queueless?')) onConfirm();
+    if (window.confirm('Sign out of WaitWise?')) onConfirm();
     return;
   }
-  Alert.alert('Sign out of Queueless?', undefined, [
+  Alert.alert('Sign out of WaitWise?', undefined, [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Sign out', style: 'destructive', onPress: onConfirm },
   ]);

@@ -11,7 +11,7 @@ type Point = { title: string; text: string; icon: IconName; tone: Tone };
 // Plain-language copy, true to how the system behaves (docs/PAYMENTS.md, the schema's RLS).
 const TOPICS: Record<string, { title: string; intro: string; points: Point[]; footer?: string; numbered?: boolean }> = {
   how: {
-    title: 'How Queueless works',
+    title: 'How WaitWise works',
     intro: 'Skip standing in the hall. Your place in line lives on your phone.',
     numbered: true,
     points: [
