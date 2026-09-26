@@ -135,6 +135,13 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
         <ArrowIcon />
       </Link>
 
+      {/* The printable OPD case sheet; /slip/[id] itself admits only this patient and staff. */}
+      {!pending && (
+        <a href={`/slip/${id}`} target="_blank" rel="noopener" className={styles.slip}>
+          Print OPD slip
+        </a>
+      )}
+
       {/* An unpaid hold is released through cancel_hold (0070). */}
       {pending && (
         <div className={styles.cancel}>

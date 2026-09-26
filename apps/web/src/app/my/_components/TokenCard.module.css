@@ -101,6 +101,20 @@
   transform: translateX(3px);
 }
 
+.slip {
+  align-self: center;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.slip:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
 .cancel {
   display: flex;
   justify-content: center;
