@@ -84,13 +84,16 @@ export default function TokenScreen() {
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(0);
+  // Screens like checkout open this without a serviceId param; without it there is no queue
+  // subscription and the position only moved on the 10s poll. Read it from the token itself.
+  const [tokenServiceId, setTokenServiceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     supabase
       .from('tokens')
-      .select('doctor_id, doctors(fee_inr)')
+      .select('service_id, doctor_id, doctors(fee_inr)')
       .eq('id', id)
       .maybeSingle()
       .then(({ data }) => {
@@ -100,6 +103,7 @@ export default function TokenScreen() {
         const embed = (data as { doctors: { fee_inr: number } | { fee_inr: number }[] | null }).doctors;
         const doctor = Array.isArray(embed) ? embed[0] : embed;
         setFeeInr(doctor?.fee_inr ?? null);
+        setTokenServiceId((data as { service_id: string }).service_id);
       });
     return () => {
       cancelled = true;
@@ -178,7 +182,8 @@ export default function TokenScreen() {
     };
   }, [id, refetch]);
 
-  useServiceUpdates(serviceId ? [serviceId] : [], refetch);
+  const liveServiceId = serviceId ?? tokenServiceId;
+  useServiceUpdates(liveServiceId ? [liveServiceId] : [], refetch);
 
   // Realtime never replays missed events — also refetch whenever the app comes back to the
   // foreground in case something changed while backgrounded.

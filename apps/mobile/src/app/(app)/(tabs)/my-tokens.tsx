@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { formatFee } from '@/lib/doctors';
 import { isCheckInWindow } from '@/lib/appointmentWindow';
 import { supabase } from '@/lib/supabase';
+import { useServiceUpdates } from '@/lib/service-updates';
 import { useLiveRefresh } from '@/lib/use-live-refresh';
 import { mapSupabaseError } from '@/lib/errors';
 import { showToast } from '@/lib/toast-store';
@@ -68,10 +69,12 @@ type QueueStatus = {
 
 function ActiveTokenCard({
   tokenId,
+  serviceId,
   onPress,
   onCancel,
 }: {
   tokenId: string;
+  serviceId: string;
   onPress: () => void;
   onCancel: (status: 'waiting' | 'pending_payment') => void;
 }) {
@@ -83,6 +86,8 @@ function ActiveTokenCard({
   }, [tokenId]);
 
   useLiveRefresh(refetch, 10_000);
+  // Push, not just the 10s poll: anyone ahead being called moves this card's position/ETA.
+  useServiceUpdates([serviceId], refetch);
 
   const etaMinutes = status?.eta_seconds == null ? null : Math.ceil(status.eta_seconds / 60);
   const etaAtJoin = useEtaAtJoin(tokenId, etaMinutes);
@@ -253,6 +258,9 @@ function ActiveTab() {
   }, []);
 
   useLiveRefresh(refetch, 10_000);
+  // A ticket being called/cancelled, or an appointment checking in, is a token write on its
+  // service -- refetch the list on that push instead of waiting for the poll.
+  useServiceUpdates([...new Set([...(tokens ?? []).map((t) => t.service_id), ...(appointments ?? []).map((a) => a.service_id)])], refetch);
 
   async function handleCheckIn(appointmentId: string) {
     const { data, error } = await supabase.rpc('check_in', { p_appointment: appointmentId });
@@ -348,6 +356,7 @@ function ActiveTab() {
             <ActiveTokenCard
               key={t.id}
               tokenId={t.id}
+              serviceId={t.service_id}
               onPress={() => router.push({ pathname: '/(app)/token/[id]', params: { id: t.id, serviceId: t.service_id } })}
               onCancel={(status) => confirmCancelToken(t.id, status)}
             />
