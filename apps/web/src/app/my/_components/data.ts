@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { loadBoard } from "@/app/_landing/board"
 import { fetchCounter, type CounterRow, type TokenRow, type TokenStatus } from "@/app/t/[id]/data"
 import { ACTIVE_STATUSES, readTokenStatus, type RequestedLane } from "@/components/tokens/active-token"
+import { loadDoctorStart, type DoctorStart } from "@/components/tokens/doctor-start"
 import type { DoctorStatus } from "@/lib/doctors"
 
 import {
@@ -61,13 +62,19 @@ export type ActiveToken = {
   ahead: number | null
   counter: CounterRow | null
   requestedLane: RequestedLane
+  /** Set while a waiting token's doctor has not started today's first shift. */
+  doctorStart: DoctorStart | null
 }
 
-export async function loadActiveToken(supabase: SupabaseClient, userId: string): Promise<ActiveToken | null> {
+export async function loadActiveToken(
+  supabase: SupabaseClient,
+  userId: string,
+  timeZone: string,
+): Promise<ActiveToken | null> {
   const { data } = await supabase
     .from("tokens")
     .select(
-      "id, service_id, service_day, number, code, lane, lane_rank, priority_at, status, counter_id, created_at, called_at, serving_at, finished_at, requested_lane, services(name), doctors(name)",
+      "id, service_id, service_day, number, code, lane, lane_rank, priority_at, status, counter_id, created_at, called_at, serving_at, finished_at, requested_lane, doctor_id, services(name), doctors(name)",
     )
     .eq("patient_id", userId)
     .in("status", ACTIVE_STATUSES)
@@ -76,14 +83,16 @@ export async function loadActiveToken(supabase: SupabaseClient, userId: string):
     .maybeSingle()
   if (!data) return null
 
-  const { services, doctors, requested_lane, ...token } = data as TokenRow & {
+  const { services, doctors, requested_lane, doctor_id, ...token } = data as TokenRow & {
     services: Named
     doctors: Named
     requested_lane: RequestedLane
+    doctor_id: string | null
   }
-  const [status, counter] = await Promise.all([
+  const [status, counter, doctorStart] = await Promise.all([
     token.status === "waiting" ? readTokenStatus(supabase, token.id) : null,
     token.counter_id ? fetchCounter(supabase, token.counter_id) : null,
+    token.status === "waiting" ? loadDoctorStart(supabase, doctor_id, timeZone) : null,
   ])
   const ahead = status?.ahead ?? null
   return {
@@ -93,6 +102,7 @@ export async function loadActiveToken(supabase: SupabaseClient, userId: string):
     ahead,
     counter,
     requestedLane: requested_lane,
+    doctorStart,
   }
 }
 

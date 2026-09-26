@@ -55,6 +55,20 @@
   font-weight: 700;
 }
 
+.preShift {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.tracker[hidden] {
+  display: none;
+}
+
 .ahead {
   color: var(--color-ink-secondary);
   font-size: 15px;

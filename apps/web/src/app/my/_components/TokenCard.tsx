@@ -12,6 +12,7 @@ import { useResilientChannel } from "@/lib/realtime/useResilientChannel"
 import { createClient } from "@/lib/supabase/client"
 
 import { priorityLabel, readTokenStatus } from "@/components/tokens/active-token"
+import { beforeStart, queueStartsLine } from "@/components/tokens/doctor-start"
 
 import { cancelErrorText, CancelButton, cancelHold, HOLD_OUTCOME, Toast } from "./CancelButton"
 import type { ActiveToken } from "./data"
@@ -33,6 +34,16 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
   const [counter, setCounter] = useState(initial.counter)
   const [eta, setEta] = useState<{ minutes: number; rough: boolean } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [nowMs, setNowMs] = useState<number | null>(null)
+  useEffect(() => {
+    if (!initial.doctorStart) return
+    const first = setTimeout(() => setNowMs(Date.now()), 0)
+    const tick = setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => {
+      clearTimeout(first)
+      clearInterval(tick)
+    }
+  }, [initial.doctorStart])
   const router = useRouter()
   const id = initial.token.id
 
@@ -81,6 +92,11 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
   const status = TOKEN_STATUS[token.status]
   const pending = token.status === "pending_payment"
   const counterName = counter && counter.id === token.counter_id ? counter.name : null
+  // Before the doctor's first shift there is no queue to estimate: say when it
+  // starts. The loader already decided "before" for the first paint; the clock
+  // takes over after hydration.
+  const preShift =
+    token.status === "waiting" && (nowMs === null ? !!initial.doctorStart : beforeStart(initial.doctorStart, nowMs))
 
   return (
     <article className={styles.card} aria-labelledby="live-token-code" data-status={token.status}>
@@ -109,7 +125,11 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
         <p className={styles.priority}>{priorityLabel(initial.requestedLane, token.lane)}</p>
       )}
 
-      {token.status === "waiting" && ahead !== null && (
+      {preShift && initial.doctorStart && (
+        <p className={styles.preShift}>{queueStartsLine(ahead, initial.doctorStart)}</p>
+      )}
+
+      {!preShift && token.status === "waiting" && ahead !== null && (
         <p className={styles.ahead}>
           {ahead === 0 ? (
             "Nobody ahead of you. You are next."
@@ -121,7 +141,7 @@ export function TokenCard({ initial }: { initial: ActiveToken }) {
         </p>
       )}
 
-      <div className={styles.tracker}>
+      <div className={styles.tracker} hidden={preShift}>
         <QueueTracker
           status={token.status}
           ahead={ahead}
