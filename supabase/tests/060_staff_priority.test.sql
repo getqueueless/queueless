@@ -85,9 +85,10 @@ reset role;
 select set_config('request.jwt.claims', json_build_object('sub', '55555555-0000-0000-0000-000000000051', 'role', 'authenticated')::text, true);
 set local role authenticated;
 
--- lane_not_allowed: can't "verify" someone as emergency
-create temp table v1 as select * from pg_temp.try_verify((select (tok).id from i5), 'emergency');
-select is(v1.err_code, 'lane_not_allowed', 'emergency is not a verifiable priority status') from v1;
+-- lane_not_allowed: can't "verify" someone into the appointment lane -- that's not a priority
+-- status at all (0072 made 'emergency' and the 'normal' reject path both legitimate targets)
+create temp table v1 as select * from pg_temp.try_verify((select (tok).id from i5), 'appointment');
+select is(v1.err_code, 'lane_not_allowed', 'appointment is not a verifiable priority status') from v1;
 
 -- not_found
 create temp table v2 as select * from pg_temp.try_verify('00000000-0000-0000-0000-000000000099', 'senior');
