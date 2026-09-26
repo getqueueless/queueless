@@ -18,7 +18,7 @@ const COLUMNS = [
     heading: "Project",
     links: [
       { href: "https://lpu.lol", label: "lpu.lol" },
-      { href: "https://github.com/getqueueless/waitwise", label: "Source on GitHub" },
+      { href: "https://github.com/getwaitwise/waitwise", label: "Source on GitHub" },
     ],
   },
 ];
