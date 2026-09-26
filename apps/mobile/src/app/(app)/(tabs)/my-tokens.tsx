@@ -184,7 +184,7 @@ function ActiveAppointmentCard({
         </UIText>
       ) : null}
       <UIText variant="secondary" style={styles.apptExplainer}>
-        You&apos;ll join the live queue when you check in at the hospital. Check-in opens 30 min before your slot.
+        Check in any time on your appointment day, from when the hospital opens, to join the live queue. Your place follows your slot time.
       </UIText>
     </>
   );
