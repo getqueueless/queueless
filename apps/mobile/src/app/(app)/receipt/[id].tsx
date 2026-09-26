@@ -82,7 +82,7 @@ export default function Receipt() {
               <UIText variant="title1">{booking.fee_inr != null ? inr(booking.fee_inr) : '—'}</UIText>
               <StatusChip status={look.chip} label={look.label} />
               <Row label="Service" value={one(booking.services)?.name ?? '—'} />
-              {doctor ? <Row label="Doctor" value={`Dr. ${doctor}`} /> : null}
+              {doctor ? <Row label="Doctor" value={doctor} /> : null}
               {kind === 'token' ? (
                 <Row label="Token code" value={booking.code ?? '—'} />
               ) : (
