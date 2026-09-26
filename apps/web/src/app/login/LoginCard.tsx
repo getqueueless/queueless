@@ -170,7 +170,7 @@ function SignInView({ next, onSwitch }: { next: string; onSwitch: (view: View) =
 
       <div className={styles.signupBox}>
         <p className={styles.prompt}>
-          New to Queueless?{" "}
+          New to WaitWise?{" "}
           <button type="button" className={styles.linkButton} onClick={() => onSwitch("signup")}>
             Create an account
           </button>

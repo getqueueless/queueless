@@ -372,7 +372,7 @@ export function DisplayBoard({ serviceId }: { serviceId: string }) {
       <header className={styles.header}>
         <p className={styles.brand} translate="no">
           <LogoMark className={styles.brandMark} />
-          Queueless
+          WaitWise
         </p>
         <h1 className={styles.title}>{label}</h1>
         {/* A value not known yet renders empty; the module draws the placeholder bar. */}

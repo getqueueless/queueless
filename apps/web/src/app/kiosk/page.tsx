@@ -160,7 +160,7 @@ export default async function KioskPage({ searchParams }: PageProps<"/kiosk">) {
       ? serviceNameFromRow[0]?.name
       : serviceNameFromRow?.name
     const serviceName =
-      joinedName ?? services?.find((s) => s.id === serviceId)?.name ?? "Queueless"
+      joinedName ?? services?.find((s) => s.id === serviceId)?.name ?? "WaitWise"
 
     if (number !== null && number !== undefined && !Number.isNaN(number) && code) {
       const origin = await siteOrigin()

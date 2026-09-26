@@ -1,4 +1,4 @@
-// The Queueless mark: a Q whose loop is the line and whose tail is the token
+// The WaitWise mark: a Q whose loop is the line and whose tail is the token
 // slip torn off and sliding out along the floor. Construction notes live in
 // apps/web/brand/BRAND.md; static copies are in public/brand/.
 
@@ -62,7 +62,7 @@ export function Logo({ size = 28, className }: LogoProps) {
       }}
     >
       <LogoMark size={size} />
-      Queueless
+      WaitWise
     </span>
   );
 }

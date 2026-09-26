@@ -96,9 +96,9 @@ function downloadIcs(hold: PayableHold, doctor: DoctorRow | null) {
   const end = new Date(start.getTime() + 30 * 60 * 1000)
   const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z"
   const ics = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Queueless//Booking//EN", "BEGIN:VEVENT",
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//WaitWise//Booking//EN", "BEGIN:VEVENT",
     `UID:${hold.id}@queueless`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(start)}`, `DTEND:${stamp(end)}`,
-    `SUMMARY:${doctor ? `Appointment with ${doctor.name}` : "Queueless appointment"}`,
+    `SUMMARY:${doctor ? `Appointment with ${doctor.name}` : "WaitWise appointment"}`,
     "END:VEVENT", "END:VCALENDAR",
   ].join("\r\n")
   const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }))
@@ -234,7 +234,7 @@ export function PayView({
         amount: order.amount_inr * 100,
         currency: order.currency,
         order_id: order.order_id,
-        name: "Queueless",
+        name: "WaitWise",
         description: doctor ? `Consultation with ${doctor.name}` : "Booking fee",
         theme: { color: CHECKOUT_THEME_COLOR },
         prefill: userEmail ? { email: userEmail } : undefined,

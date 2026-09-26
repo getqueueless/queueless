@@ -72,7 +72,7 @@ export function FaqClient({ items }: { items: FaqItem[] }) {
     <>
       <section aria-labelledby="ask-title" className={styles.ask}>
         <h2 id="ask-title" className={styles.askTitle}>
-          Ask Queueless
+          Ask WaitWise
         </h2>
         <p className={styles.askIntro}>Ask in your own words. Answers come from the questions on this page.</p>
         <form onSubmit={ask} className={styles.askForm}>

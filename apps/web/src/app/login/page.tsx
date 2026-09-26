@@ -13,7 +13,7 @@ import { LoginCard } from "./LoginCard"
 import styles from "./login.module.css"
 
 export const metadata: Metadata = {
-  title: "Sign in to Queueless",
+  title: "Sign in to WaitWise",
 }
 
 // Empty (not a default page) when the caller didn't ask for a specific
@@ -55,7 +55,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <div className={styles.header}>
             <LogoMark size={32} />
             <h1 className={styles.heading}>
-              Sign in to <span className={styles.accent}>Queueless</span>
+              Sign in to <span className={styles.accent}>WaitWise</span>
             </h1>
           </div>
           {user ? (

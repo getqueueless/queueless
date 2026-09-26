@@ -129,7 +129,7 @@ export async function verifySignInCode(
   redirect(next)
 }
 
-// "New to Queueless? Create an account" -- signUp() re-runs
+// "New to WaitWise? Create an account" -- signUp() re-runs
 // handle_new_user() (0002_organizations_profiles.sql), which inserts the
 // 'patient' profile row; this account is unconfirmed until verifySignUp
 // below succeeds.

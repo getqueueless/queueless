@@ -122,7 +122,7 @@ export default async function Home() {
                   <LogoMark size={16} />
                 </span>
                 <span>
-                  <strong>Get the Queueless iPhone app</strong> through SideStore. Android is
+                  <strong>Get the WaitWise iPhone app</strong> through SideStore. Android is
                   coming soon; until then your slip’s link opens in any phone browser.
                 </span>
               </p>

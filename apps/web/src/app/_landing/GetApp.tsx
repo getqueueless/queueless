@@ -47,7 +47,7 @@ export async function GetApp() {
                 <CopyButton text={IOS_SOURCE} />
               </span>
             </li>
-            <li>Install Queueless from it.</li>
+            <li>Install WaitWise from it.</li>
           </ol>
           <a
             href={`sidestore://source?url=${IOS_SOURCE}`}

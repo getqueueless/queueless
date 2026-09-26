@@ -9,7 +9,7 @@ import styles from "./faq.module.css"
 
 export const metadata: Metadata = {
   title: "FAQ",
-  description: "Answers about tokens, payments, refunds, the app, and how Queueless keeps your data safe.",
+  description: "Answers about tokens, payments, refunds, the app, and how WaitWise keeps your data safe.",
 }
 
 export default async function FaqPage() {

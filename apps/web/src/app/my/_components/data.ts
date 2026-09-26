@@ -50,7 +50,7 @@ export async function loadOrg(supabase: SupabaseClient, orgId: string | null): P
   // Oldest first: the hospital, not an org a load test added later.
   const query = supabase.from("organizations").select("id, name, timezone")
   const { data } = await (orgId ? query.eq("id", orgId) : query.order("created_at").limit(1)).maybeSingle()
-  return { id: data?.id ?? null, name: data?.name ?? "Queueless", timeZone: data?.timezone ?? "Asia/Kolkata" }
+  return { id: data?.id ?? null, name: data?.name ?? "WaitWise", timeZone: data?.timezone ?? "Asia/Kolkata" }
 }
 
 // ---------- the patient's live token ----------
@@ -97,7 +97,7 @@ export async function loadActiveToken(
   const ahead = status?.ahead ?? null
   return {
     token,
-    serviceName: nameOf(services) ?? "Queueless",
+    serviceName: nameOf(services) ?? "WaitWise",
     doctorName: nameOf(doctors),
     ahead,
     counter,

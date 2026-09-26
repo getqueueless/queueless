@@ -82,7 +82,7 @@ export function ScanQr() {
               router.push(`/t/${id}`)
               return
             }
-            setMessage("That QR isn’t a Queueless slip. Scan the code printed on your token slip.")
+            setMessage("That QR isn’t a WaitWise slip. Scan the code printed on your token slip.")
           }
           timer = window.setTimeout(tick, 200)
         }

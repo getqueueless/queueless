@@ -38,7 +38,7 @@ export function PublicFooter({ credit }: PublicFooterProps) {
           <Logo size={26} />
           <p className={styles.tagline}>Take a token. Leave the line.</p>
           <p className={styles.blurb}>
-            Queueless holds your place in the queue, so you can wait wherever you like and come back
+            WaitWise holds your place in the queue, so you can wait wherever you like and come back
             when you are called.
           </p>
         </div>
@@ -68,7 +68,7 @@ export function PublicFooter({ credit }: PublicFooterProps) {
       <div className={styles.bottom}>
         {/* Staff sign in through the same card as patients; this is their quiet way in. */}
         <p className={styles.legal}>
-          © {new Date().getFullYear()} Queueless
+          © {new Date().getFullYear()} WaitWise
           <Link href="/login" className={styles.staff}>
             Staff login
           </Link>

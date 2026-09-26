@@ -195,7 +195,7 @@ export function StatusView({
             {token.code}
           </div>
           <div className={styles.meta}>
-            <span className={styles.service}>{service?.name ?? "Queueless"}</span>
+            <span className={styles.service}>{service?.name ?? "WaitWise"}</span>
             <span className={`${styles.badge} ${STATUS_BADGE_CLASS[token.status]}`}>
               {STATUS_LABEL[token.status]}
             </span>
