@@ -23,7 +23,7 @@ const PUBLIC_PATH_PATTERNS = [
 ];
 
 // Staff-only device screens -- a signed-in patient must never land here.
-const STAFF_ONLY_PATH_PATTERNS = [/^\/counter$/, /^\/kiosk$/];
+const STAFF_ONLY_PATH_PATTERNS = [/^\/counter$/, /^\/kiosk$/, /^\/doctor$/];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
