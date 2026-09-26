@@ -1,0 +1,217 @@
+/* Print-optimised OPD case sheet. A5 portrait by default (@page), also fine on A4 -- the
+   sheet itself is width-fluid, not pinned to A5's exact mm, so a wider A4 tray just adds
+   margin around it rather than reflowing anything. */
+@page {
+  size: A5 portrait;
+  margin: 10mm;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: var(--space-lg);
+  background: var(--color-surface-sunken);
+  color: #000;
+}
+
+.toolbar {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-md);
+}
+
+.printButton {
+  min-height: 48px;
+  padding: 0 var(--space-lg);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  padding: var(--space-lg);
+  background: #fff;
+  color: #000;
+  border: 1px solid var(--color-hairline);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.header {
+  text-align: center;
+  border-bottom: 2px solid #000;
+  padding-bottom: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.hospital {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.title {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.dateTime {
+  font-size: 11px;
+  color: #333;
+}
+
+.block {
+  border-bottom: 1px solid #000;
+  padding: var(--space-xs) 0;
+}
+
+.row {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.row > * {
+  flex: 1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #444;
+}
+
+.value {
+  font-weight: 600;
+}
+
+.visitBlock {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.tokenCol {
+  text-align: center;
+}
+
+.tokenCode {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.tokenSub {
+  font-size: 10px;
+  color: #333;
+}
+
+.visitDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.qr :global(svg) {
+  width: 64px;
+  height: 64px;
+  display: block;
+}
+
+.vitals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid #000;
+}
+
+.vital {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.vitalBox {
+  display: inline-block;
+  width: 44px;
+  height: 16px;
+  border: 1px solid #000;
+}
+
+.ruled {
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid #000;
+}
+
+.ruledLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
+.ruledLines {
+  height: 34px;
+  background-image: repeating-linear-gradient(to bottom, transparent, transparent 16px, #999 17px);
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: var(--space-md);
+  padding-top: var(--space-lg);
+  font-size: 10px;
+}
+
+.signature {
+  border-top: 1px solid #000;
+  padding-top: 2px;
+  min-width: 140px;
+  text-align: center;
+}
+
+.generated {
+  color: #666;
+}
+
+@media print {
+  .noPrint {
+    display: none !important;
+  }
+  .page {
+    padding: 0;
+    background: #fff;
+    min-height: auto;
+  }
+  .sheet {
+    border: none;
+    max-width: none;
+    width: 100%;
+  }
+}
