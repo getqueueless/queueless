@@ -20,6 +20,7 @@ const LINKS = [
     icon: <path d="M9 4h6v3H9zM8 5.5H6.5a1 1 0 0 0-1 1V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V6.5a1 1 0 0 0-1-1H16M9 12h6M9 16h4" />,
   },
   { href: "/admin/counters", label: "Counters", icon: <path d="M5 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM8 20h8M12 16v4" /> },
+  { href: "/doctor", label: "Doctor desk", icon: <path d="M8 4v6a4 4 0 0 0 8 0V4M12 14v3a3 3 0 0 0 6 0v-1M18 16a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /> },
   {
     href: "/admin/doctors",
     label: "Doctors",

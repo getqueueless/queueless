@@ -27,6 +27,9 @@ function CounterTopBar() {
         <span className={styles.topbarDivider} aria-hidden="true" />
         <span className={styles.topbarLabel}>Counter console</span>
         <div className={styles.topbarActions}>
+          <a href="/doctor" className={styles.signOut}>
+            Doctor desk
+          </a>
           <SignOutButton className={styles.signOut} />
           <ThemeToggle />
         </div>
